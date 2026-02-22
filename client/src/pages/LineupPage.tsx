@@ -5,9 +5,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 const POSITIONS: LineupPositions[] = ['P', 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF'];
 
 export default function LineupPage() {
-  const { team, players, lineup, assignToLineup, walletAddress } = useGameStore();
+  const { getMyTeam, getMyPlayers, lineup, assignToLineup, walletAddress } = useGameStore();
 
-  if (!walletAddress) {
+  const team = getMyTeam();
+  const players = getMyPlayers();
+
+  if (!walletAddress || !team) {
     return <div className="min-h-screen bg-black p-6 flex items-center justify-center text-center text-pink-500 font-mono text-xl uppercase tracking-widest">ACCESS DENIED</div>;
   }
 
@@ -19,7 +22,7 @@ export default function LineupPage() {
         <h1 className="text-2xl font-black uppercase text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.6)]" style={{fontFamily: "'Orbitron', sans-serif"}}>
           Active Roster
         </h1>
-        <p className="text-xs font-mono text-cyan-200/60 mt-1">{team?.name}</p>
+        <p className="text-xs font-mono text-cyan-200/60 mt-1">{team.name}</p>
       </header>
 
       <main className="p-4 space-y-6">

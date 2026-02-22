@@ -1,10 +1,12 @@
 import { useGameStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { Terminal, ShieldAlert } from "lucide-react";
+import { Terminal, ShieldAlert, Trophy, Calendar } from "lucide-react";
 
 export default function Home() {
-  const { walletAddress, team, connectWallet, disconnectWallet } = useGameStore();
+  const { walletAddress, connectWallet, disconnectWallet, getMyTeam, league } = useGameStore();
+
+  const team = getMyTeam();
 
   if (!walletAddress) {
     return (
@@ -45,6 +47,9 @@ export default function Home() {
           <h1 className="text-3xl font-black uppercase text-pink-500 drop-shadow-[0_0_8px_rgba(236,72,153,0.6)]" style={{fontFamily: "'Orbitron', sans-serif"}}>
             {team?.name || "Loading..."}
           </h1>
+          <p className="text-xs font-mono text-pink-300 mt-1 uppercase">
+            Division {team?.division} | {league?.divisions[team?.division || 'B']?.name}
+          </p>
         </div>
         <Button variant="ghost" size="sm" onClick={disconnectWallet} className="text-gray-500 hover:text-pink-500">
           <Terminal className="w-4 h-4 mr-2" />
@@ -67,9 +72,18 @@ export default function Home() {
               <p className="text-xs font-mono text-gray-500">Manage lineup & tactics</p>
             </a>
           </Link>
-          <div className="p-6 rounded-2xl border border-gray-800 bg-black/40 opacity-50">
-            <h3 className="font-black text-xl text-gray-500 mb-1" style={{fontFamily: "'Orbitron', sans-serif"}}>MARKET</h3>
-            <p className="text-xs font-mono text-gray-600">Locked for beta</p>
+          <div className="p-6 rounded-2xl border border-pink-500/30 bg-black/40 hover:bg-pink-900/20 transition-colors group cursor-pointer">
+            <Trophy className="w-6 h-6 text-pink-500 mb-2 group-hover:animate-pulse" />
+            <h3 className="font-black text-xl text-pink-400 mb-1" style={{fontFamily: "'Orbitron', sans-serif"}}>STANDINGS</h3>
+            <p className="text-xs font-mono text-gray-500">View Division {team?.division}</p>
+          </div>
+          
+          <div className="p-6 rounded-2xl border border-gray-800 bg-black/40 opacity-50 col-span-2 flex items-center justify-between">
+             <div>
+               <h3 className="font-black text-xl text-gray-500 mb-1" style={{fontFamily: "'Orbitron', sans-serif"}}>SCHEDULE</h3>
+               <p className="text-xs font-mono text-gray-600">Next match: Simulated at 00:00 CET</p>
+             </div>
+             <Calendar className="w-8 h-8 text-gray-700" />
           </div>
         </div>
       </main>

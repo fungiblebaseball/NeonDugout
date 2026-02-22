@@ -3,16 +3,24 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Navigation } from "@/components/Navigation";
+import Home from "@/pages/Home";
+import LineupPage from "@/pages/LineupPage";
 import NotFound from "@/pages/not-found";
+import { useGameStore } from "@/lib/store";
 
 function Router() {
+  const { walletAddress } = useGameStore();
+
   return (
-    <Switch>
-      {/* Add pages below */}
-      {/* <Route path="/" component={Home}/> */}
-      {/* Fallback to 404 */}
-      <Route component={NotFound} />
-    </Switch>
+    <>
+      <Switch>
+        <Route path="/" component={Home} />
+        <Route path="/lineup" component={LineupPage} />
+        <Route component={NotFound} />
+      </Switch>
+      {walletAddress && <Navigation />}
+    </>
   );
 }
 

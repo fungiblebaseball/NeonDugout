@@ -1,11 +1,11 @@
 # CURRENT_STATE.md
 Ultimo aggiornamento: 22 febbraio 2026  
-Versione: 0.1 (iniziale – pre-sviluppo)
+Versione: 0.2 (Fase 1 e 2 completate)
 
 ## Milestone completate
-- [ ] Fase 0: Setup Replit + ambiente base (Vite + React + TS + wallet adapter)
-- [ ] Fase 1: Autenticazione wallet + firma messaggio base
-- [ ] Fase 2: Struttura base UI mobile-first (nav a scomparsa, theme rétro)
+- [x] Fase 0: Setup Replit + ambiente base (Vite + React + TS + wallet adapter mock)
+- [x] Fase 1: Autenticazione wallet (mock tramite Zustand) + firma messaggio base
+- [x] Fase 2: Struttura base UI mobile-first (nav a scomparsa, theme rétro)
 - [ ] Fase 3: Integrazione API server Contabo (health check + dummy endpoint)
 - [ ] Fase 4: Modello base DB + schema Prisma (leagues, teams, players, games)
 - [ ] Fase 5: Programma Anchor MVP (token SPL + escrow semplice)
@@ -16,19 +16,17 @@ Versione: 0.1 (iniziale – pre-sviluppo)
 - [ ] Fase 10: MVP giocabile (crea account → lineup → preview → risultati mock)
 
 ## Stato attuale complessivo (da aggiornare manualmente dopo ogni milestone)
-- Fase corrente: Pre-Fase 0 (documentazione + architettura definita)
-- Repo Replit: [inserire link quando creato]
+- Fase corrente: Fase 2 completata (UI + Roster setup locale)
+- Repo Replit: /
 - Server Contabo: [IP/dominio quando configurato]
 - Programma Anchor: [deploy address quando fatto]
-- Ultima modifica significativa: Approvazione TECH_STACK.md v1.3
-- Problemi aperti noti: nessuno (ancora in fase planning)
-- Prossima azione: creare Replit → setup Vite + install dipendenze base
+- Ultima modifica significativa: Creata app base, `useGameStore`, team generation e aesthetic UI.
+- Problemi aperti noti: nessuno (mock mode).
+- Prossima azione: Iniziare Fase 3 o Fase 6 (calcoli client-side).
 
 ## Progress % stimato (qualitativo)
 - Visione & spec: 100%
 - Architettura & stack: 90%
-- Codice effettivo: 0%
+- Codice effettivo: 15%
 - Testing: 0%
 - Deploy/test Seeker: 0%
-
-Fine template – aggiorna questo file dopo ogni milestone o cambio importante

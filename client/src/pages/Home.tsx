@@ -1,7 +1,7 @@
 import { useGameStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { Terminal, ShieldAlert, Calendar, Swords, Shield, ListOrdered, RotateCcw } from "lucide-react";
+import { Terminal, ShieldAlert, Calendar, Swords, Shield, ListOrdered, RotateCcw, Zap } from "lucide-react";
 
 export default function Home() {
   const { walletAddress, connectWallet, disconnectWallet, team, loading } = useGameStore();
@@ -88,6 +88,17 @@ export default function Home() {
             <Shield className="w-6 h-6 text-pink-500 mb-2 group-hover:animate-pulse" />
             <h3 className="font-black text-lg text-pink-400 mb-1" style={{fontFamily: "'Orbitron', sans-serif"}}>DEFENSE</h3>
             <p className="text-[10px] font-mono text-gray-500">Field positioning</p>
+          </Link>
+
+          <Link href="/simulate" data-testid="link-simulate" className="col-span-2 block p-5 rounded-2xl border border-cyan-400/50 bg-gradient-to-r from-cyan-950/30 to-pink-950/30 hover:from-cyan-900/30 hover:to-pink-900/30 transition-colors group">
+            <div className="flex items-center justify-between">
+              <div>
+                <Zap className="w-6 h-6 text-cyan-400 mb-2 group-hover:animate-pulse" />
+                <h3 className="font-black text-lg text-cyan-400 group-hover:drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]" style={{fontFamily: "'Orbitron', sans-serif"}}>TEST MATCH</h3>
+                <p className="text-[10px] font-mono text-gray-500">Simulate exhibition game vs division rival</p>
+              </div>
+              <span className="text-3xl">⚾</span>
+            </div>
           </Link>
 
           <div className="p-5 rounded-2xl border border-gray-800 bg-black/40 opacity-50 col-span-2 flex items-center justify-between">

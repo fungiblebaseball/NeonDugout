@@ -9,6 +9,39 @@ Formato:
 ## Unreleased / In planning
 - nulla ancora
 
+## v0.6 – 22 febbraio 2026 – Fase 6 completata (Simulazione core client-side)
+- Implementato motore di simulazione partita in `client/src/lib/calculations/`:
+  • `matchup.ts` – matchupRating (formula da MECHANICS_SPEC v0.2-beta), teamDefenseAvg, gidpChance, errorChance
+  • `probability.ts` – tabella probabilità esiti a 7 fasce (very_negative..very_positive), rollOutcome con distribuzione cumulativa
+  • `simulate.ts` – simulateAtBat (conteggio pitches realistico ~3-5 per PA), simulateGame completo con 9+ innings, base running, GIDP, error
+  • `rng.ts` – SeededRNG (LCG) per riproducibilità test, con seed opzionale e fallback a timestamp
+  • `flavor.ts` – generatore flavor text ironici rétro per HR, SO, BB, GIDP, Error, close/blowout games, MVP
+  • `types.ts` – tipi puri (SimPlayer, SimTeam, AtBatResult, BoxScore, GameResult, etc.)
+- Creata pagina `/simulate` (SimulationPage.tsx) con:
+  • Selezione avversario dal girone (pick o random)
+  • Box score tabellare inning-per-inning (R-H-E)
+  • Batter stats dettagliati (AB, H, HR, RBI, BB, SO, AVG)
+  • Pitcher stats (IP, H, ER, BB, SO, PC)
+  • Flavor texts rétro-ironici (3-5 per partita)
+  • MVP del match (auto-calcolato da stats)
+- Aggiunto bottone "TEST MATCH" nella dashboard Home con gradiente cyan-pink
+- Aggiunta rotta /simulate in App.tsx
+
+## v0.5 – 22 febbraio 2026 – Full-stack + 4 nuove pagine gestione
+- Migrazione da MemStorage a PostgreSQL con Drizzle ORM
+  • Schema: users, teams, players, matches, lineups, pitcher_rotations, tactics
+  • Seed automatico: 20 team, 400 giocatori, calendario round-robin completo
+- Creato `server/db.ts`, `server/seed.ts`, `server/storage.ts` (DatabaseStorage)
+- 10 API endpoints in `server/routes.ts` (auth/connect, teams, players, lineup, pitcher-rotation, tactics)
+- Zustand store riscritto per chiamare API backend (non più mock locale)
+- 4 nuove pagine:
+  • LineupPage – field positions + batting order drag
+  • PitchersPage – rotation order + sliders condizioni switch (max pitches/innings/BB/ER)
+  • AttackPage – 4 strategie offensive (bunt, hit&run, neutral, swing-on-sight)
+  • DefensePage – infield/outfield positioning (short/neutral/deep)
+- Navigation bottom bar aggiornata a 5 items (Hub, Lineup, Pitch, ATK, DEF)
+- Creato BACKEND_PREREQUISITES.md per deploy su Contabo
+
 ## v0.4 – 22 febbraio 2026 – Aesthetic Guide & TOURNAMENT_STRUCTURE base
 - Creato `TOURNAMENT_STRUCTURE.md` in root per tenere traccia delle direttive dei gironi mock e round-robin.
 - Modificata `mockData.ts` per far sì che la promozione tra girone A e B sia puramente basata sui risultati, rimuovendo la logica hardcoded che sbilanciava forzatamente il girone A per permettere che sia meritocratica. (Nota: l'utente verrà sempre assegnato alla Division B inizialmente).

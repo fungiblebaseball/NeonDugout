@@ -18,7 +18,8 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 - `server/seed.ts` - Seeds 20 teams (10 per division), 400 players, round-robin schedule
 - `server/db.ts` - Database connection pool
 - `client/src/lib/store.ts` - Zustand store with wallet connect → API call flow
-- `client/src/pages/` - Home, LineupPage, PitchersPage, AttackPage, DefensePage
+- `client/src/pages/` - Home, LineupPage, PitchersPage, AttackPage, DefensePage, SimulationPage
+- `client/src/lib/calculations/` - Pure simulation engine (matchup, probability, simulate, rng, flavor, types)
 
 ## Database Tables
 - `users` - wallet-based auth (id, wallet_address, team_id)

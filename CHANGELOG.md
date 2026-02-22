@@ -9,6 +9,14 @@ Formato:
 ## Unreleased / In planning
 - nulla ancora
 
+## v0.4 – 22 febbraio 2026 – Aesthetic Guide & TOURNAMENT_STRUCTURE base
+- Creato `TOURNAMENT_STRUCTURE.md` in root per tenere traccia delle direttive dei gironi mock e round-robin.
+- Modificata `mockData.ts` per far sì che la promozione tra girone A e B sia puramente basata sui risultati, rimuovendo la logica hardcoded che sbilanciava forzatamente il girone A per permettere che sia meritocratica. (Nota: l'utente verrà sempre assegnato alla Division B inizialmente).
+- Creato il file `AESTHETIC_GUIDE.md` con palette colori e font precisi per consolidare la direzione artistica Retro Cyberpunk.
+- Aggiornato `PRODUCT_VISION.md` per referenziare la nuova guida estetica.
+- Aggiornato `index.html` importando i font richiesti dalla guida: Orbitron, VT323, e Press Start 2P.
+- Riscritto `index.css` per utilizzare nativamente i colori hex e le variabili esatte descritte nella `AESTHETIC_GUIDE.md`.
+
 ## v0.3 – 22 febbraio 2026 – Fase 2/B completata (Mock League + Dati Globali)
 - Espansi i tipi `types.ts` per supportare `League`, `Division`, `MatchDay`, `Match`.
 - Riscritto il generatore dati in `mockData.ts` seguendo il documento TOURNAMENT_STRUCTURE.

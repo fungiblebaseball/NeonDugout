@@ -1,0 +1,47 @@
+# AESTHETIC_GUIDE.md
+Ultimo aggiornamento: 22 febbraio 2026  
+Versione: 1.0 (base MVP – facile da modificare)
+
+## Scopo del file
+Definire in modo isolato e modificabile l'estetica visiva e il tone del gioco.  
+Tutti i componenti React, CSS/Tailwind e flavor text devono fare riferimento SOLO a questo file.
+
+## Palette colori principale (Tailwind custom o hex)
+- background-dark: #0a0015          // sfondo notte/cyber
+- background-mid: #1a0033           // pannelli principali
+- neon-pink: #ff00aa                // accenti primari (bottoni, highlight)
+- neon-cyan: #00ffff                // success, stats positive
+- neon-purple: #aa00ff              // warning, rare items
+- neon-green: #00ff88               // boost, training
+- text-light: #f0f0ff               // testo principale
+- text-muted: #a0a0cc               // secondario
+- error-red: #ff3366                // errori, eliminazioni
+
+## Tipografia
+- Primary font: 'Orbitron', sans-serif     // titoli, nomi squadra/giocatori (futurista)
+- Secondary font: 'VT323', monospace       // statistiche, box score (pixel/retro terminal)
+- Flavor font: 'Press Start 2P', cursive   // flavor text ironici (8-bit arcade feel)
+- Fallback: system-ui
+
+## Icone & Elementi grafici
+- Icon set: lucide-react (stroke 2, accent neon)
+- Logo squadra: SVG semplice (forme geometriche anni '60 + neon outline)
+- Avatar giocatore: cartoon silhouette (linee nere spesse + riempimento neon)
+- Card giocatore: border neon-cyan 2px, background gradient dark → mid, hover: scale 1.05 + glow
+
+## Pattern UI ricorrenti
+- Bottom navigation: fixed bottom, 5 icone, sfondo semi-trasparente blur, icone neon che pulsano su active
+- Drawer laterale: slide-in from right, backdrop blur
+- Card: rounded-xl, shadow-neon, hover glow
+- Bottone primario: bg-neon-pink text-white font-Orbitron uppercase tracking-widest, hover: brightness-125 + scale-105
+- Loading spinner: neon rotating ring (cyan/pink gradient)
+- Flavor text: italic, neon-purple, font-Press Start 2P, small caps, con emoji random (⚡🌙🔥)
+
+## Tone flavor text & naming
+- Breve (8–25 parole per highlight)
+- Ironico/sarcastico/anni '90 slang (es. "Totally rad!", "He's cookin' with plasma!")
+- Esempi base:
+  - HR: "Crushes a moonshot over the neon palm trees! 🌴💥"
+  - SO: "Frozen like a popsicle in the arctic zone! 🥶"
+
+Fine file – mantienilo sotto 1 pagina per leggibilità.

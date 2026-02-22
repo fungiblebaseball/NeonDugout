@@ -27,7 +27,7 @@ const gaussianRand = (min: number, max: number) => {
   return Math.floor(num * (max - min) + min);
 }
 
-export function generateRandomPlayers(count: number = 20, isPremium: boolean = false): Player[] {
+export function generateRandomPlayers(count: number = 20): Player[] {
   const players: Player[] = [];
   
   // Suggested distribution: 8 IF/OF, 4 C/Utility, 5 Pitchers, 3 Extra
@@ -48,15 +48,16 @@ export function generateRandomPlayers(count: number = 20, isPremium: boolean = f
     const pos = positions[i] || [['DH']];
     const isPitcher = pos.includes('P');
     
-    // Base stats around 50-60, higher for Div A
-    const baseMin = isPremium ? 40 : 20;
-    const baseMax = isPremium ? 90 : 80;
+    // RIMOSSO il bias fisso per i team "premium" per favorire meritocrazia.
+    // Tutti partono con una base distribuita in modo simile
+    const baseMin = 30;
+    const baseMax = 85;
     
     // Create 1-2 stars per team
     const isStar = i === 3 || i === 8; 
     const isScrub = !isStar && (i === 18 || i === 19);
     
-    const modifier = isStar ? 20 : (isScrub ? -20 : 0);
+    const modifier = isStar ? 15 : (isScrub ? -15 : 0);
     
     const getStat = () => Math.max(1, Math.min(100, gaussianRand(baseMin, baseMax) + modifier));
 
@@ -148,7 +149,7 @@ export function generateMockLeagues() {
         division: id
       });
       
-      const roster = generateRandomPlayers(20, id === 'A');
+      const roster = generateRandomPlayers(20);
       roster.forEach(p => {
         allPlayers[p.id] = p; // We don't link players to team objects directly here to keep state flat, 
                               // we'll link them in the store state.

@@ -25,6 +25,7 @@ Un gioco manager testuale ultra-leggero di baseball fantasy completamente on-cha
    → Output: testo descrittivo flavor + box score classico + statistiche aggregate
 
 4. Estetica e flavor NON negoziabili  
+   - Vedi il file dedicato `AESTHETIC_GUIDE.md` per specifiche esatte su colori, tipografia e UI pattern.
    - Grafica generale → cartoon anni '80 (linee spesse, colori saturi, ombre piatte alla Miami Vice / Thundercats)  
    - Uniformi e stile giocatori → moda streetwear / sportswear anni '90 (cappellini al contrario, pantaloni larghi, maglie oversize, catene, scarpe chunky)  
    - Stadi e ambientazione → architettura brutalista / mid-century modern / Googie anni '60 (forme atomiche, insegne al neon, curve sinuose, colori pastello accesi)  

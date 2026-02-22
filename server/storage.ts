@@ -38,6 +38,11 @@ export interface IStorage {
 
   createMatchDetails(data: InsertMatchDetails): Promise<MatchDetails>;
   getMatchDetails(matchId: number): Promise<MatchDetails | undefined>;
+
+  updateMatchTeams(matchId: number, homeTeamId: number, awayTeamId: number): Promise<Match>;
+  updateTeamDivision(teamId: number, series: string, division: string): Promise<Team>;
+  deleteMatchesBySeason(seasonId: number): Promise<void>;
+  resetMatchDetails(seasonId: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -97,7 +102,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllMatches(): Promise<Match[]> {
-    return db.select().from(matches);
+    const allTeams = await db.select().from(teams).limit(1);
+    const currentSeason = allTeams.length > 0 ? allTeams[0].seasonId : 1;
+    return db.select().from(matches).where(eq(matches.seasonId, currentSeason));
   }
 
   async updateMatchResult(matchId: number, homeScore: number, awayScore: number): Promise<Match> {
@@ -161,6 +168,40 @@ export class DatabaseStorage implements IStorage {
   async getMatchDetails(matchId: number): Promise<MatchDetails | undefined> {
     const [detail] = await db.select().from(matchDetails).where(eq(matchDetails.matchId, matchId));
     return detail;
+  }
+
+  async updateMatchTeams(matchId: number, homeTeamId: number, awayTeamId: number): Promise<Match> {
+    const [updated] = await db.update(matches)
+      .set({ homeTeamId, awayTeamId })
+      .where(eq(matches.id, matchId))
+      .returning();
+    return updated;
+  }
+
+  async updateTeamDivision(teamId: number, series: string, division: string): Promise<Team> {
+    const [updated] = await db.update(teams)
+      .set({ series, division })
+      .where(eq(teams.id, teamId))
+      .returning();
+    return updated;
+  }
+
+  async deleteMatchesBySeason(seasonId: number): Promise<void> {
+    const seasonMatches = await db.select({ id: matches.id }).from(matches).where(eq(matches.seasonId, seasonId));
+    const matchIds = seasonMatches.map(m => m.id);
+    if (matchIds.length > 0) {
+      for (const mid of matchIds) {
+        await db.delete(matchDetails).where(eq(matchDetails.matchId, mid));
+      }
+      await db.delete(matches).where(eq(matches.seasonId, seasonId));
+    }
+  }
+
+  async resetMatchDetails(seasonId: number): Promise<void> {
+    const seasonMatches = await db.select({ id: matches.id }).from(matches).where(eq(matches.seasonId, seasonId));
+    for (const m of seasonMatches) {
+      await db.delete(matchDetails).where(eq(matchDetails.matchId, m.id));
+    }
   }
 }
 

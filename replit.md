@@ -4,7 +4,7 @@
 Text-based fantasy baseball manager game with retro 80s/90s cyberpunk aesthetic. Target platform: Solana Seeker mobile (Web3 integration planned). Zero MLB licenses - all fictional teams and players.
 
 ## Current State
-Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.1 — Tournament Restructure (40 teams, 2 leagues × 2 series, server-side batch simulation).
+Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.1.1 — Playoff System & Season Management (dynamic playoff matchups, new season generation with promotion/relegation, clickable team previews in standings, relief pitcher stats in match reports, BB/K linescore).
 
 ## Architecture
 - **Frontend**: React + Vite, Tailwind CSS, Zustand (state), wouter (routing), TanStack Query (API)
@@ -17,6 +17,7 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 - `server/storage.ts` - DatabaseStorage class implementing IStorage interface
 - `server/seed.ts` - Seeds 40 teams (2 leagues × 2 series × 10 teams), 800 players, 14-day schedule (regular + interleague + playoff)
 - `server/simulation.ts` - Server-side batch simulation for match days
+- `server/season.ts` - Playoff matchup resolution + new season generation with promotion/relegation
 - `server/db.ts` - Database connection pool
 - `client/src/lib/store.ts` - Zustand store with wallet connect -> API call flow
 - `client/src/pages/` - Home, LineupPage, PitchersPage, AttackPage, DefensePage, SimulationPage, SchedulePage, StandingsPage, PlayerDetailPage, MatchDetailPage

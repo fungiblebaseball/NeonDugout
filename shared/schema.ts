@@ -93,6 +93,8 @@ export const matchDetails = pgTable("match_details", {
   awayBatters: jsonb("away_batters").notNull(),
   homePitcher: jsonb("home_pitcher").notNull(),
   awayPitcher: jsonb("away_pitcher").notNull(),
+  homePitchers: jsonb("home_pitchers").$type<any[]>(),
+  awayPitchers: jsonb("away_pitchers").$type<any[]>(),
 });
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });

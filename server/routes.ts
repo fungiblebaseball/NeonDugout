@@ -1,7 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { simulateMatchDay } from "./simulation";
+import { simulateMatchDay, updatePlayoffMatchups } from "./simulation";
+import { generateNewSeason } from "./season";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -92,6 +93,8 @@ export async function registerRoutes(
           awayBatters: details.awayBatters || [],
           homePitcher: details.homePitcher || {},
           awayPitcher: details.awayPitcher || {},
+          homePitchers: details.homePitchers || (details.homePitcher ? [details.homePitcher] : []),
+          awayPitchers: details.awayPitchers || (details.awayPitcher ? [details.awayPitcher] : []),
         });
       } catch (err) {
         console.error('Failed to save match details:', err);
@@ -184,6 +187,26 @@ export async function registerRoutes(
     } catch (err) {
       console.error('Simulate day failed:', err);
       res.status(500).json({ message: "Failed to simulate match day" });
+    }
+  });
+
+  app.post("/api/update-playoff-matchups", async (_req, res) => {
+    try {
+      const result = await updatePlayoffMatchups();
+      res.json(result);
+    } catch (err) {
+      console.error('Playoff matchup update failed:', err);
+      res.status(500).json({ message: "Failed to update playoff matchups" });
+    }
+  });
+
+  app.post("/api/new-season", async (_req, res) => {
+    try {
+      const result = await generateNewSeason();
+      res.json(result);
+    } catch (err) {
+      console.error('New season generation failed:', err);
+      res.status(500).json({ message: "Failed to generate new season" });
     }
   });
 

@@ -57,20 +57,31 @@ export default function Home() {
   const divTeams = allTeamsRaw;
 
   const userMatches = divMatches.filter(m => m.homeTeamId === team?.id || m.awayTeamId === team?.id);
-  const nextUnplayedDay = userMatches
+  const teamMap = new Map(divTeams.map(t => [t.id, t]));
+
+  const allUnplayedDays = allMatchesRaw
     .filter(m => !m.played)
-    .sort((a, b) => a.day - b.day)[0]?.day;
+    .map(m => m.day);
+  const nextUnplayedDay = allUnplayedDays.length > 0 ? Math.min(...allUnplayedDays) : undefined;
 
   const nextLeagueMatch = nextUnplayedDay
     ? userMatches.find(m => m.day === nextUnplayedDay && !m.played)
     : undefined;
-  const teamMap = new Map(divTeams.map(t => [t.id, t]));
+
+  const realMatches = allMatchesRaw.filter(m => m.homeTeamId !== 0 && m.awayTeamId !== 0);
+  const unfilledPlayoffs = allMatchesRaw.filter(m => (m.homeTeamId === 0 || m.awayTeamId === 0) && !m.played);
+  const seasonFinished = realMatches.length > 0 && realMatches.every(m => m.played) && unfilledPlayoffs.length === 0;
 
   const playNextMatchDay = async () => {
     if (!nextUnplayedDay || !team) return;
     setSimulating(true);
     setLastResult(null);
     try {
+      if (nextUnplayedDay >= 13) {
+        await fetch('/api/update-playoff-matchups', { method: 'POST' });
+        await queryClient.invalidateQueries({ queryKey: ['matches-all'] });
+      }
+
       const res = await fetch('/api/simulate-day', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -91,10 +102,27 @@ export default function Home() {
         }
       }
 
-      queryClient.invalidateQueries({ queryKey: ['matches', team.division] });
       queryClient.invalidateQueries({ queryKey: ['matches-all'] });
+      queryClient.invalidateQueries({ queryKey: ['teams-all'] });
     } catch (err) {
       console.error('Match day simulation failed:', err);
+    }
+    setSimulating(false);
+  };
+
+  const startNewSeason = async () => {
+    if (!team) return;
+    setSimulating(true);
+    try {
+      const res = await fetch('/api/new-season', { method: 'POST' });
+      const data = await res.json();
+      if (data.seasonId) {
+        queryClient.invalidateQueries({ queryKey: ['matches-all'] });
+        queryClient.invalidateQueries({ queryKey: ['teams-all'] });
+        setLastResult(null);
+      }
+    } catch (err) {
+      console.error('New season failed:', err);
     }
     setSimulating(false);
   };
@@ -194,16 +222,41 @@ export default function Home() {
             </div>
           </Link>
 
-          {nextLeagueMatch && (
+          {seasonFinished ? (
+            <div className="col-span-2 p-5 rounded-2xl border-2 border-cyan-400/50 bg-gradient-to-r from-cyan-950/30 to-pink-950/30 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Trophy className="w-6 h-6 text-cyan-400 mb-2" />
+                  <h3 className="font-black text-lg text-cyan-400" style={{fontFamily: "'Orbitron', sans-serif"}}>SEASON COMPLETE</h3>
+                  <p className="text-[10px] font-mono text-gray-500">
+                    All matches played. Promotions and relegations will be applied.
+                  </p>
+                </div>
+                <span className="text-3xl">🏆</span>
+              </div>
+              <button
+                data-testid="button-new-season"
+                onClick={startNewSeason}
+                disabled={simulating}
+                className="w-full py-3 bg-cyan-500 hover:bg-cyan-400 text-black font-black uppercase tracking-widest rounded-xl transition-all shadow-[0_0_15px_rgba(34,211,238,0.4)] disabled:opacity-50 text-sm"
+              >
+                {simulating ? "GENERATING..." : "START NEW SEASON"}
+              </button>
+            </div>
+          ) : nextUnplayedDay ? (
             <div className="col-span-2 p-5 rounded-2xl border-2 border-pink-400/50 bg-gradient-to-r from-pink-950/30 to-cyan-950/30 space-y-3">
               <div className="flex items-center justify-between">
                 <div>
                   <Play className="w-6 h-6 text-pink-400 mb-2" />
                   <h3 className="font-black text-lg text-pink-400" style={{fontFamily: "'Orbitron', sans-serif"}}>
-                    {nextLeagueMatch.matchType === 'interleague' ? 'INTERLEAGUE' : 'NEXT GAME'}
+                    {nextLeagueMatch
+                      ? (nextLeagueMatch.matchType === 'interleague' ? 'INTERLEAGUE' : nextLeagueMatch.matchType === 'playoff' ? 'PLAYOFF' : 'NEXT GAME')
+                      : nextUnplayedDay >= 13 ? 'PLAYOFF DAY' : 'LEAGUE DAY'}
                   </h3>
                   <p className="text-[10px] font-mono text-gray-500">
-                    Day {nextLeagueMatch.day} — vs {teamMap.get(nextLeagueMatch.homeTeamId === team?.id ? nextLeagueMatch.awayTeamId : nextLeagueMatch.homeTeamId)?.name || 'TBD'}
+                    {nextLeagueMatch
+                      ? `Day ${nextLeagueMatch.day} — vs ${teamMap.get(nextLeagueMatch.homeTeamId === team?.id ? nextLeagueMatch.awayTeamId : nextLeagueMatch.homeTeamId)?.name || 'TBD'}`
+                      : `Day ${nextUnplayedDay} — Your team is not playing`}
                   </p>
                 </div>
                 <span className="text-3xl">🏟️</span>
@@ -234,7 +287,7 @@ export default function Home() {
                 </div>
               )}
             </div>
-          )}
+          ) : null}
 
           <Link href="/schedule" data-testid="link-schedule" className="block p-5 rounded-2xl border border-pink-500/30 bg-black/40 hover:bg-pink-900/20 transition-colors group">
             <Calendar className="w-6 h-6 text-pink-500 mb-2 group-hover:animate-pulse" />

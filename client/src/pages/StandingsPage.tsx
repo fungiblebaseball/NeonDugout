@@ -1,7 +1,7 @@
 import { useGameStore } from "@/lib/store";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Trophy, Eye, ChevronDown, ChevronUp } from "lucide-react";
+import { Trophy, Eye, ChevronDown, ChevronUp, X } from "lucide-react";
 import { Link } from "wouter";
 
 interface MatchData {
@@ -92,10 +92,111 @@ function playerOverall(p: PlayerData): number {
   return Math.round((p.pow + p.con + p.spd + p.eye + p.vel + p.ctl + p.mov + p.sta + p.def) / 9);
 }
 
+function TeamRosterPreview({ teamId, allTeams, onClose }: { teamId: number; allTeams: TeamData[]; onClose: () => void }) {
+  const selectedTeam = allTeams.find(t => t.id === teamId);
+
+  const { data: players = [] } = useQuery<PlayerData[]>({
+    queryKey: ['team-players', teamId],
+    queryFn: async () => {
+      const res = await fetch(`/api/team/${teamId}/players`);
+      return res.json();
+    },
+  });
+
+  const { data: lineup } = useQuery<{ fieldPositions: Record<string, number>; battingOrder: number[] }>({
+    queryKey: ['team-lineup', teamId],
+    queryFn: async () => {
+      const res = await fetch(`/api/lineup/${teamId}`);
+      if (!res.ok) return null;
+      return res.json();
+    },
+  });
+
+  const { data: rotation } = useQuery<{ sp: number | null; r1: number | null; closer: number | null; nextSp: number | null }>({
+    queryKey: ['team-rotation', teamId],
+    queryFn: async () => {
+      const res = await fetch(`/api/pitcher-rotation/${teamId}`);
+      if (!res.ok) return null;
+      return res.json();
+    },
+  });
+
+  const playerMap = new Map(players.map(p => [p.id, p]));
+  const positions = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'];
+
+  return (
+    <div className="rounded-xl border border-cyan-500/30 bg-black/60 p-4 space-y-3" data-testid={`team-preview-${teamId}`}>
+      <div className="flex items-center justify-between">
+        <h3 className="font-black text-sm text-cyan-400 uppercase" style={{fontFamily: "'Orbitron', sans-serif"}}>
+          {selectedTeam?.name || 'Team'}
+        </h3>
+        <button data-testid="button-close-team-preview" onClick={onClose} className="text-gray-500 hover:text-gray-300"><X className="w-4 h-4" /></button>
+      </div>
+
+      {lineup?.fieldPositions && (
+        <div>
+          <p className="text-[9px] font-mono text-gray-500 uppercase mb-1">Field Lineup</p>
+          <div className="grid grid-cols-3 gap-1">
+            {positions.map(pos => {
+              const pid = lineup.fieldPositions[pos];
+              const player = pid ? playerMap.get(pid) : null;
+              return (
+                <div key={pos} className="flex items-center gap-1 text-[10px]">
+                  <span className="text-pink-400 font-bold w-6">{pos}</span>
+                  {player ? (
+                    <Link href={`/player/${player.id}`}>
+                      <span className="text-gray-300 hover:text-cyan-300 cursor-pointer truncate">{player.name}</span>
+                    </Link>
+                  ) : (
+                    <span className="text-gray-600">—</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {rotation && (
+        <div>
+          <p className="text-[9px] font-mono text-gray-500 uppercase mb-1">Pitching Staff</p>
+          <div className="grid grid-cols-2 gap-1">
+            {[
+              { role: 'SP', id: rotation.sp },
+              { role: 'R1', id: rotation.r1 },
+              { role: 'CL', id: rotation.closer },
+              { role: '2P', id: rotation.nextSp },
+            ].map(({ role, id }) => {
+              const player = id ? playerMap.get(id) : null;
+              return (
+                <div key={role} className="flex items-center gap-1 text-[10px]">
+                  <span className="text-cyan-400 font-bold w-6">{role}</span>
+                  {player ? (
+                    <Link href={`/player/${player.id}`}>
+                      <span className="text-gray-300 hover:text-cyan-300 cursor-pointer truncate">{player.name}</span>
+                    </Link>
+                  ) : (
+                    <span className="text-gray-600">—</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {!lineup && !rotation && (
+        <p className="text-[10px] text-gray-500 font-mono">No lineup or rotation set for this team.</p>
+      )}
+    </div>
+  );
+}
+
 export default function StandingsPage() {
   const { team, walletAddress } = useGameStore();
   const [selectedDiv, setSelectedDiv] = useState<string>(team?.division || 'B');
   const [previewMatchId, setPreviewMatchId] = useState<number | null>(null);
+  const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
 
   const { data: allTeams = [] } = useQuery<TeamData[]>({
     queryKey: ['teams-all'],
@@ -191,8 +292,14 @@ export default function StandingsPage() {
                   >
                     <td className={`p-2 ${isUser ? 'text-cyan-400 font-bold' : 'text-gray-500'}`}>{idx + 1}</td>
                     <td className={`p-2 font-bold truncate max-w-[100px] ${isUser ? 'text-cyan-300' : 'text-gray-200'}`}>
-                      {row.team.name}
-                      {isUser && <span className="ml-1 text-cyan-500 text-[9px]">★</span>}
+                      <button
+                        data-testid={`button-team-${row.team.id}`}
+                        onClick={() => setSelectedTeamId(selectedTeamId === row.team.id ? null : row.team.id)}
+                        className="text-left hover:underline cursor-pointer"
+                      >
+                        {row.team.name}
+                        {isUser && <span className="ml-1 text-cyan-500 text-[9px]">★</span>}
+                      </button>
                     </td>
                     <td className={`p-2 text-center ${isUser ? 'text-cyan-300' : 'text-gray-300'}`}>{row.wins}</td>
                     <td className={`p-2 text-center ${isUser ? 'text-pink-300' : 'text-gray-300'}`}>{row.losses}</td>
@@ -205,6 +312,10 @@ export default function StandingsPage() {
             </tbody>
           </table>
         </div>
+
+        {selectedTeamId && (
+          <TeamRosterPreview teamId={selectedTeamId} allTeams={allTeams} onClose={() => setSelectedTeamId(null)} />
+        )}
 
         {isUserDiv && nextMatch && (
           <div className="space-y-3">

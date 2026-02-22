@@ -46,6 +46,8 @@ interface MatchDetailData {
   awayBatters: BatterStats[];
   homePitcher: PitcherStats;
   awayPitcher: PitcherStats;
+  homePitchers?: PitcherStats[];
+  awayPitchers?: PitcherStats[];
 }
 
 interface MatchData {
@@ -158,39 +160,53 @@ export default function MatchDetailPage() {
         </div>
 
         <div className="overflow-x-auto">
-          <table data-testid="table-linescore" className="w-full text-xs font-mono">
-            <thead>
-              <tr className="border-b border-gray-800">
-                <th className="text-left p-2 text-gray-500 w-24">TEAM</th>
-                {boxScore.innings.map(i => (
-                  <th key={i} className="p-2 text-gray-500 w-6 text-center">{i}</th>
-                ))}
-                <th className="p-2 text-cyan-500 text-center border-l border-gray-800">R</th>
-                <th className="p-2 text-pink-500 text-center">H</th>
-                <th className="p-2 text-gray-400 text-center">E</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr className="border-b border-gray-800/50">
-                <td className="p-2 text-pink-400 font-bold truncate max-w-[96px]">{awayTeam?.name?.split(' ').pop()}</td>
-                {boxScore.awayLine.map((r, i) => (
-                  <td key={i} className={`p-2 text-center ${r > 0 ? 'text-pink-300 font-bold' : 'text-gray-600'}`}>{r}</td>
-                ))}
-                <td className="p-2 text-center text-cyan-300 font-bold border-l border-gray-800">{boxScore.awayRHE[0]}</td>
-                <td className="p-2 text-center text-pink-300">{boxScore.awayRHE[1]}</td>
-                <td className="p-2 text-center text-gray-400">{boxScore.awayRHE[2]}</td>
-              </tr>
-              <tr>
-                <td className="p-2 text-cyan-400 font-bold truncate max-w-[96px]">{homeTeam?.name?.split(' ').pop()}</td>
-                {boxScore.homeLine.map((r, i) => (
-                  <td key={i} className={`p-2 text-center ${r > 0 ? 'text-cyan-300 font-bold' : 'text-gray-600'}`}>{r}</td>
-                ))}
-                <td className="p-2 text-center text-cyan-300 font-bold border-l border-gray-800">{boxScore.homeRHE[0]}</td>
-                <td className="p-2 text-center text-pink-300">{boxScore.homeRHE[1]}</td>
-                <td className="p-2 text-center text-gray-400">{boxScore.homeRHE[2]}</td>
-              </tr>
-            </tbody>
-          </table>
+          {(() => {
+            const awayBB = detail.awayBatters?.reduce((sum, b) => sum + (b.bb || 0), 0) || 0;
+            const homeBB = detail.homeBatters?.reduce((sum, b) => sum + (b.bb || 0), 0) || 0;
+            const awaySO = detail.awayBatters?.reduce((sum, b) => sum + (b.so || 0), 0) || 0;
+            const homeSO = detail.homeBatters?.reduce((sum, b) => sum + (b.so || 0), 0) || 0;
+            return (
+              <table data-testid="table-linescore" className="w-full text-xs font-mono">
+                <thead>
+                  <tr className="border-b border-gray-800">
+                    <th className="text-left p-2 text-gray-500 w-24">TEAM</th>
+                    {boxScore.innings.map(i => (
+                      <th key={i} className="p-2 text-gray-500 w-6 text-center">{i}</th>
+                    ))}
+                    <th className="p-2 text-cyan-500 text-center border-l border-gray-800">R</th>
+                    <th className="p-2 text-pink-500 text-center">H</th>
+                    <th className="p-2 text-gray-400 text-center">E</th>
+                    <th className="p-2 text-yellow-500 text-center">BB</th>
+                    <th className="p-2 text-cyan-500 text-center">K</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-gray-800/50">
+                    <td className="p-2 text-pink-400 font-bold truncate max-w-[96px]">{awayTeam?.name?.split(' ').pop()}</td>
+                    {boxScore.awayLine.map((r, i) => (
+                      <td key={i} className={`p-2 text-center ${r > 0 ? 'text-pink-300 font-bold' : 'text-gray-600'}`}>{r}</td>
+                    ))}
+                    <td className="p-2 text-center text-cyan-300 font-bold border-l border-gray-800">{boxScore.awayRHE[0]}</td>
+                    <td className="p-2 text-center text-pink-300">{boxScore.awayRHE[1]}</td>
+                    <td className="p-2 text-center text-gray-400">{boxScore.awayRHE[2]}</td>
+                    <td className="p-2 text-center text-yellow-400">{awayBB}</td>
+                    <td className="p-2 text-center text-cyan-400">{awaySO}</td>
+                  </tr>
+                  <tr>
+                    <td className="p-2 text-cyan-400 font-bold truncate max-w-[96px]">{homeTeam?.name?.split(' ').pop()}</td>
+                    {boxScore.homeLine.map((r, i) => (
+                      <td key={i} className={`p-2 text-center ${r > 0 ? 'text-cyan-300 font-bold' : 'text-gray-600'}`}>{r}</td>
+                    ))}
+                    <td className="p-2 text-center text-cyan-300 font-bold border-l border-gray-800">{boxScore.homeRHE[0]}</td>
+                    <td className="p-2 text-center text-pink-300">{boxScore.homeRHE[1]}</td>
+                    <td className="p-2 text-center text-gray-400">{boxScore.homeRHE[2]}</td>
+                    <td className="p-2 text-center text-yellow-400">{homeBB}</td>
+                    <td className="p-2 text-center text-cyan-400">{homeSO}</td>
+                  </tr>
+                </tbody>
+              </table>
+            );
+          })()}
         </div>
 
         {detail.flavorTexts.length > 0 && (
@@ -210,8 +226,16 @@ export default function MatchDetailPage() {
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <PitcherStatsCard pitcher={detail.homePitcher} team={homeTeam?.name || 'Home'} color="cyan" />
-          <PitcherStatsCard pitcher={detail.awayPitcher} team={awayTeam?.name || 'Away'} color="pink" />
+          <PitcherStatsTable
+            pitchers={detail.homePitchers || [detail.homePitcher]}
+            team={homeTeam?.name || 'Home'}
+            color="cyan"
+          />
+          <PitcherStatsTable
+            pitchers={detail.awayPitchers || [detail.awayPitcher]}
+            team={awayTeam?.name || 'Away'}
+            color="pink"
+          />
         </div>
 
         <div className="p-4 rounded-xl border border-pink-500/30 bg-pink-950/10 text-center">
@@ -269,6 +293,48 @@ function BatterStatsTable({ title, batters, color }: { title: string; batters: B
               <td className="p-1 text-center text-gray-400">{b.bb}</td>
               <td className="p-1 text-center text-gray-400">{b.so}</td>
               <td className="p-1 text-center text-gray-300">{b.avg}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function PitcherStatsTable({ pitchers, team, color }: { pitchers: PitcherStats[]; team: string; color: 'cyan' | 'pink' }) {
+  const borderColor = color === 'cyan' ? 'border-cyan-500/20' : 'border-pink-500/20';
+  const bgColor = color === 'cyan' ? 'bg-cyan-950/10' : 'bg-pink-950/10';
+  const textColor = color === 'cyan' ? 'text-cyan-400' : 'text-pink-400';
+
+  return (
+    <div className={`p-3 rounded-xl border ${borderColor} ${bgColor}`}>
+      <p className="text-[10px] font-mono text-gray-500 mb-2">{team} Pitching</p>
+      <table className="w-full text-[10px]">
+        <thead>
+          <tr className="text-gray-500">
+            <th className="text-left pb-1">Name</th>
+            <th className="text-center pb-1">IP</th>
+            <th className="text-center pb-1">H</th>
+            <th className="text-center pb-1">ER</th>
+            <th className="text-center pb-1">BB</th>
+            <th className="text-center pb-1">K</th>
+            <th className="text-center pb-1">PC</th>
+          </tr>
+        </thead>
+        <tbody>
+          {pitchers.map((p, i) => (
+            <tr key={p.playerId || i} className="border-t border-gray-800/30" data-testid={`pitcher-row-${p.playerId || i}`}>
+              <td className={`py-1 font-bold ${textColor} truncate max-w-[60px]`}>
+                <Link href={`/player/${p.playerId}`} data-testid={`link-pitcher-${p.playerId}`}>
+                  <span className="hover:underline cursor-pointer">{p.name}</span>
+                </Link>
+              </td>
+              <td className="py-1 text-center text-gray-300">{p.ip}</td>
+              <td className="py-1 text-center text-gray-300">{p.h}</td>
+              <td className="py-1 text-center text-pink-400">{p.er}</td>
+              <td className="py-1 text-center text-gray-300">{p.bb}</td>
+              <td className="py-1 text-center text-cyan-400">{p.so}</td>
+              <td className="py-1 text-center text-gray-400">{p.pitchCount}</td>
             </tr>
           ))}
         </tbody>

@@ -73,9 +73,97 @@ function buildTactics(tac: any): TacticsModifiers | undefined {
   };
 }
 
-export async function simulateMatchDay(day: number): Promise<SimulationResult[]> {
+function computeDivisionStandings(allMatches: any[], divTeamIds: number[]) {
+  const divSet = new Set(divTeamIds);
+  const played = allMatches.filter(m => m.played && m.matchType === 'regular');
+  const stats: Record<number, { w: number; l: number; rf: number; ra: number }> = {};
+  for (const id of divTeamIds) stats[id] = { w: 0, l: 0, rf: 0, ra: 0 };
+  for (const m of played) {
+    const hs = m.homeScore ?? 0;
+    const as_ = m.awayScore ?? 0;
+    if (divSet.has(m.homeTeamId)) {
+      stats[m.homeTeamId].rf += hs;
+      stats[m.homeTeamId].ra += as_;
+      if (hs > as_) stats[m.homeTeamId].w++;
+      else if (hs < as_) stats[m.homeTeamId].l++;
+    }
+    if (divSet.has(m.awayTeamId)) {
+      stats[m.awayTeamId].rf += as_;
+      stats[m.awayTeamId].ra += hs;
+      if (as_ > hs) stats[m.awayTeamId].w++;
+      else if (as_ < hs) stats[m.awayTeamId].l++;
+    }
+  }
+  return divTeamIds
+    .map(id => ({ id, ...stats[id] }))
+    .sort((a, b) => {
+      const pctA = a.w + a.l > 0 ? a.w / (a.w + a.l) : 0;
+      const pctB = b.w + b.l > 0 ? b.w / (b.w + b.l) : 0;
+      if (pctB !== pctA) return pctB - pctA;
+      return (b.rf - b.ra) - (a.rf - a.ra);
+    });
+}
+
+export async function updatePlayoffMatchups(): Promise<{ updated: number }> {
   const allMatches = await storage.getAllMatches();
-  const dayMatches = allMatches.filter(m => m.day === day && !m.played && m.matchType !== 'playoff');
+  const allTeams = await storage.getTeams();
+
+  let updated = 0;
+
+  for (const league of ['L1', 'L2']) {
+    const serieATeams = allTeams.filter(t => t.league === league && t.series === 'A');
+    const serieBTeams = allTeams.filter(t => t.league === league && t.series === 'B');
+    const divA = `${league}A`;
+    const divB = `${league}B`;
+
+    const standingsA = computeDivisionStandings(allMatches, serieATeams.map(t => t.id));
+    const standingsB = computeDivisionStandings(allMatches, serieBTeams.map(t => t.id));
+
+    const a9th = standingsA[8]?.id;
+    const a10th = standingsA[9]?.id;
+    const b1st = standingsB[0]?.id;
+    const b2nd = standingsB[1]?.id;
+
+    if (!a9th || !a10th || !b1st || !b2nd) continue;
+
+    const playoffDay13 = allMatches.filter(m =>
+      m.matchType === 'playoff' && m.day === 13 && m.division === `playoff_${league}`
+    );
+    const playoffDay14 = allMatches.filter(m =>
+      m.matchType === 'playoff' && m.day === 14 && m.division === `playoff_${league}`
+    );
+
+    if (playoffDay13.length >= 2) {
+      await storage.updateMatchTeams(playoffDay13[0].id, a9th, b1st);
+      await storage.updateMatchTeams(playoffDay13[1].id, a10th, b2nd);
+      updated += 2;
+    }
+
+    if (playoffDay14.length >= 2 && playoffDay13.every((m: any) => m.played)) {
+      const match1 = allMatches.find(m => m.id === playoffDay13[0].id);
+      const match2 = allMatches.find(m => m.id === playoffDay13[1].id);
+      if (match1?.played && match2?.played) {
+        const winner1 = (match1.homeScore ?? 0) > (match1.awayScore ?? 0) ? match1.homeTeamId : match1.awayTeamId;
+        const loser1 = (match1.homeScore ?? 0) > (match1.awayScore ?? 0) ? match1.awayTeamId : match1.homeTeamId;
+        const winner2 = (match2.homeScore ?? 0) > (match2.awayScore ?? 0) ? match2.homeTeamId : match2.awayTeamId;
+        const loser2 = (match2.homeScore ?? 0) > (match2.awayScore ?? 0) ? match2.awayTeamId : match2.homeTeamId;
+        await storage.updateMatchTeams(playoffDay14[0].id, winner1, winner2);
+        await storage.updateMatchTeams(playoffDay14[1].id, loser1, loser2);
+        updated += 2;
+      }
+    }
+  }
+
+  return { updated };
+}
+
+export async function simulateMatchDay(day: number): Promise<SimulationResult[]> {
+  if (day >= 13) {
+    await updatePlayoffMatchups();
+  }
+
+  const allMatches = await storage.getAllMatches();
+  const dayMatches = allMatches.filter(m => m.day === day && !m.played && m.homeTeamId > 0 && m.awayTeamId > 0);
 
   if (dayMatches.length === 0) return [];
 
@@ -143,6 +231,8 @@ export async function simulateMatchDay(day: number): Promise<SimulationResult[]>
         awayBatters: gameResult.boxScore.awayBatters,
         homePitcher: gameResult.boxScore.homePitcher,
         awayPitcher: gameResult.boxScore.awayPitcher,
+        homePitchers: gameResult.boxScore.homePitchers || [gameResult.boxScore.homePitcher],
+        awayPitchers: gameResult.boxScore.awayPitchers || [gameResult.boxScore.awayPitcher],
       };
 
       try {

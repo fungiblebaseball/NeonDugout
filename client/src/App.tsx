@@ -6,6 +6,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Navigation } from "@/components/Navigation";
 import Home from "@/pages/Home";
 import LineupPage from "@/pages/LineupPage";
+import PitchersPage from "@/pages/PitchersPage";
+import AttackPage from "@/pages/AttackPage";
+import DefensePage from "@/pages/DefensePage";
 import NotFound from "@/pages/not-found";
 import { useGameStore } from "@/lib/store";
 
@@ -17,6 +20,9 @@ function Router() {
       <Switch>
         <Route path="/" component={Home} />
         <Route path="/lineup" component={LineupPage} />
+        <Route path="/pitchers" component={PitchersPage} />
+        <Route path="/attack" component={AttackPage} />
+        <Route path="/defense" component={DefensePage} />
         <Route component={NotFound} />
       </Switch>
       {walletAddress && <Navigation />}

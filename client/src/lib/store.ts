@@ -1,135 +1,91 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Player, Team, Lineup, LineupPositions, League } from './types';
-import { generateMockLeagues } from './mockData';
+
+interface PlayerData {
+  id: number;
+  name: string;
+  teamId: number;
+  positions: string[];
+  pow: number;
+  con: number;
+  spd: number;
+  eye: number;
+  vel: number;
+  ctl: number;
+  mov: number;
+  sta: number;
+  def: number;
+}
+
+interface TeamData {
+  id: number;
+  name: string;
+  primaryColor: string;
+  division: string;
+  ownerWallet: string | null;
+  seasonId: number;
+}
+
+interface UserData {
+  id: number;
+  walletAddress: string;
+  teamId: number | null;
+}
 
 interface GameState {
   walletAddress: string | null;
-  teamId: string | null;
-  league: League | null;
-  
-  // Local state
-  lineup: Lineup;
-  
-  // Actions
-  connectWallet: () => void;
+  user: UserData | null;
+  team: TeamData | null;
+  players: PlayerData[];
+  loading: boolean;
+
+  connectWallet: () => Promise<void>;
   disconnectWallet: () => void;
-  initializeLeague: () => void;
-  assignToLineup: (position: LineupPositions, playerId: string | null) => void;
-  
-  // Selectors/Computed
-  getMyTeam: () => Team | null;
-  getMyPlayers: () => Player[];
 }
-
-const emptyLineup: Lineup = {
-  'P': null, 'C': null, '1B': null, '2B': null, '3B': null, 'SS': null, 'LF': null, 'CF': null, 'RF': null
-};
-
-// Simple naive hash to associate players with a team for MVP since we flattened the structure
-// In reality, players would have a teamId foreign key.
-const getPlayersForTeam = (teamId: string, allPlayers: Record<string, Player>): Player[] => {
-  // Mock logic: grab 20 deterministic players based on teamId to simulate roster
-  const playersArr = Object.values(allPlayers);
-  const teamIndex = teamId.charCodeAt(0) % (playersArr.length / 20);
-  const startIndex = Math.floor(teamIndex) * 20;
-  return playersArr.slice(startIndex, startIndex + 20);
-};
 
 export const useGameStore = create<GameState>()(
   persist(
     (set, get) => ({
       walletAddress: null,
-      teamId: null,
-      league: null,
-      lineup: emptyLineup,
+      user: null,
+      team: null,
+      players: [],
+      loading: false,
 
-      connectWallet: () => {
+      connectWallet: async () => {
+        set({ loading: true });
         const mockAddress = `mock_${Math.random().toString(36).substring(2, 10)}`;
-        set({ walletAddress: mockAddress });
-        
-        const state = get();
-        if (!state.league) {
-          state.initializeLeague();
-        }
-        
-        // Find an unowned team in Division B and assign it
-        const currentLeague = get().league!;
-        const divB = currentLeague.divisions['B'];
-        const unownedTeam = divB.teams.find(t => t.ownerPubkey === null);
-        
-        if (unownedTeam) {
-          // Update the team to be owned
-          const updatedDivB = {
-            ...divB,
-            teams: divB.teams.map(t => t.id === unownedTeam.id ? { ...t, ownerPubkey: mockAddress } : t)
-          };
-          
-          set({ 
-            teamId: unownedTeam.id,
-            league: {
-              ...currentLeague,
-              divisions: {
-                ...currentLeague.divisions,
-                'B': updatedDivB
-              }
-            }
+
+        try {
+          const res = await fetch('/api/auth/connect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ walletAddress: mockAddress }),
           });
-          
-          // Auto-assign random lineup for preview
-          const myPlayers = getPlayersForTeam(unownedTeam.id, currentLeague.players);
-          const newLineup = { ...emptyLineup };
-          const pitchers = myPlayers.filter(p => p.positions.includes('P'));
-          const fielders = myPlayers.filter(p => !p.positions.includes('P'));
-          
-          if (pitchers.length > 0) newLineup['P'] = pitchers[0].id;
-          
-          const posKeys: LineupPositions[] = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF'];
-          posKeys.forEach((pos, i) => {
-            if (fielders[i]) {
-              newLineup[pos] = fielders[i].id;
-            }
+          const data = await res.json();
+
+          set({
+            walletAddress: mockAddress,
+            user: data.user,
+            team: data.team,
+            players: data.players || [],
+            loading: false,
           });
-          
-          set({ lineup: newLineup });
+        } catch (err) {
+          console.error('Connect failed:', err);
+          set({ loading: false });
         }
       },
 
-      disconnectWallet: () => set({ walletAddress: null, teamId: null }),
-
-      initializeLeague: () => {
-        const mockLeague = generateMockLeagues();
-        set({ league: mockLeague });
-      },
-
-      assignToLineup: (position, playerId) => {
-        set(state => ({
-          lineup: {
-            ...state.lineup,
-            [position]: playerId
-          }
-        }));
-      },
-      
-      getMyTeam: () => {
-        const { league, teamId } = get();
-        if (!league || !teamId) return null;
-        
-        for (const div of Object.values(league.divisions)) {
-          const team = div.teams.find(t => t.id === teamId);
-          if (team) return team;
-        }
-        return null;
-      },
-      
-      getMyPlayers: () => {
-        const { league, teamId } = get();
-        if (!league || !teamId) return [];
-        return getPlayersForTeam(teamId, league.players);
-      }
+      disconnectWallet: () => set({
+        walletAddress: null,
+        user: null,
+        team: null,
+        players: [],
+      }),
     }),
     {
-      name: 'fantasy-baseball-storage-v2', // v2 to clear out v1 state
+      name: 'gridiron-ghosts-v3',
     }
   )
 );

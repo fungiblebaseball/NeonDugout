@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Home, Users, BarChart3, Settings } from "lucide-react";
+import { Home, ListOrdered, RotateCcw, Swords, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function Navigation() {
@@ -7,9 +7,10 @@ export function Navigation() {
 
   const links = [
     { href: "/", icon: Home, label: "Hub" },
-    { href: "/lineup", icon: Users, label: "Roster" },
-    { href: "/stats", icon: BarChart3, label: "Stats" },
-    { href: "/settings", icon: Settings, label: "SYS" },
+    { href: "/lineup", icon: ListOrdered, label: "Lineup" },
+    { href: "/pitchers", icon: RotateCcw, label: "Pitch" },
+    { href: "/attack", icon: Swords, label: "ATK" },
+    { href: "/defense", icon: Shield, label: "DEF" },
   ];
 
   return (
@@ -18,14 +19,17 @@ export function Navigation() {
         {links.map((link) => {
           const isActive = location === link.href;
           return (
-            <Link key={link.href} href={link.href}>
-              <a className={cn(
+            <Link
+              key={link.href}
+              href={link.href}
+              data-testid={`nav-${link.label.toLowerCase()}`}
+              className={cn(
                 "flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors",
                 isActive ? "text-cyan-400" : "text-gray-500 hover:text-cyan-200"
-              )}>
-                <link.icon className={cn("w-6 h-6", isActive && "drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]")} />
-                <span className="text-[10px] uppercase tracking-wider font-bold">{link.label}</span>
-              </a>
+              )}
+            >
+              <link.icon className={cn("w-5 h-5", isActive && "drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]")} />
+              <span className="text-[9px] uppercase tracking-wider font-bold">{link.label}</span>
             </Link>
           );
         })}

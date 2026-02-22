@@ -107,7 +107,7 @@ export default function PlayerDetailPage() {
     return (
       <div className="min-h-screen bg-black p-6 flex flex-col items-center justify-center text-center">
         <span className="text-pink-500 font-mono text-xl uppercase tracking-widest mb-4">PLAYER NOT FOUND</span>
-        <Link href="/standings" className="text-cyan-400 font-mono text-sm underline">Back to Standings</Link>
+        <button onClick={() => window.history.back()} className="text-cyan-400 font-mono text-sm underline">Go Back</button>
       </div>
     );
   }
@@ -120,11 +120,9 @@ export default function PlayerDetailPage() {
   return (
     <div className="min-h-screen pb-24 bg-black text-cyan-50">
       <header className="p-4 bg-gradient-to-b from-cyan-900/30 to-black border-b border-cyan-500/20 sticky top-0 z-10 backdrop-blur-md flex items-center gap-3">
-        <Link href="/standings">
-          <button data-testid="button-back" className="p-2 rounded-lg border border-gray-700 hover:border-cyan-500/50 transition-colors">
-            <ArrowLeft className="w-4 h-4 text-gray-400" />
-          </button>
-        </Link>
+        <button data-testid="button-back" onClick={() => window.history.back()} className="p-2 rounded-lg border border-gray-700 hover:border-cyan-500/50 transition-colors">
+          <ArrowLeft className="w-4 h-4 text-gray-400" />
+        </button>
         <div>
           <h1 className="text-lg font-black uppercase text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.6)]" style={{fontFamily: "'Orbitron', sans-serif"}}>
             Player Card

@@ -66,7 +66,7 @@ export async function registerRoutes(
 
   app.post("/api/matches/:id/result", async (req, res) => {
     const matchId = parseInt(req.params.id);
-    const { homeScore, awayScore } = req.body;
+    const { homeScore, awayScore, details } = req.body;
     if (homeScore === undefined || awayScore === undefined ||
         typeof homeScore !== 'number' || typeof awayScore !== 'number' ||
         homeScore < 0 || awayScore < 0) {
@@ -77,7 +77,35 @@ export async function registerRoutes(
     if (!match) return res.status(404).json({ message: "Match not found" });
     if (match.played) return res.status(409).json({ message: "Match already played" });
     const updated = await storage.updateMatchResult(matchId, homeScore, awayScore);
+
+    if (details) {
+      try {
+        await storage.createMatchDetails({
+          matchId,
+          boxScore: details.boxScore,
+          flavorTexts: details.flavorTexts || [],
+          mvp: details.mvp || { name: 'Unknown', reason: '' },
+          homeLineup: details.homeLineup || { playerIds: [], pitcherId: 0 },
+          awayLineup: details.awayLineup || { playerIds: [], pitcherId: 0 },
+          homeBatters: details.homeBatters || [],
+          awayBatters: details.awayBatters || [],
+          homePitcher: details.homePitcher || {},
+          awayPitcher: details.awayPitcher || {},
+        });
+      } catch (err) {
+        console.error('Failed to save match details:', err);
+        return res.status(500).json({ message: "Match result saved but details failed to persist", match: updated });
+      }
+    }
+
     res.json(updated);
+  });
+
+  app.get("/api/match-details/:matchId", async (req, res) => {
+    const matchId = parseInt(req.params.matchId);
+    const detail = await storage.getMatchDetails(matchId);
+    if (!detail) return res.status(404).json({ message: "Match details not found" });
+    res.json(detail);
   });
 
   app.get("/api/lineup/:teamId", async (req, res) => {

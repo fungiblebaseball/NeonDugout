@@ -28,7 +28,7 @@ interface TeamInfo {
 export default function Home() {
   const { walletAddress, connectWallet, disconnectWallet, team, players, loading } = useGameStore();
   const [simulating, setSimulating] = useState(false);
-  const [lastResult, setLastResult] = useState<{ home: string; away: string; hs: number; as: number } | null>(null);
+  const [lastResult, setLastResult] = useState<{ home: string; away: string; hs: number; as: number; matchId: number } | null>(null);
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
 
@@ -81,7 +81,21 @@ export default function Home() {
       await fetch(`/api/matches/${nextLeagueMatch.id}/result`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ homeScore: gameResult.homeScore, awayScore: gameResult.awayScore }),
+        body: JSON.stringify({
+          homeScore: gameResult.homeScore,
+          awayScore: gameResult.awayScore,
+          details: {
+            boxScore: gameResult.boxScore,
+            flavorTexts: gameResult.flavorTexts,
+            mvp: gameResult.mvp,
+            homeLineup: { playerIds: homePlayers.slice(0, 9).map(p => p.id), pitcherId: gameResult.boxScore.homePitcher.playerId },
+            awayLineup: { playerIds: awayPlayers.slice(0, 9).map(p => p.id), pitcherId: gameResult.boxScore.awayPitcher.playerId },
+            homeBatters: gameResult.boxScore.homeBatters,
+            awayBatters: gameResult.boxScore.awayBatters,
+            homePitcher: gameResult.boxScore.homePitcher,
+            awayPitcher: gameResult.boxScore.awayPitcher,
+          },
+        }),
       });
 
       setLastResult({
@@ -89,6 +103,7 @@ export default function Home() {
         away: awayTeam.name,
         hs: gameResult.homeScore,
         as: gameResult.awayScore,
+        matchId: nextLeagueMatch.id,
       });
 
       queryClient.invalidateQueries({ queryKey: ['matches', team.division] });
@@ -215,7 +230,7 @@ export default function Home() {
                 {simulating ? "SIMULATING..." : "PLAY MATCH"}
               </button>
               {lastResult && (
-                <div className="p-3 rounded-lg border border-cyan-500/30 bg-black/40 text-center">
+                <div className="p-3 rounded-lg border border-cyan-500/30 bg-black/40 text-center space-y-2">
                   <p className="text-xs font-mono text-gray-400">FINAL SCORE</p>
                   <div className="flex items-center justify-center gap-3 mt-1">
                     <span className="text-sm font-bold text-cyan-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{lastResult.home}</span>
@@ -224,6 +239,11 @@ export default function Home() {
                     <span className="text-lg font-black text-pink-400" style={{fontFamily: "'Press Start 2P', cursive", fontSize: '14px'}}>{lastResult.as}</span>
                     <span className="text-sm font-bold text-pink-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{lastResult.away}</span>
                   </div>
+                  <Link href={`/match/${lastResult.matchId}`}>
+                    <button data-testid="button-view-details" className="mt-1 px-4 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 font-mono text-xs uppercase tracking-wider rounded-lg transition-all">
+                      VIEW MATCH REPORT
+                    </button>
+                  </Link>
                 </div>
               )}
             </div>

@@ -1,6 +1,7 @@
 import { useGameStore } from "@/lib/store";
 import { useQuery } from "@tanstack/react-query";
-import { Calendar, Trophy, Clock } from "lucide-react";
+import { Calendar, Trophy, Clock, FileText } from "lucide-react";
+import { Link } from "wouter";
 
 interface MatchData {
   id: number;
@@ -144,8 +145,8 @@ export default function SchedulePage() {
                 <div className="divide-y divide-gray-800/30">
                   {dayMatches.map(m => {
                     const isUser = m.homeTeamId === team.id || m.awayTeamId === team.id;
-                    return (
-                      <div key={m.id} data-testid={`match-${m.id}`} className={`px-3 py-2 flex items-center gap-2 ${isUser ? 'bg-cyan-950/10' : ''}`}>
+                    const matchContent = (
+                      <div data-testid={`match-${m.id}`} className={`px-3 py-2 flex items-center gap-2 ${isUser ? 'bg-cyan-950/10' : ''} ${m.played ? 'hover:bg-gray-900/40 transition-colors cursor-pointer' : ''}`}>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between text-xs">
                             <span className={`font-mono truncate ${isUserTeam(m.awayTeamId) ? 'text-cyan-400 font-bold' : 'text-gray-300'}`}>
@@ -172,9 +173,17 @@ export default function SchedulePage() {
                           <span className="text-[9px] font-mono text-gray-600 shrink-0">00:00 CET</span>
                         )}
                         {m.played && (
-                          <span className="text-[9px] font-mono text-pink-500 shrink-0">FINAL</span>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <FileText className="w-3 h-3 text-cyan-500" />
+                            <span className="text-[9px] font-mono text-cyan-500">VIEW</span>
+                          </div>
                         )}
                       </div>
+                    );
+                    return m.played ? (
+                      <Link key={m.id} href={`/match/${m.id}`}>{matchContent}</Link>
+                    ) : (
+                      <div key={m.id}>{matchContent}</div>
                     );
                   })}
                 </div>

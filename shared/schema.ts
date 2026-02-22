@@ -74,6 +74,20 @@ export const tactics = pgTable("tactics", {
   outfieldPosition: text("outfield_position").notNull().default("neutral"),
 });
 
+export const matchDetails = pgTable("match_details", {
+  id: serial("id").primaryKey(),
+  matchId: integer("match_id").notNull().unique(),
+  boxScore: jsonb("box_score").notNull(),
+  flavorTexts: jsonb("flavor_texts").notNull().$type<string[]>(),
+  mvp: jsonb("mvp").notNull().$type<{ name: string; reason: string }>(),
+  homeLineup: jsonb("home_lineup").notNull().$type<{ playerIds: number[]; pitcherId: number }>(),
+  awayLineup: jsonb("away_lineup").notNull().$type<{ playerIds: number[]; pitcherId: number }>(),
+  homeBatters: jsonb("home_batters").notNull(),
+  awayBatters: jsonb("away_batters").notNull(),
+  homePitcher: jsonb("home_pitcher").notNull(),
+  awayPitcher: jsonb("away_pitcher").notNull(),
+});
+
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertTeamSchema = createInsertSchema(teams).omit({ id: true });
 export const insertPlayerSchema = createInsertSchema(players).omit({ id: true });
@@ -81,6 +95,7 @@ export const insertMatchSchema = createInsertSchema(matches).omit({ id: true });
 export const insertLineupSchema = createInsertSchema(lineups).omit({ id: true });
 export const insertPitcherRotationSchema = createInsertSchema(pitcherRotations).omit({ id: true });
 export const insertTacticsSchema = createInsertSchema(tactics).omit({ id: true });
+export const insertMatchDetailsSchema = createInsertSchema(matchDetails).omit({ id: true });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -96,3 +111,5 @@ export type InsertPitcherRotation = z.infer<typeof insertPitcherRotationSchema>;
 export type PitcherRotation = typeof pitcherRotations.$inferSelect;
 export type InsertTactics = z.infer<typeof insertTacticsSchema>;
 export type Tactics = typeof tactics.$inferSelect;
+export type InsertMatchDetails = z.infer<typeof insertMatchDetailsSchema>;
+export type MatchDetails = typeof matchDetails.$inferSelect;

@@ -23,14 +23,15 @@ Carta giocatore dettagliata con tutti gli attributi e statistiche di carriera.
    - OVR, BAT, PITCH
    - DEF, SPD, STA
    - Nota "Season 1 — No prior history"
-5. **Bottone confronta con apertura menù lista giocatori disponibili per affiancamento scheda giocatore con attributi e statistiche e bottone ritorna per chiudere affiancamento
 
 ## Dati
 - API: `GET /api/player/:id`
 - API: `GET /api/teams` (per nome team)
 
+## Navigazione
+- Accessibile da: Match Preview (StandingsPage), Match Report (MatchDetailPage), Lineup, Pitchers
+- Bottone Back naviga alla pagina precedente
+
 ## Note
-- Accessibile cliccando su giocatore nell'anteprima match (StandingsPage)
-- Bottone Back naviga a /standings
 - Career averages attuali = valori correnti (Season 1, nessun storico)
 - Spazio immagine predisposto per future integrazioni (NFT art, generated cards)

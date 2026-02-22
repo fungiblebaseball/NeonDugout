@@ -1,11 +1,12 @@
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
 import {
-  users, teams, players, matches, lineups, pitcherRotations, tactics,
+  users, teams, players, matches, lineups, pitcherRotations, tactics, matchDetails,
   type User, type InsertUser, type Team, type InsertTeam,
   type Player, type Match, type Lineup, type InsertLineup,
   type PitcherRotation, type InsertPitcherRotation,
   type Tactics, type InsertTactics,
+  type MatchDetails, type InsertMatchDetails,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -34,6 +35,9 @@ export interface IStorage {
 
   getTactics(teamId: number): Promise<Tactics | undefined>;
   upsertTactics(data: InsertTactics): Promise<Tactics>;
+
+  createMatchDetails(data: InsertMatchDetails): Promise<MatchDetails>;
+  getMatchDetails(matchId: number): Promise<MatchDetails | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -152,6 +156,16 @@ export class DatabaseStorage implements IStorage {
     }
     const [created] = await db.insert(tactics).values(data).returning();
     return created;
+  }
+
+  async createMatchDetails(data: InsertMatchDetails): Promise<MatchDetails> {
+    const [created] = await db.insert(matchDetails).values(data).returning();
+    return created;
+  }
+
+  async getMatchDetails(matchId: number): Promise<MatchDetails | undefined> {
+    const [detail] = await db.select().from(matchDetails).where(eq(matchDetails.matchId, matchId));
+    return detail;
   }
 }
 

@@ -18,17 +18,16 @@ Dashboard principale del manager. Punto di ingresso dopo il wallet connect.
    - SCHEDULE — Calendario e risultati
    - STANDINGS — Classifica e anteprima partita
 5. **Test Match** — Link a simulazione exhibition (col-span-2)
-6. **Next League Game** — Bottone per giocare prossima giornata di campionato. Simula la gara, salva risultato e dettagli completi (box score, statistiche giocatori, lineup schierati) nel DB. Mostra risultato inline con link "VIEW MATCH REPORT" per aprire il report completo.
-7. **MATCH RESULTS** — Sintesi risultato ultima gara con link navigabile alla pagina dettaglio /match/:id
+6. **Next League Game** — Bottone per giocare prossima Giornata di campionato per tutte le squadre di tutti i gironi di tutte le leghe, con risultato in line della squadra utente con statistiche gara 2 team BB K R AVG ER H Pitch count for each pithcer  (col-span-2)
+7. **MATCH RESULTS** sintesi risultato ultima gara disputata dall'utente
 
 ## Dati
 - Store Zustand: walletAddress, team, players
 - API: `/api/matches/:division`, `/api/teams/:division`
 - Simulazione: `simulateGame()` dal motore client-side
-- Salvataggio risultato: `POST /api/matches/:id/result` (con payload `details` contenente boxScore, flavorTexts, mvp, lineup, batters, pitcher)
+- Salvataggio risultato: `POST /api/matches/:id/result`
 
 ## Interazioni
 - Connect wallet → POST `/api/auth/connect`
-- Play League Match → simula + salva risultato + salva dettagli + invalida cache
-- View Match Report → naviga a `/match/:matchId`
+- Play League Match → simula + salva risultato + invalida cache
 - Tutte le card navigano alla rispettiva pagina

@@ -30,3 +30,4 @@ Gestione staff lanciatori con assegnazione ruoli e condizioni di sostituzione.
 ## Note
 - Solo giocatori con posizione "P" appaiono nei dropdown ruoli
 - Lo SP selezionato qui appare automaticamente nel Lineup come posizione SP
+- ASSICURATI CHE APPAIANO ANCHE LE STATISCICHE DEI LANCIATORI DI RILIEVO A FINE GARA

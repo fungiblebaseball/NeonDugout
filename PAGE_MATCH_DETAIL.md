@@ -15,10 +15,13 @@ Report completo di una gara giocata con tutti i dettagli statistici, lineup schi
    - Nome giocatore (cliccabile → /player/:id)
    - AB, H, HR, RBI, BB, SO, AVG
 6. **Pitcher Stats** — Due card (home e away) con:
-   - Nome lanciatore (cliccabile → /player/:id)
+   - Nome lanciatore WINNER o LOSER (chi ha preso più punti o ha dato più basi ball) (cliccabile → /player/:id)
+   - 9. - ASSICURATI CHE APPAIANO ANCHE LE STATISCICHE DEI LANCIATORI DI RILIEVO A FINE GARA
    - IP, SO, ER, H, BB, PC (Pitch Count)
 7. **MVP** — Player of the Game con motivazione
 8. **Navigation Buttons** — Link a Schedule e Standings
+
+
 
 ## Dati
 - API: `GET /api/match-details/:matchId` (boxScore, flavorTexts, mvp, lineup, batters, pitcher)

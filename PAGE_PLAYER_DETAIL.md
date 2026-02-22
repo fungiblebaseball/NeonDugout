@@ -23,6 +23,7 @@ Carta giocatore dettagliata con tutti gli attributi e statistiche di carriera.
    - OVR, BAT, PITCH
    - DEF, SPD, STA
    - Nota "Season 1 — No prior history"
+5. **Bottone confronta con apertura menù lista giocatori disponibili per affiancamento scheda giocatore con attributi e statistiche e bottone ritorna per chiudere affiancamento
 
 ## Dati
 - API: `GET /api/player/:id`

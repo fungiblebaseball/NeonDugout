@@ -14,6 +14,7 @@ Gestione formazione di campo e ordine battuta per la squadra dell'utente.
 3. **Batting Order** — Lista 1-9 con possibilità di riordinare
 4. **Bench** — Giocatori non assegnati (esclusi i lanciatori)
 5. **Save Button** — Salva formazione su DB
+6. **Player Button** ogni riga col nome giocatore è cliccabile per aprire carta giocatore. 
 
 ## Dati
 - Store: team, players

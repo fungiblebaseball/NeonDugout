@@ -13,9 +13,9 @@ Gestione staff lanciatori con assegnazione ruoli e condizioni di sostituzione.
    - R1 (Relief 1) — Primo rilievo quando SP viene sostituito
    - C (Closer) — Chiusore (9° inning / situazioni di salvataggio)
    - 2P (Next Starter) — Prossimo partente (auto-rotato dopo la gara)
-3. **Stats Display** — Per ogni ruolo assegnato mostra VEL/CTL/MOV/STA/DEF
+3. **Stats Display** — Per ogni ruolo assegnato mostra VEL/CTL/MOV/STA/DEF 
 4. **Bullpen** — Lanciatori non assegnati a ruoli
-5. **Switch Conditions** — Slider per SP:
+5. **Switch Conditions** — Slider per SP R1 C Separatamente in modo da poter determinare ogni lanciatore :
    - Max Pitches (60-130)
    - Max Innings (3-9)
    - Max BB (1-8)

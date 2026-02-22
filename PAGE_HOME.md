@@ -18,7 +18,8 @@ Dashboard principale del manager. Punto di ingresso dopo il wallet connect.
    - SCHEDULE — Calendario e risultati
    - STANDINGS — Classifica e anteprima partita
 5. **Test Match** — Link a simulazione exhibition (col-span-2)
-6. **Next League Game** — Bottone per giocare prossima partita di campionato con risultato inline (col-span-2)
+6. **Next League Game** — Bottone per giocare prossima Giornata di campionato a tutte le squadre con risultato in line della squadra utente con statisciche gara 2 team BB K R AVG ER H Pitch count for each pithcer  (col-span-2)
+7. **MATCH RESULTS** sintesi risultato ultima gara disputata dall'utente
 
 ## Dati
 - Store Zustand: walletAddress, team, players

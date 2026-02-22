@@ -6,8 +6,37 @@ Formato:
   • Dettaglio 2 (file modificati)  
   • Trade-off / note (se rilevanti)
 
-## Unreleased / In planning
-- v1.1 – Ristrutturazione stagione e leghe (vedi sotto)
+## v1.2.0 – 22 febbraio 2026 – Wallet Authentication & Dynamic League Expansion
+- **Autenticazione Solana wallet** (server/auth.ts, server/routes.ts, LoginPage.tsx, store.ts):
+  * Flow challenge/verify: POST /api/auth/challenge → nonce, POST /api/auth/verify → JWT + user + team
+  * Verifica firma ed25519 con tweetnacl, nonce TTL 5 minuti
+  * JWT sessions con scadenza 7 giorni, restore sessione via GET /api/auth/me
+  * JWT_SECRET obbligatorio in produzione (fail fast)
+- **LoginPage** (client/src/pages/LoginPage.tsx):
+  * Selezione wallet: Phantom, Solflare, Backpack, Seeker (auto-detect via Wallet Standard)
+  * UI cyberpunk con feedback stato (connessione, firma, verifica, errore)
+  * Redirect automatico a Home dopo login
+- **WalletProvider** (client/src/components/WalletProvider.tsx):
+  * Wrapper @solana/wallet-adapter-react con PhantomWalletAdapter, SolflareWalletAdapter, BackpackWalletAdapter
+  * Seeker rilevato automaticamente tramite Wallet Standard
+- **Dynamic League Expansion** (server/expansion.ts):
+  * Trigger automatico quando tutti i team hanno un owner e un nuovo utente si registra
+  * Crea nuova lega (L3, L4, ...) con SerieA + SerieB (10 team ciascuna)
+  * Genera 400 giocatori (20 per team) con distribuzione gaussiana attributi
+  * Crea calendario 14 giorni completo (regular + interleague + playoff)
+  * Errore 503 esplicito se espansione fallisce (nessuno stato inconsistente)
+- **Store aggiornato** (client/src/lib/store.ts):
+  * loginWithSignature: firma challenge → verifica → salva JWT
+  * restoreSession: ripristino sessione da JWT salvato
+  * disconnectWallet: logout con pulizia token
+  * JWT token persistito in localStorage
+- **Routing aggiornato** (client/src/App.tsx):
+  * Aggiunta rotta /login con LoginPage
+  * Home redirect a /login se non autenticato
+  * Session restore automatico al caricamento app
+- **Buffer polyfill** (client/src/main.tsx): compatibilità browser per @solana/web3.js
+- Files modificati: `server/auth.ts` (new), `server/expansion.ts` (new), `server/routes.ts`, `shared/schema.ts`, `client/src/components/WalletProvider.tsx` (new), `client/src/pages/LoginPage.tsx` (new), `client/src/lib/store.ts`, `client/src/App.tsx`, `client/src/main.tsx`, `client/src/pages/Home.tsx`
+- Dipendenze aggiunte: `@solana/wallet-adapter-react`, `@solana/wallet-adapter-base`, `@solana/wallet-adapter-phantom`, `@solana/wallet-adapter-solflare`, `@solana/wallet-adapter-backpack`, `@solana/web3.js`, `jsonwebtoken`, `tweetnacl`, `uuid`
 
 ## v1.0 – 22 febbraio 2026 – Tactical Gameplay Engine
 - **Pitcher Switch Conditions estese** (PitchersPage.tsx, schema.ts):

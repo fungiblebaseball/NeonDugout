@@ -1,6 +1,6 @@
 # CURRENT_STATE.md
 Ultimo aggiornamento: 22 febbraio 2026  
-Versione: 0.8 (Standings + Player Detail + League Play)
+Versione: 1.2.0 (Wallet Authentication & Dynamic League Expansion)
 
 ## Milestone completate
 - [x] Fase 0: Setup Replit + ambiente base (Vite + React + TS + wallet adapter mock)
@@ -16,6 +16,9 @@ Versione: 0.8 (Standings + Player Detail + League Play)
 - [x] Fase 4/G: PlayerDetailPage — carta giocatore con attributi + career averages
 - [x] Fase 4/H: Play Next League Match — simulazione manuale gara campionato da Home
 - [x] Fase 6: Calcoli core client-side (matchup_rating, simulateAtBat, simulateInning, simulateGame)
+- [x] v1.0: Tactical Gameplay Engine (pitcher switch conditions, lineup DH, attack/defense modifiers, simulation rewrite)
+- [x] v1.1.1: Playoff System & Season Management (playoff matchups, promozione/retrocessione, nuova stagione)
+- [x] v1.2.0: Wallet Authentication & Dynamic League Expansion (Solana wallet login, JWT sessions, espansione leghe)
 - [ ] Fase 3: Integrazione API server Contabo
 - [ ] Fase 5: Programma Anchor MVP (token SPL + escrow semplice)
 - [ ] Fase 7: Batch processor server-side (simulazione giornaliera 00:00 CET)
@@ -24,18 +27,21 @@ Versione: 0.8 (Standings + Player Detail + League Play)
 - [ ] Fase 10: MVP giocabile (crea account -> lineup -> preview -> risultati)
 
 ## Stato attuale complessivo
-- Fase corrente: v0.8
-- Backend: Express + Drizzle + PostgreSQL su Replit, 7 tabelle, 13+ API endpoints
-- Frontend: 11 pagine (Home, Lineup, Pitchers, Attack, Defense, Simulate, Schedule, Standings, PlayerDetail, 404)
+- Fase corrente: v1.2.0
+- Backend: Express + Drizzle + PostgreSQL su Replit, 7 tabelle, 16+ API endpoints
+- Frontend: 12 pagine (Login, Home, Lineup, Pitchers, Attack, Defense, Simulate, Schedule, Standings, PlayerDetail, MatchDetail, 404)
 - Navigation: 7 items bottom bar (Hub, Lineup, Pitch, ATK, DEF, Sched, Rank)
+- Auth: Solana wallet login con firma ed25519, JWT sessions (7 giorni), challenge/verify flow
+- Espansione dinamica: nuove leghe auto-generate quando tutti i team sono occupati
 - Classifica: calcolata client-side, switch divisioni, match preview con formazioni
 - Dettaglio giocatore: carta con attributi, barre colorate, career averages
 - Liga play: simulazione manuale gara campionato con salvataggio risultato
-- Documentazione: 9 file PAGE_*.md per ogni pagina
+- Playoff: matchup dinamici, promozione/retrocessione, generazione nuova stagione
+- Documentazione: 11 file PAGE_*.md per ogni pagina
 
 ## Progress % stimato (qualitativo)
 - Visione & spec: 100%
 - Architettura & stack: 95%
-- Codice effettivo: 60%
+- Codice effettivo: 70%
 - Testing: 5%
 - Deploy/test Seeker: 0%

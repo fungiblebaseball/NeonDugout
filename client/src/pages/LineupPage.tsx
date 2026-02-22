@@ -4,7 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useState, useEffect } from "react";
 import { LineupPositions } from "@/lib/types";
 
-const FIELD_POSITIONS: LineupPositions[] = ['P', 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF'];
+const FIELD_POSITIONS: LineupPositions[] = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF'];
 
 export default function LineupPage() {
   const { team, players, walletAddress } = useGameStore();
@@ -30,32 +30,36 @@ export default function LineupPage() {
 
   const [fieldPositions, setFieldPositions] = useState<Record<string, number | null>>({});
   const [battingOrder, setBattingOrder] = useState<number[]>([]);
+  const [useDH, setUseDH] = useState(false);
+  const [dhPlayerId, setDhPlayerId] = useState<number | null>(null);
 
   const spId = pitcherRotation?.roles?.sp ?? null;
 
   useEffect(() => {
     if (savedLineup) {
       const fp = { ...(savedLineup.fieldPositions || {}) };
-      if (spId !== null) {
-        fp['P'] = spId;
-      }
       setFieldPositions(fp);
       setBattingOrder(savedLineup.battingOrder || []);
+      if (fp['DH']) {
+        setUseDH(true);
+        setDhPlayerId(fp['DH']);
+      }
     }
-  }, [savedLineup, spId]);
-
-  useEffect(() => {
-    if (spId !== null && fieldPositions['P'] !== spId) {
-      setFieldPositions(prev => ({ ...prev, P: spId }));
-    }
-  }, [spId]);
+  }, [savedLineup]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      const fpToSave = { ...fieldPositions };
+      if (spId) fpToSave['P'] = spId;
+      if (useDH && dhPlayerId) {
+        fpToSave['DH'] = dhPlayerId;
+      } else {
+        delete fpToSave['DH'];
+      }
       const res = await fetch('/api/lineup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamId: team!.id, fieldPositions, battingOrder }),
+        body: JSON.stringify({ teamId: team!.id, fieldPositions: fpToSave, battingOrder }),
       });
       return res.json();
     },
@@ -67,15 +71,16 @@ export default function LineupPage() {
   }
 
   const getPlayer = (id: number | null) => players.find(p => p.id === id);
+  const spPlayer = getPlayer(spId);
 
   const assignField = (pos: string, playerIdStr: string) => {
-    if (pos === 'P') return;
     const playerId = playerIdStr === 'none' ? null : parseInt(playerIdStr);
     const newPositions = { ...fieldPositions, [pos]: playerId };
     setFieldPositions(newPositions);
 
     if (playerId && !battingOrder.includes(playerId)) {
-      const newOrder = [...battingOrder.filter(id => id !== fieldPositions[pos]), playerId];
+      const oldId = fieldPositions[pos];
+      const newOrder = [...battingOrder.filter(id => id !== oldId), playerId];
       setBattingOrder(newOrder.slice(0, 9));
     }
   };
@@ -88,12 +93,49 @@ export default function LineupPage() {
     setBattingOrder(newOrder);
   };
 
-  const assignedIds = new Set(Object.values(fieldPositions).filter(Boolean));
+  const allAssignedIds = new Set([
+    ...Object.entries(fieldPositions).filter(([k]) => k !== 'DH' && k !== 'P').map(([, v]) => v).filter(Boolean),
+    spId,
+    useDH ? dhPlayerId : null,
+  ].filter(Boolean) as number[]);
 
-  const isPitcherPos = (pos: string) => pos === 'P';
-  const getPosLabel = (pos: string) => {
-    if (pos === 'P') return 'SP';
-    return pos;
+  const toggleDH = () => {
+    if (useDH) {
+      setUseDH(false);
+      if (dhPlayerId) {
+        setBattingOrder(prev => prev.filter(id => id !== dhPlayerId));
+      }
+      setDhPlayerId(null);
+      if (spId && !battingOrder.includes(spId)) {
+        setBattingOrder(prev => [...prev, spId].slice(0, 9));
+      }
+    } else {
+      setUseDH(true);
+      if (spId) {
+        setBattingOrder(prev => prev.filter(id => id !== spId));
+      }
+    }
+  };
+
+  const assignDH = (val: string) => {
+    const pid = val === 'none' ? null : parseInt(val);
+    const oldDh = dhPlayerId;
+    setDhPlayerId(pid);
+    if (pid && !battingOrder.includes(pid)) {
+      const newOrder = [...battingOrder.filter(id => id !== oldDh), pid];
+      setBattingOrder(newOrder.slice(0, 9));
+    } else if (!pid && oldDh) {
+      setBattingOrder(prev => prev.filter(id => id !== oldDh));
+    }
+  };
+
+  const getBatterPosition = (playerId: number): string => {
+    if (playerId === spId) return 'SP';
+    if (useDH && playerId === dhPlayerId) return 'DH';
+    for (const [pos, pid] of Object.entries(fieldPositions)) {
+      if (pid === playerId && pos !== 'P' && pos !== 'DH') return pos;
+    }
+    return '?';
   };
 
   return (
@@ -109,67 +151,110 @@ export default function LineupPage() {
         <div className="space-y-4">
           <h2 className="text-sm font-mono text-pink-500 border-b border-pink-500/30 pb-2">FIELD POSITIONS</h2>
 
+          <div data-testid="field-position-P" className="flex items-center gap-3 p-3 rounded-lg border border-pink-500/30 bg-pink-950/10">
+            <div className="w-10 h-10 shrink-0 flex items-center justify-center rounded border bg-pink-950/40 border-pink-500/40 text-pink-400 font-black" style={{fontFamily: "'Orbitron', sans-serif"}}>
+              SP
+            </div>
+            <div className="flex-1 min-w-0">
+              {spPlayer ? (
+                <div className="py-2">
+                  <span className="text-sm font-mono text-pink-100 block">{spPlayer.name}</span>
+                  <span className="text-[10px] font-mono text-pink-400/60">Set via Pitching Staff page</span>
+                </div>
+              ) : (
+                <span className="text-sm font-mono text-gray-500 py-2 block">No SP assigned - set in Pitching Staff</span>
+              )}
+            </div>
+            {spPlayer && (
+              <div className="flex flex-col gap-1 w-16 text-right shrink-0">
+                <span className="text-[10px] font-mono text-gray-400">VEL <span className="text-pink-400 font-bold">{spPlayer.vel}</span></span>
+                <span className="text-[10px] font-mono text-gray-400">CTL <span className="text-cyan-400 font-bold">{spPlayer.ctl}</span></span>
+              </div>
+            )}
+          </div>
+
           {FIELD_POSITIONS.map(pos => {
             const assignedId = fieldPositions[pos] ?? null;
             const assignedPlayer = getPlayer(assignedId);
-            const isPitcher = isPitcherPos(pos);
 
             return (
-              <div key={pos} data-testid={`field-position-${pos}`} className={`flex items-center gap-3 p-3 rounded-lg border ${isPitcher ? 'border-pink-500/30 bg-pink-950/10' : 'border-gray-800 bg-gray-950/50'}`}>
-                <div className={`w-10 h-10 shrink-0 flex items-center justify-center rounded border font-black ${isPitcher ? 'bg-pink-950/40 border-pink-500/40 text-pink-400' : 'bg-cyan-950/40 border-cyan-500/40 text-cyan-400'}`} style={{fontFamily: "'Orbitron', sans-serif"}}>
-                  {getPosLabel(pos)}
+              <div key={pos} data-testid={`field-position-${pos}`} className="flex items-center gap-3 p-3 rounded-lg border border-gray-800 bg-gray-950/50">
+                <div className="w-10 h-10 shrink-0 flex items-center justify-center rounded border bg-cyan-950/40 border-cyan-500/40 text-cyan-400 font-black" style={{fontFamily: "'Orbitron', sans-serif"}}>
+                  {pos}
                 </div>
-
                 <div className="flex-1 min-w-0">
-                  {isPitcher ? (
-                    <div className="py-2">
-                      {assignedPlayer ? (
-                        <div>
-                          <span className="text-sm font-mono text-pink-100 block">{assignedPlayer.name}</span>
-                          <span className="text-[10px] font-mono text-pink-400/60">Set via Pitching Staff page</span>
-                        </div>
-                      ) : (
-                        <span className="text-sm font-mono text-gray-500">No SP assigned - set in Pitching Staff</span>
-                      )}
-                    </div>
-                  ) : (
-                    <Select
-                      value={assignedId?.toString() || undefined}
-                      onValueChange={(val) => assignField(pos, val)}
-                    >
-                      <SelectTrigger data-testid={`select-position-${pos}`} className="w-full bg-black border-gray-800 text-cyan-50 font-mono text-sm h-10 truncate">
-                        <SelectValue placeholder="EMPTY SLOT" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-gray-950 border-cyan-500/30 text-cyan-50 max-h-64">
-                        <SelectItem value="none" className="text-gray-500 font-mono text-xs">-- EMPTY --</SelectItem>
-                        {players.filter(p => !p.positions.includes('P')).map(p => (
-                          <SelectItem key={p.id} value={p.id.toString()} className="font-mono text-xs">
-                            {p.name} <span className="text-gray-600 ml-1">[{p.positions.join(',')}]</span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
+                  <Select
+                    value={assignedId?.toString() || undefined}
+                    onValueChange={(val) => assignField(pos, val)}
+                  >
+                    <SelectTrigger data-testid={`select-position-${pos}`} className="w-full bg-black border-gray-800 text-cyan-50 font-mono text-sm h-10 truncate">
+                      <SelectValue placeholder="EMPTY SLOT" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-gray-950 border-cyan-500/30 text-cyan-50 max-h-64">
+                      <SelectItem value="none" className="text-gray-500 font-mono text-xs">-- EMPTY --</SelectItem>
+                      {players.filter(p => !p.positions.includes('P')).map(p => (
+                        <SelectItem key={p.id} value={p.id.toString()} className="font-mono text-xs">
+                          {p.name} <span className="text-gray-600 ml-1">[{p.positions.join(',')}]</span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-
                 {assignedPlayer && (
                   <div className="flex flex-col gap-1 w-16 text-right shrink-0">
-                    {isPitcher ? (
-                      <>
-                        <span className="text-[10px] font-mono text-gray-400">VEL <span className="text-pink-400 font-bold">{assignedPlayer.vel}</span></span>
-                        <span className="text-[10px] font-mono text-gray-400">CTL <span className="text-cyan-400 font-bold">{assignedPlayer.ctl}</span></span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-[10px] font-mono text-gray-400">POW <span className="text-pink-400 font-bold">{assignedPlayer.pow}</span></span>
-                        <span className="text-[10px] font-mono text-gray-400">CON <span className="text-cyan-400 font-bold">{assignedPlayer.con}</span></span>
-                      </>
-                    )}
+                    <span className="text-[10px] font-mono text-gray-400">POW <span className="text-pink-400 font-bold">{assignedPlayer.pow}</span></span>
+                    <span className="text-[10px] font-mono text-gray-400">CON <span className="text-cyan-400 font-bold">{assignedPlayer.con}</span></span>
                   </div>
                 )}
               </div>
             );
           })}
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-mono text-cyan-500 border-b border-cyan-500/30 pb-2 flex-1">DESIGNATED HITTER (DH)</h2>
+          </div>
+          <div className="p-4 rounded-xl border border-cyan-500/20 bg-cyan-950/10 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-mono text-gray-400">Use DH instead of pitcher batting</p>
+              </div>
+              <button
+                data-testid="button-toggle-dh"
+                onClick={toggleDH}
+                className={`px-4 py-2 rounded-lg font-black text-xs uppercase tracking-wider transition-all ${
+                  useDH
+                    ? 'bg-cyan-500 text-black shadow-[0_0_12px_rgba(34,211,238,0.4)]'
+                    : 'bg-gray-800 text-gray-500 border border-gray-700'
+                }`}
+                style={{fontFamily: "'Orbitron', sans-serif"}}
+              >
+                {useDH ? 'DH ON' : 'DH OFF'}
+              </button>
+            </div>
+            {useDH && (
+              <Select
+                value={dhPlayerId?.toString() || undefined}
+                onValueChange={assignDH}
+              >
+                <SelectTrigger data-testid="select-dh" className="w-full bg-black border-gray-800 text-cyan-50 font-mono text-sm h-10">
+                  <SelectValue placeholder="SELECT DH PLAYER" />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-950 border-cyan-500/30 text-cyan-50 max-h-64">
+                  <SelectItem value="none" className="text-gray-500 font-mono text-xs">-- EMPTY --</SelectItem>
+                  {players.filter(p => !p.positions.includes('P') && !allAssignedIds.has(p.id)).map(p => (
+                    <SelectItem key={p.id} value={p.id.toString()} className="font-mono text-xs">
+                      {p.name} <span className="text-gray-600 ml-1">[{p.positions.join(',')}]</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {!useDH && spPlayer && (
+              <p className="text-[10px] font-mono text-gray-600">SP ({spPlayer.name}) bats in lineup</p>
+            )}
+          </div>
         </div>
 
         <div className="space-y-4">
@@ -180,11 +265,14 @@ export default function LineupPage() {
           {battingOrder.map((playerId, idx) => {
             const p = getPlayer(playerId);
             if (!p) return null;
+            const pos = getBatterPosition(playerId);
+            const isPitcher = playerId === spId;
             return (
-              <div key={playerId} data-testid={`batting-order-${idx}`} className="flex items-center gap-3 p-3 rounded-lg border border-cyan-500/20 bg-cyan-950/10">
+              <div key={playerId} data-testid={`batting-order-${idx}`} className={`flex items-center gap-3 p-3 rounded-lg border ${isPitcher ? 'border-pink-500/20 bg-pink-950/10' : 'border-cyan-500/20 bg-cyan-950/10'}`}>
                 <div className="w-8 h-8 shrink-0 bg-pink-950/40 flex items-center justify-center rounded text-pink-400 font-black text-lg" style={{fontFamily: "'Press Start 2P', cursive", fontSize: '10px'}}>
                   #{idx + 1}
                 </div>
+                <span className={`text-[10px] font-mono w-8 shrink-0 ${isPitcher ? 'text-pink-400' : 'text-cyan-400'}`}>{pos}</span>
                 <span className="flex-1 text-sm font-mono text-cyan-100 truncate">{p.name}</span>
                 <div className="flex gap-1">
                   <button data-testid={`button-move-up-${idx}`} onClick={() => moveBatter(idx, 'up')} disabled={idx === 0} className="w-7 h-7 rounded bg-gray-800 text-cyan-400 disabled:opacity-20 hover:bg-cyan-900/50 text-xs font-bold">&#9650;</button>
@@ -207,7 +295,7 @@ export default function LineupPage() {
         <div className="pt-4 space-y-4">
           <h2 className="text-sm font-mono text-gray-500 border-b border-gray-800 pb-2">BENCH</h2>
           <div className="grid grid-cols-2 gap-2">
-            {players.filter(p => !assignedIds.has(p.id) && !p.positions.includes('P')).map(p => (
+            {players.filter(p => !allAssignedIds.has(p.id) && !p.positions.includes('P')).map(p => (
               <div key={p.id} data-testid={`bench-player-${p.id}`} className="p-3 border border-gray-800 rounded bg-black/40 flex flex-col justify-between">
                 <span className="text-xs font-bold truncate text-gray-300 mb-1">{p.name}</span>
                 <span className="text-[10px] font-mono text-pink-500/70">{p.positions.join(', ')}</span>

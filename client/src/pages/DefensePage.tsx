@@ -3,16 +3,16 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import type { InfieldPosition, OutfieldPosition } from "@/lib/types";
 
-const INFIELD_OPTIONS: { value: InfieldPosition; label: string; desc: string }[] = [
-  { value: 'short', label: 'SHORT (IN)', desc: 'Infielders play shallow. Better for slow grounders and bunts. Weaker against line drives.' },
-  { value: 'neutral', label: 'NEUTRAL', desc: 'Standard depth. Balanced coverage for all hit types.' },
-  { value: 'deep', label: 'DEEP (BACK)', desc: 'Infielders play deep. Better range on hard grounders. Weaker against bunts and slow rollers.' },
+const INFIELD_OPTIONS: { value: InfieldPosition; label: string; desc: string; counters: string; effects: string }[] = [
+  { value: 'short', label: 'SHORT (IN)', desc: 'Infielders play shallow. Best against bunt strategy and slow grounders.', counters: 'Counters: BUNT PRIORITY', effects: 'vs Bunt: -12% singles, +10% ground outs' },
+  { value: 'neutral', label: 'NEUTRAL', desc: 'Standard depth. Balanced coverage against gap hits.', counters: 'Counters: HIT & RUN', effects: 'vs H&R: -8% singles, +6% ground outs' },
+  { value: 'deep', label: 'DEEP (BACK)', desc: 'Infielders play deep. Better range on hard grounders and line drives.', counters: 'Counters: SWING ON SIGHT', effects: 'vs SoS: -5% singles, +5% ground outs' },
 ];
 
-const OUTFIELD_OPTIONS: { value: OutfieldPosition; label: string; desc: string }[] = [
-  { value: 'short', label: 'SHORT (IN)', desc: 'Outfielders play shallow. Better for bloops and singles. Risk of balls going over their heads.' },
-  { value: 'neutral', label: 'NEUTRAL', desc: 'Standard depth. Balanced coverage for all fly balls.' },
-  { value: 'deep', label: 'DEEP (BACK)', desc: 'Outfielders play deep. Better for deep fly balls and extra-base hits. More singles will drop.' },
+const OUTFIELD_OPTIONS: { value: OutfieldPosition; label: string; desc: string; counters: string; effects: string }[] = [
+  { value: 'short', label: 'SHORT (IN)', desc: 'Outfielders play shallow. Better for bloops, singles and bunt hits.', counters: 'Counters: BUNT singles', effects: 'vs Bunt: -5% singles, +4% fly outs' },
+  { value: 'neutral', label: 'NEUTRAL', desc: 'Standard depth. Balanced coverage for all fly balls.', counters: 'Counters: HIT & RUN', effects: 'vs H&R: -4% singles' },
+  { value: 'deep', label: 'DEEP (BACK)', desc: 'Outfielders play deep. Better for deep fly balls and power hits.', counters: 'Counters: SWING ON SIGHT', effects: 'vs SoS: -8% HR, -6% XBH, +8% fly outs' },
 ];
 
 export default function DefensePage() {
@@ -71,6 +71,7 @@ export default function DefensePage() {
       <main className="p-4 space-y-6">
         <div className="space-y-4">
           <h2 className="text-sm font-mono text-cyan-500 border-b border-cyan-500/30 pb-2">INFIELD POSITIONING</h2>
+          <p className="text-[10px] font-mono text-gray-500">Each position counters specific offensive strategies</p>
           {INFIELD_OPTIONS.map(opt => (
             <button
               key={opt.value}
@@ -91,12 +92,15 @@ export default function DefensePage() {
                 )}
               </div>
               <p className="text-xs font-mono text-gray-500 leading-relaxed">{opt.desc}</p>
+              <p className="text-[10px] font-mono text-cyan-500/70 mt-2">{opt.counters}</p>
+              <p className="text-[10px] font-mono text-yellow-500/60 mt-1">{opt.effects}</p>
             </button>
           ))}
         </div>
 
         <div className="space-y-4">
           <h2 className="text-sm font-mono text-pink-500 border-b border-pink-500/30 pb-2">OUTFIELD POSITIONING</h2>
+          <p className="text-[10px] font-mono text-gray-500">Outfield depth affects fly ball coverage and power hits</p>
           {OUTFIELD_OPTIONS.map(opt => (
             <button
               key={opt.value}
@@ -117,6 +121,8 @@ export default function DefensePage() {
                 )}
               </div>
               <p className="text-xs font-mono text-gray-500 leading-relaxed">{opt.desc}</p>
+              <p className="text-[10px] font-mono text-pink-500/70 mt-2">{opt.counters}</p>
+              <p className="text-[10px] font-mono text-yellow-500/60 mt-1">{opt.effects}</p>
             </button>
           ))}
         </div>

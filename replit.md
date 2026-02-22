@@ -4,7 +4,7 @@
 Text-based fantasy baseball manager game with retro 80s/90s cyberpunk aesthetic. Target platform: Solana Seeker mobile (Web3 integration planned). Zero MLB licenses - all fictional teams and players.
 
 ## Current State
-Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 0.9 — Deep Navigation + Match History Persistence.
+Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.0 — Tactical Gameplay Engine.
 
 ## Architecture
 - **Frontend**: React + Vite, Tailwind CSS, Zustand (state), wouter (routing), TanStack Query (API)
@@ -29,18 +29,18 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 - `matches` - round-robin schedule with scores (90 per division, 18 days)
 - `match_details` - full game data per match (box_score, flavor_texts, mvp, home_lineup, away_lineup, home_batters, away_batters, home_pitcher, away_pitcher)
 - `lineups` - field positions + batting order (JSON columns)
-- `pitcher_rotations` - roles JSONB {sp, r1, closer, nextSp} + rotation_order + switch conditions (max pitches/innings/BB/ER)
+- `pitcher_rotations` - roles JSONB {sp, r1, closer, nextSp} + rotation_order + SP switch conditions (maxPitches/maxInnings/maxBb/maxEr) + R1 conditions (r1MaxPitches/r1MaxEr) + Closer conditions (closerMaxPitches/closerMaxEr)
 - `tactics` - attack style + infield/outfield positioning
 
 ## Pages
 1. **Home** (/) - Connect wallet, team dashboard, nav grid, play next league match button with "View Match Report" link
-2. **Lineup** (/lineup) - Assign field positions (SP shown dynamically from pitching staff, C,1B...RF), reorder batting order 1-9
-3. **Pitchers** (/pitchers) - Assign pitcher roles: SP, R1, C, 2P. Configure SP switch conditions via sliders
-4. **Attack** (/attack) - Choose offensive strategy: bunt, hit-and-run, neutral, swing-on-sight
-5. **Defense** (/defense) - Set infield positioning (short/neutral/deep) + outfield positioning
-6. **Simulate** (/simulate) - Exhibition test match with box score, batter/pitcher stats, flavor text
+2. **Lineup** (/lineup) - Assign field positions (SP read-only from pitching, C,1B...RF), DH toggle, reorder batting order 1-9 (SP moveable)
+3. **Pitchers** (/pitchers) - Assign pitcher roles: SP, R1, C, 2P. SP/R1/Closer switch conditions via sliders (pitches, innings, BB, ER)
+4. **Attack** (/attack) - Choose offensive strategy with probability modifiers: bunt (+15% contact, -20% XBH), hit-and-run (+15% 1B, -25% HR), neutral (base), swing-on-sight (+20% XBH, +15% HR, +20% SO)
+5. **Defense** (/defense) - Set infield/outfield positioning with counter-strategy effects (short counters bunt, neutral counters H&R, deep counters swing-on-sight)
+6. **Simulate** (/simulate) - Exhibition test match using saved lineup/tactics/rotation with box score, batter/pitcher stats, flavor text
 7. **Schedule** (/schedule) - Division calendar (18 match days), next match highlight, W-L record, played matches clickable → Match Report
-8. **Standings** (/standings) - Division standings with W/L/PCT/RF/RA, switch divisions, match preview with lineups + stat comparison
+8. **Standings** (/standings) - Division standings with W/L/PCT/RF/RA, switch divisions, match preview with saved lineups (positions + batting order) + separate pitcher roster grid
 9. **Player Detail** (/player/:id) - Player card with photo slot, 9 attribute bars, career averages
 10. **Match Detail** (/match/:id) - Full match report: box score, linescore, batter/pitcher stats, MVP, flavor text, player links
 
@@ -56,7 +56,17 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 - R1: Relief 1 (first reliever when SP is pulled)
 - C: Closer (9th inning / save situations)
 - 2P: Next game starter (auto-rotated after game)
-- Switch conditions apply to SP: maxPitches, maxInnings, maxBB, maxER
+- SP switch conditions: maxPitches (50-150), maxInnings (1-9), maxBB (1-10), maxER (1-10)
+- R1 switch conditions: r1MaxPitches (15-80), r1MaxEr (1-6)
+- Closer switch conditions: closerMaxPitches (10-60), closerMaxEr (1-5)
+- Substitution chain: SP → R1 → Closer (automatic during simulation)
+
+## Tactics System
+- Attack styles apply probability modifiers to at-bat outcomes (bunt, hit_and_run, neutral, swing_on_sight)
+- Defense positioning counters specific attack styles (rock-paper-scissors interplay)
+- Infield: short counters bunt, neutral counters hit-and-run, deep counters swing-on-sight
+- Outfield: short counters bunt singles, neutral counters hit-and-run, deep counters power hitting
+- All modifiers are multiplicative percentages applied to base probability table
 
 ## Design Decisions
 - Meritocratic divisions: all teams generated with same attribute ranges (30-85 gaussian)

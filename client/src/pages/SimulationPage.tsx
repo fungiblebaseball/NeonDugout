@@ -2,7 +2,7 @@ import { useGameStore } from "@/lib/store";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { simulateGame, resetRng } from "@/lib/calculations";
-import type { GameResult, SimPlayer, SimTeam } from "@/lib/calculations";
+import type { GameResult, SimPlayer, SimTeam, SimConfig, PitchingConfig, TacticsModifiers } from "@/lib/calculations";
 
 export default function SimulationPage() {
   const { team, players, walletAddress } = useGameStore();
@@ -36,8 +36,48 @@ export default function SimulationPage() {
       return;
     }
 
-    const res = await fetch(`/api/team/${opponent.id}/players`);
-    const opponentPlayers: SimPlayer[] = await res.json();
+    const [oppPlayersRes, myLineupRes, myRotationRes, myTacticsRes] = await Promise.all([
+      fetch(`/api/team/${opponent.id}/players`),
+      fetch(`/api/lineup/${team.id}`),
+      fetch(`/api/pitcher-rotation/${team.id}`),
+      fetch(`/api/tactics/${team.id}`),
+    ]);
+
+    const opponentPlayers: SimPlayer[] = await oppPlayersRes.json();
+    const myLineup = await myLineupRes.json();
+    const myRotation = await myRotationRes.json();
+    const myTactics = await myTacticsRes.json();
+
+    const playerMap = new Map((players as SimPlayer[]).map(p => [p.id, p]));
+
+    const builtLineup = myLineup?.battingOrder?.length > 0
+      ? myLineup.battingOrder.map((id: number) => playerMap.get(id)).filter(Boolean) as SimPlayer[]
+      : undefined;
+
+    const buildPitching = (rot: any, allP: SimPlayer[]): PitchingConfig | undefined => {
+      if (!rot?.roles) return undefined;
+      const pm = new Map(allP.map(p => [p.id, p]));
+      return {
+        sp: rot.roles.sp ? pm.get(rot.roles.sp) || null : null,
+        r1: rot.roles.r1 ? pm.get(rot.roles.r1) || null : null,
+        closer: rot.roles.closer ? pm.get(rot.roles.closer) || null : null,
+        maxPitches: rot.maxPitches ?? 100, maxInnings: rot.maxInnings ?? 7,
+        maxBb: rot.maxBb ?? 4, maxEr: rot.maxEr ?? 4,
+        r1MaxPitches: rot.r1MaxPitches ?? 40, r1MaxEr: rot.r1MaxEr ?? 3,
+        closerMaxPitches: rot.closerMaxPitches ?? 30, closerMaxEr: rot.closerMaxEr ?? 2,
+      };
+    };
+
+    const buildTac = (tac: any): TacticsModifiers | undefined => {
+      if (!tac) return undefined;
+      return { attackStyle: tac.attackStyle || 'neutral', infieldPosition: tac.infieldPosition || 'neutral', outfieldPosition: tac.outfieldPosition || 'neutral' };
+    };
+
+    const simConfig: SimConfig = {
+      homeLineup: builtLineup && builtLineup.length >= 9 ? builtLineup : undefined,
+      homePitching: buildPitching(myRotation, players as SimPlayer[]),
+      homeTactics: buildTac(myTactics),
+    };
 
     resetRng();
 
@@ -49,6 +89,7 @@ export default function SimulationPage() {
       awayTeam,
       players as SimPlayer[],
       opponentPlayers,
+      simConfig,
     );
 
     setResult(gameResult);

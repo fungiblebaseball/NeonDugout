@@ -32,6 +32,10 @@ export default function PitchersPage() {
   const [maxInnings, setMaxInnings] = useState(7);
   const [maxBb, setMaxBb] = useState(4);
   const [maxEr, setMaxEr] = useState(4);
+  const [r1MaxPitches, setR1MaxPitches] = useState(40);
+  const [r1MaxEr, setR1MaxEr] = useState(3);
+  const [closerMaxPitches, setCloserMaxPitches] = useState(30);
+  const [closerMaxEr, setCloserMaxEr] = useState(2);
 
   useEffect(() => {
     if (saved) {
@@ -48,6 +52,10 @@ export default function PitchersPage() {
       setMaxInnings(saved.maxInnings ?? 7);
       setMaxBb(saved.maxBb ?? 4);
       setMaxEr(saved.maxEr ?? 4);
+      setR1MaxPitches(saved.r1MaxPitches ?? 40);
+      setR1MaxEr(saved.r1MaxEr ?? 3);
+      setCloserMaxPitches(saved.closerMaxPitches ?? 30);
+      setCloserMaxEr(saved.closerMaxEr ?? 2);
     } else if (pitchers.length > 0 && !roles.sp) {
       setRoles({
         sp: pitchers[0]?.id ?? null,
@@ -64,7 +72,7 @@ export default function PitchersPage() {
       const res = await fetch('/api/pitcher-rotation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamId: team!.id, rotationOrder, roles, maxPitches, maxInnings, maxBb, maxEr }),
+        body: JSON.stringify({ teamId: team!.id, rotationOrder, roles, maxPitches, maxInnings, maxBb, maxEr, r1MaxPitches, r1MaxEr, closerMaxPitches, closerMaxEr }),
       });
       return res.json();
     },
@@ -178,7 +186,7 @@ export default function PitchersPage() {
 
         <div className="space-y-5">
           <h2 className="text-sm font-mono text-pink-500 border-b border-pink-500/30 pb-2">SP SWITCH CONDITIONS</h2>
-          <p className="text-[10px] font-mono text-gray-500">Starting Pitcher will be replaced by R1 when ANY condition is met</p>
+          <p className="text-[10px] font-mono text-gray-500">SP replaced by R1 when ANY condition is met</p>
 
           <div className="space-y-1">
             <div className="flex justify-between">
@@ -210,6 +218,48 @@ export default function PitchersPage() {
               <span data-testid="text-max-er" className="text-xs font-mono text-pink-400 font-bold">{maxEr}</span>
             </div>
             <Slider data-testid="slider-max-er" value={[maxEr]} onValueChange={([v]) => setMaxEr(v)} min={1} max={10} step={1} className="py-2" />
+          </div>
+        </div>
+
+        <div className="space-y-5">
+          <h2 className="text-sm font-mono text-cyan-500 border-b border-cyan-500/30 pb-2">R1 SWITCH CONDITIONS</h2>
+          <p className="text-[10px] font-mono text-gray-500">R1 replaced by Closer when ANY condition is met</p>
+
+          <div className="space-y-1">
+            <div className="flex justify-between">
+              <label className="text-xs font-mono text-cyan-300">R1 MAX PITCHES</label>
+              <span data-testid="text-r1-max-pitches" className="text-xs font-mono text-cyan-400 font-bold">{r1MaxPitches}</span>
+            </div>
+            <Slider data-testid="slider-r1-max-pitches" value={[r1MaxPitches]} onValueChange={([v]) => setR1MaxPitches(v)} min={15} max={80} step={5} className="py-2" />
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex justify-between">
+              <label className="text-xs font-mono text-cyan-300">R1 MAX EARNED RUNS (ER)</label>
+              <span data-testid="text-r1-max-er" className="text-xs font-mono text-cyan-400 font-bold">{r1MaxEr}</span>
+            </div>
+            <Slider data-testid="slider-r1-max-er" value={[r1MaxEr]} onValueChange={([v]) => setR1MaxEr(v)} min={1} max={6} step={1} className="py-2" />
+          </div>
+        </div>
+
+        <div className="space-y-5">
+          <h2 className="text-sm font-mono text-pink-500 border-b border-pink-500/30 pb-2">CLOSER SWITCH CONDITIONS</h2>
+          <p className="text-[10px] font-mono text-gray-500">Closer limit conditions (game ends or bullpen takes over)</p>
+
+          <div className="space-y-1">
+            <div className="flex justify-between">
+              <label className="text-xs font-mono text-cyan-300">CLOSER MAX PITCHES</label>
+              <span data-testid="text-closer-max-pitches" className="text-xs font-mono text-pink-400 font-bold">{closerMaxPitches}</span>
+            </div>
+            <Slider data-testid="slider-closer-max-pitches" value={[closerMaxPitches]} onValueChange={([v]) => setCloserMaxPitches(v)} min={10} max={60} step={5} className="py-2" />
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex justify-between">
+              <label className="text-xs font-mono text-cyan-300">CLOSER MAX EARNED RUNS (ER)</label>
+              <span data-testid="text-closer-max-er" className="text-xs font-mono text-pink-400 font-bold">{closerMaxEr}</span>
+            </div>
+            <Slider data-testid="slider-closer-max-er" value={[closerMaxEr]} onValueChange={([v]) => setCloserMaxEr(v)} min={1} max={5} step={1} className="py-2" />
           </div>
         </div>
 

@@ -233,6 +233,15 @@ export default function StandingsPage() {
   );
 }
 
+interface LineupData {
+  fieldPositions: Record<string, number | null>;
+  battingOrder: number[];
+}
+
+interface RotationData {
+  roles: { sp: number | null; r1: number | null; closer: number | null; nextSp: number | null };
+}
+
 function MatchPreview({ match, userTeamId, allTeams }: { match: MatchData; userTeamId: number; allTeams: TeamData[] }) {
   const opponentId = match.homeTeamId === userTeamId ? match.awayTeamId : match.homeTeamId;
   const isHome = match.homeTeamId === userTeamId;
@@ -250,6 +259,38 @@ function MatchPreview({ match, userTeamId, allTeams }: { match: MatchData; userT
     queryKey: ['team-players', opponentId],
     queryFn: async () => {
       const res = await fetch(`/api/team/${opponentId}/players`);
+      return res.json();
+    },
+  });
+
+  const { data: userLineup } = useQuery<LineupData>({
+    queryKey: ['lineup', userTeamId],
+    queryFn: async () => {
+      const res = await fetch(`/api/lineup/${userTeamId}`);
+      return res.json();
+    },
+  });
+
+  const { data: oppLineup } = useQuery<LineupData>({
+    queryKey: ['lineup', opponentId],
+    queryFn: async () => {
+      const res = await fetch(`/api/lineup/${opponentId}`);
+      return res.json();
+    },
+  });
+
+  const { data: userRotation } = useQuery<RotationData>({
+    queryKey: ['pitcher-rotation', userTeamId],
+    queryFn: async () => {
+      const res = await fetch(`/api/pitcher-rotation/${userTeamId}`);
+      return res.json();
+    },
+  });
+
+  const { data: oppRotation } = useQuery<RotationData>({
+    queryKey: ['pitcher-rotation', opponentId],
+    queryFn: async () => {
+      const res = await fetch(`/api/pitcher-rotation/${opponentId}`);
       return res.json();
     },
   });
@@ -279,8 +320,59 @@ function MatchPreview({ match, userTeamId, allTeams }: { match: MatchData; userT
       : 0,
   }));
 
-  const userTop9 = [...userPlayers].sort((a, b) => playerOverall(b) - playerOverall(a)).slice(0, 9);
-  const oppTop9 = [...oppPlayers].sort((a, b) => playerOverall(b) - playerOverall(a)).slice(0, 9);
+  const buildLineupDisplay = (lineup: LineupData | undefined, rotation: RotationData | undefined, allPlayers: PlayerData[]) => {
+    const playerMap = new Map(allPlayers.map(p => [p.id, p]));
+    const posMap: Record<string, number | null> = lineup?.fieldPositions || {};
+    const battingOrder = lineup?.battingOrder || [];
+
+    if (battingOrder.length === 0) {
+      const nonPitchers = allPlayers.filter(p => !p.positions.includes('P'))
+        .sort((a, b) => playerOverall(b) - playerOverall(a))
+        .slice(0, 9);
+      return { lineup: nonPitchers.map(p => ({ player: p, pos: p.positions[0] || '?' })), hasSaved: false };
+    }
+
+    const spId = rotation?.roles?.sp ?? null;
+    const result = battingOrder.map(id => {
+      const player = playerMap.get(id);
+      if (!player) return null;
+      let pos = '?';
+      if (id === spId) pos = 'SP';
+      else if (posMap['DH'] === id) pos = 'DH';
+      else {
+        for (const [p, pid] of Object.entries(posMap)) {
+          if (pid === id && p !== 'P' && p !== 'DH') { pos = p; break; }
+        }
+      }
+      return { player, pos };
+    }).filter(Boolean) as { player: PlayerData; pos: string }[];
+
+    return { lineup: result, hasSaved: true };
+  };
+
+  const buildPitcherRoster = (rotation: RotationData | undefined, allPlayers: PlayerData[]) => {
+    const playerMap = new Map(allPlayers.map(p => [p.id, p]));
+    const roles = rotation?.roles || { sp: null, r1: null, closer: null, nextSp: null };
+    const roster: { player: PlayerData; role: string }[] = [];
+
+    if (roles.sp) { const p = playerMap.get(roles.sp); if (p) roster.push({ player: p, role: 'SP' }); }
+    if (roles.r1) { const p = playerMap.get(roles.r1); if (p) roster.push({ player: p, role: 'R1' }); }
+    if (roles.closer) { const p = playerMap.get(roles.closer); if (p) roster.push({ player: p, role: 'CL' }); }
+    if (roles.nextSp) { const p = playerMap.get(roles.nextSp); if (p) roster.push({ player: p, role: '2P' }); }
+
+    if (roster.length === 0) {
+      const pitchers = allPlayers.filter(p => p.positions.includes('P')).slice(0, 4);
+      const roleLabels = ['SP', 'R1', 'CL', '2P'];
+      pitchers.forEach((p, i) => roster.push({ player: p, role: roleLabels[i] || 'BP' }));
+    }
+
+    return roster;
+  };
+
+  const userDisplay = buildLineupDisplay(userLineup, userRotation, userPlayers);
+  const oppDisplay = buildLineupDisplay(oppLineup, oppRotation, oppPlayers);
+  const userPitchers = buildPitcherRoster(userRotation, userPlayers);
+  const oppPitchers = buildPitcherRoster(oppRotation, oppPlayers);
 
   return (
     <div data-testid="match-preview" className="rounded-xl border border-cyan-500/30 bg-cyan-950/5 overflow-hidden">
@@ -301,23 +393,60 @@ function MatchPreview({ match, userTeamId, allTeams }: { match: MatchData; userT
 
       <div className="grid grid-cols-2 divide-x divide-gray-800">
         <div className="p-3">
-          <p className="text-[10px] font-mono text-cyan-500 mb-2 text-center uppercase">{userTeam?.name} ★</p>
-          {userTop9.map(p => (
-            <Link key={p.id} href={`/player/${p.id}`}>
-              <div className="flex items-center justify-between py-1 px-1 hover:bg-cyan-950/20 rounded cursor-pointer transition-colors">
-                <span className="text-[10px] text-cyan-200 truncate max-w-[80px]">{p.name}</span>
-                <span className="text-[10px] font-bold text-cyan-400">{playerOverall(p)}</span>
+          <p className="text-[10px] font-mono text-cyan-500 mb-1 text-center uppercase">{userTeam?.name} ★</p>
+          {!userDisplay.hasSaved && <p className="text-[8px] font-mono text-gray-600 text-center mb-1">Auto lineup (no saved)</p>}
+          <div className="space-y-0.5">
+            {userDisplay.lineup.map((entry, i) => (
+              <Link key={entry.player.id} href={`/player/${entry.player.id}`}>
+                <div className="flex items-center gap-1.5 py-0.5 px-1 hover:bg-cyan-950/20 rounded cursor-pointer transition-colors">
+                  <span className="text-[8px] font-mono text-gray-600 w-3">{i + 1}</span>
+                  <span className="text-[9px] font-mono text-cyan-500 w-6 font-bold">{entry.pos}</span>
+                  <span className="text-[10px] text-cyan-200 truncate flex-1">{entry.player.name}</span>
+                  <span className="text-[10px] font-bold text-cyan-400">{playerOverall(entry.player)}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+        <div className="p-3">
+          <p className="text-[10px] font-mono text-pink-500 mb-1 text-center uppercase">{oppTeam?.name}</p>
+          {!oppDisplay.hasSaved && <p className="text-[8px] font-mono text-gray-600 text-center mb-1">Auto lineup (no saved)</p>}
+          <div className="space-y-0.5">
+            {oppDisplay.lineup.map((entry, i) => (
+              <Link key={entry.player.id} href={`/player/${entry.player.id}`}>
+                <div className="flex items-center gap-1.5 py-0.5 px-1 hover:bg-pink-950/20 rounded cursor-pointer transition-colors">
+                  <span className="text-[8px] font-mono text-gray-600 w-3">{i + 1}</span>
+                  <span className="text-[9px] font-mono text-pink-500 w-6 font-bold">{entry.pos}</span>
+                  <span className="text-[10px] text-pink-200 truncate flex-1">{entry.player.name}</span>
+                  <span className="text-[10px] font-bold text-pink-400">{playerOverall(entry.player)}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 divide-x divide-gray-800 border-t border-gray-800">
+        <div className="p-3">
+          <p className="text-[9px] font-mono text-cyan-400/70 mb-1 text-center uppercase">Pitching Staff</p>
+          {userPitchers.map(entry => (
+            <Link key={entry.player.id} href={`/player/${entry.player.id}`}>
+              <div className="flex items-center gap-1.5 py-0.5 px-1 hover:bg-cyan-950/20 rounded cursor-pointer transition-colors">
+                <span className="text-[9px] font-mono text-pink-400 w-5 font-bold">{entry.role}</span>
+                <span className="text-[10px] text-cyan-200 truncate flex-1">{entry.player.name}</span>
+                <span className="text-[9px] font-mono text-gray-500">V{entry.player.vel} C{entry.player.ctl}</span>
               </div>
             </Link>
           ))}
         </div>
         <div className="p-3">
-          <p className="text-[10px] font-mono text-pink-500 mb-2 text-center uppercase">{oppTeam?.name}</p>
-          {oppTop9.map(p => (
-            <Link key={p.id} href={`/player/${p.id}`}>
-              <div className="flex items-center justify-between py-1 px-1 hover:bg-pink-950/20 rounded cursor-pointer transition-colors">
-                <span className="text-[10px] text-pink-200 truncate max-w-[80px]">{p.name}</span>
-                <span className="text-[10px] font-bold text-pink-400">{playerOverall(p)}</span>
+          <p className="text-[9px] font-mono text-pink-400/70 mb-1 text-center uppercase">Pitching Staff</p>
+          {oppPitchers.map(entry => (
+            <Link key={entry.player.id} href={`/player/${entry.player.id}`}>
+              <div className="flex items-center gap-1.5 py-0.5 px-1 hover:bg-pink-950/20 rounded cursor-pointer transition-colors">
+                <span className="text-[9px] font-mono text-cyan-400 w-5 font-bold">{entry.role}</span>
+                <span className="text-[10px] text-pink-200 truncate flex-1">{entry.player.name}</span>
+                <span className="text-[9px] font-mono text-gray-500">V{entry.player.vel} C{entry.player.ctl}</span>
               </div>
             </Link>
           ))}
@@ -343,7 +472,6 @@ function MatchPreview({ match, userTeamId, allTeams }: { match: MatchData; userT
           {statKeys.map((key, i) => {
             const uVal = userStatAvgs[i].avg;
             const oVal = oppStatAvgs[i].avg;
-            const maxVal = Math.max(uVal, oVal, 1);
             return (
               <div key={key} className="flex items-center gap-2">
                 <span className={`text-[9px] font-mono w-6 text-right ${uVal > oVal ? 'text-cyan-400' : 'text-gray-500'}`}>{uVal}</span>

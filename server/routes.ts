@@ -133,7 +133,7 @@ export async function registerRoutes(
   });
 
   app.post("/api/pitcher-rotation", async (req, res) => {
-    const { teamId, rotationOrder, roles, maxPitches, maxInnings, maxBb, maxEr } = req.body;
+    const { teamId, rotationOrder, roles, maxPitches, maxInnings, maxBb, maxEr, r1MaxPitches, r1MaxEr, closerMaxPitches, closerMaxEr } = req.body;
     if (!teamId) return res.status(400).json({ message: "teamId required" });
 
     const rotation = await storage.upsertPitcherRotation({
@@ -144,6 +144,10 @@ export async function registerRoutes(
       maxInnings: maxInnings ?? 7,
       maxBb: maxBb ?? 4,
       maxEr: maxEr ?? 4,
+      r1MaxPitches: r1MaxPitches ?? 40,
+      r1MaxEr: r1MaxEr ?? 3,
+      closerMaxPitches: closerMaxPitches ?? 30,
+      closerMaxEr: closerMaxEr ?? 2,
     });
     res.json(rotation);
   });

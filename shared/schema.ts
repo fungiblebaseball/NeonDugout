@@ -64,6 +64,10 @@ export const pitcherRotations = pgTable("pitcher_rotations", {
   maxInnings: integer("max_innings").notNull().default(7),
   maxBb: integer("max_bb").notNull().default(4),
   maxEr: integer("max_er").notNull().default(4),
+  r1MaxPitches: integer("r1_max_pitches").notNull().default(40),
+  r1MaxEr: integer("r1_max_er").notNull().default(3),
+  closerMaxPitches: integer("closer_max_pitches").notNull().default(30),
+  closerMaxEr: integer("closer_max_er").notNull().default(2),
 });
 
 export const tactics = pgTable("tactics", {

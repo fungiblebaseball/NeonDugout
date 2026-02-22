@@ -5,7 +5,7 @@ import { Link, useLocation } from "wouter";
 import { Terminal, ShieldAlert, Calendar, Swords, Shield, ListOrdered, RotateCcw, Zap, Trophy, Play } from "lucide-react";
 import { useState } from "react";
 import { simulateGame, resetRng } from "@/lib/calculations";
-import type { SimPlayer, SimTeam } from "@/lib/calculations";
+import type { SimPlayer, SimTeam, SimConfig, PitchingConfig, TacticsModifiers } from "@/lib/calculations";
 
 interface MatchData {
   id: number;
@@ -56,16 +56,67 @@ export default function Home() {
   const nextLeagueMatch = userMatches[0];
   const teamMap = new Map(divTeams.map(t => [t.id, t]));
 
+  const buildLineupFromSaved = (savedLineup: any, allPlayers: SimPlayer[], pitcherRotation: any): SimPlayer[] => {
+    if (!savedLineup?.battingOrder || savedLineup.battingOrder.length === 0) return [];
+    const playerMap = new Map(allPlayers.map(p => [p.id, p]));
+    return savedLineup.battingOrder
+      .map((id: number) => playerMap.get(id))
+      .filter(Boolean) as SimPlayer[];
+  };
+
+  const buildPitchingConfig = (rotation: any, allPlayers: SimPlayer[]): PitchingConfig | undefined => {
+    if (!rotation?.roles) return undefined;
+    const playerMap = new Map(allPlayers.map(p => [p.id, p]));
+    return {
+      sp: rotation.roles.sp ? playerMap.get(rotation.roles.sp) || null : null,
+      r1: rotation.roles.r1 ? playerMap.get(rotation.roles.r1) || null : null,
+      closer: rotation.roles.closer ? playerMap.get(rotation.roles.closer) || null : null,
+      maxPitches: rotation.maxPitches ?? 100,
+      maxInnings: rotation.maxInnings ?? 7,
+      maxBb: rotation.maxBb ?? 4,
+      maxEr: rotation.maxEr ?? 4,
+      r1MaxPitches: rotation.r1MaxPitches ?? 40,
+      r1MaxEr: rotation.r1MaxEr ?? 3,
+      closerMaxPitches: rotation.closerMaxPitches ?? 30,
+      closerMaxEr: rotation.closerMaxEr ?? 2,
+    };
+  };
+
+  const buildTactics = (tac: any): TacticsModifiers | undefined => {
+    if (!tac) return undefined;
+    return {
+      attackStyle: tac.attackStyle || 'neutral',
+      infieldPosition: tac.infieldPosition || 'neutral',
+      outfieldPosition: tac.outfieldPosition || 'neutral',
+    };
+  };
+
   const playNextLeagueMatch = async () => {
     if (!nextLeagueMatch || !team || players.length === 0) return;
     setSimulating(true);
     setLastResult(null);
     try {
       const opponentId = nextLeagueMatch.homeTeamId === team.id ? nextLeagueMatch.awayTeamId : nextLeagueMatch.homeTeamId;
-      const res = await fetch(`/api/team/${opponentId}/players`);
-      const opponentPlayers: SimPlayer[] = await res.json();
-
       const isHome = nextLeagueMatch.homeTeamId === team.id;
+
+      const [oppPlayersRes, myLineupRes, myRotationRes, myTacticsRes, oppLineupRes, oppRotationRes, oppTacticsRes] = await Promise.all([
+        fetch(`/api/team/${opponentId}/players`),
+        fetch(`/api/lineup/${team.id}`),
+        fetch(`/api/pitcher-rotation/${team.id}`),
+        fetch(`/api/tactics/${team.id}`),
+        fetch(`/api/lineup/${opponentId}`),
+        fetch(`/api/pitcher-rotation/${opponentId}`),
+        fetch(`/api/tactics/${opponentId}`),
+      ]);
+
+      const opponentPlayers: SimPlayer[] = await oppPlayersRes.json();
+      const myLineup = await myLineupRes.json();
+      const myRotation = await myRotationRes.json();
+      const myTactics = await myTacticsRes.json();
+      const oppLineup = await oppLineupRes.json();
+      const oppRotation = await oppRotationRes.json();
+      const oppTactics = await oppTacticsRes.json();
+
       const homeTeam: SimTeam = isHome
         ? { id: team.id, name: team.name, division: team.division }
         : { id: opponentId, name: teamMap.get(opponentId)?.name || 'Opponent', division: team.division };
@@ -75,8 +126,20 @@ export default function Home() {
       const homePlayers = isHome ? (players as SimPlayer[]) : opponentPlayers;
       const awayPlayers = isHome ? opponentPlayers : (players as SimPlayer[]);
 
+      const myBuiltLineup = buildLineupFromSaved(myLineup, players as SimPlayer[], myRotation);
+      const oppBuiltLineup = buildLineupFromSaved(oppLineup, opponentPlayers, oppRotation);
+
+      const simConfig: SimConfig = {
+        homeLineup: isHome ? (myBuiltLineup.length >= 9 ? myBuiltLineup : undefined) : (oppBuiltLineup.length >= 9 ? oppBuiltLineup : undefined),
+        awayLineup: isHome ? (oppBuiltLineup.length >= 9 ? oppBuiltLineup : undefined) : (myBuiltLineup.length >= 9 ? myBuiltLineup : undefined),
+        homePitching: isHome ? buildPitchingConfig(myRotation, players as SimPlayer[]) : buildPitchingConfig(oppRotation, opponentPlayers),
+        awayPitching: isHome ? buildPitchingConfig(oppRotation, opponentPlayers) : buildPitchingConfig(myRotation, players as SimPlayer[]),
+        homeTactics: isHome ? buildTactics(myTactics) : buildTactics(oppTactics),
+        awayTactics: isHome ? buildTactics(oppTactics) : buildTactics(myTactics),
+      };
+
       resetRng();
-      const gameResult = simulateGame(homeTeam, awayTeam, homePlayers, awayPlayers);
+      const gameResult = simulateGame(homeTeam, awayTeam, homePlayers, awayPlayers, simConfig);
 
       await fetch(`/api/matches/${nextLeagueMatch.id}/result`, {
         method: 'POST',
@@ -88,8 +151,8 @@ export default function Home() {
             boxScore: gameResult.boxScore,
             flavorTexts: gameResult.flavorTexts,
             mvp: gameResult.mvp,
-            homeLineup: { playerIds: homePlayers.slice(0, 9).map(p => p.id), pitcherId: gameResult.boxScore.homePitcher.playerId },
-            awayLineup: { playerIds: awayPlayers.slice(0, 9).map(p => p.id), pitcherId: gameResult.boxScore.awayPitcher.playerId },
+            homeLineup: { playerIds: (simConfig.homeLineup || homePlayers.slice(0, 9)).map(p => p.id), pitcherId: gameResult.boxScore.homePitcher.playerId },
+            awayLineup: { playerIds: (simConfig.awayLineup || awayPlayers.slice(0, 9)).map(p => p.id), pitcherId: gameResult.boxScore.awayPitcher.playerId },
             homeBatters: gameResult.boxScore.homeBatters,
             awayBatters: gameResult.boxScore.awayBatters,
             homePitcher: gameResult.boxScore.homePitcher,

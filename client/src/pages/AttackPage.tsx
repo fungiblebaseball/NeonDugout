@@ -3,11 +3,52 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import type { AttackStyle } from "@/lib/types";
 
-const ATTACK_OPTIONS: { value: AttackStyle; label: string; desc: string; icon: string }[] = [
-  { value: 'bunt', label: 'BUNT PRIORITY', desc: 'Small ball strategy. Sacrifice hits to advance runners. Lower risk, lower reward.', icon: '◇' },
-  { value: 'hit_and_run', label: 'HIT & RUN', desc: 'Aggressive base running. Runners go on pitch, batter must make contact. High risk.', icon: '⚡' },
-  { value: 'neutral', label: 'NEUTRAL', desc: 'Balanced approach. Let batters decide based on count and situation.', icon: '⬡' },
-  { value: 'swing_on_sight', label: 'SWING ON SIGHT', desc: 'Maximum aggression. Hack at everything. High power, low discipline.', icon: '💥' },
+const ATTACK_OPTIONS: { value: AttackStyle; label: string; desc: string; icon: string; effects: { label: string; value: string; color: string }[] }[] = [
+  {
+    value: 'bunt',
+    label: 'BUNT PRIORITY',
+    desc: 'Sacrifice hits to advance runners. Contact-focused small ball.',
+    icon: '◇',
+    effects: [
+      { label: 'Singles', value: '+15%', color: 'text-green-400' },
+      { label: 'Extra-base hits', value: '-20%', color: 'text-red-400' },
+      { label: 'Home runs', value: '-20%', color: 'text-red-400' },
+      { label: 'Ground outs', value: '+10%', color: 'text-red-400' },
+    ],
+  },
+  {
+    value: 'hit_and_run',
+    label: 'HIT & RUN',
+    desc: 'Runners go on pitch, batter must make contact. High risk, high reward.',
+    icon: '⚡',
+    effects: [
+      { label: 'Singles', value: '+15%', color: 'text-green-400' },
+      { label: 'Extra-base hits', value: '-15%', color: 'text-red-400' },
+      { label: 'Home runs', value: '-25%', color: 'text-red-400' },
+      { label: 'Strikeouts', value: '+5%', color: 'text-red-400' },
+    ],
+  },
+  {
+    value: 'neutral',
+    label: 'NEUTRAL',
+    desc: 'Balanced approach. No modifiers applied — pure skill vs skill.',
+    icon: '⬡',
+    effects: [
+      { label: 'All probabilities', value: 'BASE', color: 'text-gray-400' },
+    ],
+  },
+  {
+    value: 'swing_on_sight',
+    label: 'SWING ON SIGHT',
+    desc: 'Maximum aggression. Hack at everything for power.',
+    icon: '💥',
+    effects: [
+      { label: 'Extra-base hits', value: '+20%', color: 'text-green-400' },
+      { label: 'Home runs', value: '+15%', color: 'text-green-400' },
+      { label: 'Strikeouts', value: '+20%', color: 'text-red-400' },
+      { label: 'Fly outs', value: '+10%', color: 'text-red-400' },
+    ],
+  },
 ];
 
 export default function AttackPage() {
@@ -64,7 +105,7 @@ export default function AttackPage() {
       <main className="p-4 space-y-6">
         <div className="space-y-4">
           <h2 className="text-sm font-mono text-pink-500 border-b border-pink-500/30 pb-2">OFFENSIVE STRATEGY</h2>
-          <p className="text-[10px] font-mono text-gray-500">Select your team's offensive approach for all games</p>
+          <p className="text-[10px] font-mono text-gray-500">Each strategy applies probability modifiers to at-bat outcomes</p>
 
           {ATTACK_OPTIONS.map(opt => (
             <button
@@ -86,7 +127,15 @@ export default function AttackPage() {
                   <span className="ml-auto text-xs font-mono text-cyan-400 bg-cyan-400/10 px-2 py-1 rounded">ACTIVE</span>
                 )}
               </div>
-              <p className="text-xs font-mono text-gray-500 leading-relaxed">{opt.desc}</p>
+              <p className="text-xs font-mono text-gray-500 leading-relaxed mb-3">{opt.desc}</p>
+              <div className="grid grid-cols-2 gap-1">
+                {opt.effects.map((eff, i) => (
+                  <div key={i} className="flex items-center justify-between px-2 py-1 rounded bg-black/30">
+                    <span className="text-[9px] font-mono text-gray-500">{eff.label}</span>
+                    <span className={`text-[10px] font-mono font-bold ${eff.color}`}>{eff.value}</span>
+                  </div>
+                ))}
+              </div>
             </button>
           ))}
         </div>

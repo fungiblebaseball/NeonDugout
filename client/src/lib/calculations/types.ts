@@ -76,6 +76,8 @@ export interface BoxScore {
   homeBatters: BatterStats[];
   awayPitcher: PitcherStats;
   homePitcher: PitcherStats;
+  awayPitchers?: PitcherStats[];
+  homePitchers?: PitcherStats[];
 }
 
 export interface GameResult {

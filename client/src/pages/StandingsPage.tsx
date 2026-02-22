@@ -123,7 +123,7 @@ export default function StandingsPage() {
   const standings = computeStandings(divTeams, divMatches);
 
   const isUserDiv = selectedDiv === team.division;
-  const divName = selectedDiv === 'A' ? 'Neon Apex Division' : 'Chrome Street Division';
+  const divName = selectedDiv;
 
   const userMatches = divMatches.filter(m =>
     (m.homeTeamId === team.id || m.awayTeamId === team.id) && !m.played
@@ -155,7 +155,7 @@ export default function StandingsPage() {
               }`}
               style={{fontFamily: "'Orbitron', sans-serif"}}
             >
-              {div === 'A' ? 'Neon Apex' : 'Chrome St.'}
+              {div}
               {div === team.division && <span className="ml-1 text-[9px]">★</span>}
             </button>
           ))}

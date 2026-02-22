@@ -4,7 +4,7 @@
 Text-based fantasy baseball manager game with retro 80s/90s cyberpunk aesthetic. Target platform: Solana Seeker mobile (Web3 integration planned). Zero MLB licenses - all fictional teams and players.
 
 ## Current State
-Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.0 — Tactical Gameplay Engine.
+Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.1 — Tournament Restructure (40 teams, 2 leagues × 2 series, server-side batch simulation).
 
 ## Architecture
 - **Frontend**: React + Vite, Tailwind CSS, Zustand (state), wouter (routing), TanStack Query (API)
@@ -15,7 +15,8 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 - `shared/schema.ts` - Drizzle schema: users, teams, players, matches, match_details, lineups, pitcher_rotations (with roles JSONB), tactics
 - `server/routes.ts` - API routes (/api/auth/connect, /api/teams, /api/matches, /api/player/:id, /api/matches/:id/result, /api/match-details/:matchId, /api/lineup, /api/pitcher-rotation, /api/tactics)
 - `server/storage.ts` - DatabaseStorage class implementing IStorage interface
-- `server/seed.ts` - Seeds 20 teams (10 per division), 400 players, round-robin schedule (90 matches per division, 18 days)
+- `server/seed.ts` - Seeds 40 teams (2 leagues × 2 series × 10 teams), 800 players, 14-day schedule (regular + interleague + playoff)
+- `server/simulation.ts` - Server-side batch simulation for match days
 - `server/db.ts` - Database connection pool
 - `client/src/lib/store.ts` - Zustand store with wallet connect -> API call flow
 - `client/src/pages/` - Home, LineupPage, PitchersPage, AttackPage, DefensePage, SimulationPage, SchedulePage, StandingsPage, PlayerDetailPage, MatchDetailPage

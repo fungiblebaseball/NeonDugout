@@ -21,6 +21,8 @@ interface TeamData {
   id: number;
   name: string;
   primaryColor: string;
+  league: string;
+  series: string;
   division: string;
   ownerWallet: string | null;
   seasonId: number;

@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { simulateMatchDay } from "./simulation";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -17,7 +18,7 @@ export async function registerRoutes(
     }
 
     if (!user.teamId) {
-      const unownedTeam = await storage.getUnownedTeam("B");
+      const unownedTeam = await storage.getUnownedTeam();
       if (unownedTeam) {
         await storage.assignTeamOwner(unownedTeam.id, walletAddress);
         await storage.updateUserTeam(user.id, unownedTeam.id);
@@ -169,6 +170,21 @@ export async function registerRoutes(
       outfieldPosition: outfieldPosition || "neutral",
     });
     res.json(tac);
+  });
+
+  app.post("/api/simulate-day", async (req, res) => {
+    const { day } = req.body;
+    if (!day || typeof day !== 'number' || day < 1 || day > 14) {
+      return res.status(400).json({ message: "day must be a number between 1 and 14" });
+    }
+
+    try {
+      const results = await simulateMatchDay(day);
+      res.json({ day, matchesSimulated: results.length, results });
+    } catch (err) {
+      console.error('Simulate day failed:', err);
+      res.status(500).json({ message: "Failed to simulate match day" });
+    }
   });
 
   return httpServer;

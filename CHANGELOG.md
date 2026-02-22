@@ -7,7 +7,42 @@ Formato:
   • Trade-off / note (se rilevanti)
 
 ## Unreleased / In planning
-- nulla ancora
+- v1.1 – Ristrutturazione stagione e leghe (vedi sotto)
+
+## v1.0 – 22 febbraio 2026 – Tactical Gameplay Engine
+- **Pitcher Switch Conditions estese** (PitchersPage.tsx, schema.ts):
+  * Aggiunti campi R1: r1MaxPitches (15-80), r1MaxEr (1-6)
+  * Aggiunti campi Closer: closerMaxPitches (10-60), closerMaxEr (1-5)
+  * Slider separati per SP, R1, Closer nella UI
+  * Schema `pitcher_rotations` aggiornato con 4 nuove colonne
+- **Lineup Manager potenziato** (LineupPage.tsx):
+  * SP ora movibile nel batting order (prima era fisso)
+  * Aggiunto toggle DH come alternativa a SP che batte
+- **Attack Tactics con modificatori numerici** (AttackPage.tsx, probability.ts):
+  * Bunt: +15% singles, -20% XBH, -20% HR, +10% ground outs
+  * Hit & Run: +15% singles, -15% XBH, -25% HR, +5% strikeouts
+  * Neutral: nessun modificatore (base pura)
+  * Swing on Sight: +20% XBH, +15% HR, +20% SO, +10% fly outs
+  * UI allineata ai coefficienti reali in probability.ts
+- **Defense Counter-Strategy** (DefensePage.tsx, probability.ts):
+  * Infield Short counters Bunt: -12% singles, +10% GO
+  * Infield Neutral counters H&R: -8% singles, +6% GO
+  * Infield Deep counters SoS: -5% singles, +5% GO
+  * Outfield Short counters Bunt: -5% singles, +4% FO
+  * Outfield Neutral counters H&R: -4% singles
+  * Outfield Deep counters SoS: -8% HR, -6% XBH, +8% FO
+  * Effetti numerici ora visibili nella UI
+- **Simulazione Engine rewrite** (simulate.ts):
+  * Usa lineup/roster/tattiche salvate da DB (non più auto-generate)
+  * Sostituzione lanciatori a catena: SP → R1 → Closer
+  * Tracking pitch count, innings, BB, ER per ogni lanciatore
+  * Condizioni di sostituzione configurabili per ruolo
+  * TacticsModifiers applicati alla tabella probabilità
+- **Match Preview aggiornata** (StandingsPage.tsx):
+  * Mostra lineup salvati con posizioni e batting order
+  * Griglia separata per pitcher roster (SP/R1/Closer/2P)
+- **Home.tsx**: fetch e uso config salvate per entrambe le squadre (lineup, rotation, tactics)
+- Files modificati: `shared/schema.ts`, `server/routes.ts`, `client/src/pages/Home.tsx`, `client/src/pages/SimulationPage.tsx`, `client/src/pages/LineupPage.tsx`, `client/src/pages/PitchersPage.tsx`, `client/src/pages/AttackPage.tsx`, `client/src/pages/DefensePage.tsx`, `client/src/pages/StandingsPage.tsx`, `client/src/lib/calculations/simulate.ts`, `client/src/lib/calculations/probability.ts`, `client/src/lib/calculations/types.ts`
 
 ## v0.8 – 22 febbraio 2026 – Standings, Player Detail, League Play
 - **StandingsPage** (client/src/pages/StandingsPage.tsx):

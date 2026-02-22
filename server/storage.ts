@@ -18,7 +18,7 @@ export interface IStorage {
   getTeams(division?: string): Promise<Team[]>;
   getTeam(id: number): Promise<Team | undefined>;
   assignTeamOwner(teamId: number, wallet: string): Promise<Team>;
-  getUnownedTeam(division: string): Promise<Team | undefined>;
+  getUnownedTeam(division?: string): Promise<Team | undefined>;
 
   getPlayersByTeam(teamId: number): Promise<Player[]>;
   getPlayer(id: number): Promise<Player | undefined>;
@@ -77,15 +77,10 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async getUnownedTeam(division: string): Promise<Team | undefined> {
-    const allTeams = await db.select().from(teams).where(
-      and(eq(teams.division, division), eq(teams.ownerWallet, ''))
-    );
-    if (allTeams.length === 0) {
-      const nullTeams = await db.select().from(teams).where(eq(teams.division, division));
-      return nullTeams.find(t => t.ownerWallet === null);
-    }
-    return allTeams[0];
+  async getUnownedTeam(division?: string): Promise<Team | undefined> {
+    const allTeams = await db.select().from(teams).where(eq(teams.series, 'B'));
+    const unowned = allTeams.filter(t => !t.ownerWallet);
+    return unowned[0];
   }
 
   async getPlayersByTeam(teamId: number): Promise<Player[]> {

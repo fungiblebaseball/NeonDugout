@@ -14,6 +14,8 @@ export const teams = pgTable("teams", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   primaryColor: text("primary_color").notNull().default("#ec4899"),
+  league: text("league").notNull().default("L1"),
+  series: text("series").notNull().default("A"),
   division: text("division").notNull(),
   ownerWallet: text("owner_wallet"),
   seasonId: integer("season_id").notNull().default(1),
@@ -46,6 +48,7 @@ export const matches = pgTable("matches", {
   played: boolean("played").notNull().default(false),
   homeScore: integer("home_score"),
   awayScore: integer("away_score"),
+  matchType: text("match_type").notNull().default("regular"),
 });
 
 export const lineups = pgTable("lineups", {

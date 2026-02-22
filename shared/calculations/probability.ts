@@ -1,5 +1,8 @@
 import type { AtBatOutcome } from './types';
-import type { AttackStyle, InfieldPosition, OutfieldPosition } from '@shared/calculations/probability';
+
+export type AttackStyle = 'bunt' | 'hit_and_run' | 'neutral' | 'swing_on_sight';
+export type InfieldPosition = 'short' | 'neutral' | 'deep';
+export type OutfieldPosition = 'short' | 'neutral' | 'deep';
 
 interface OutcomeProbabilities {
   HR: number;

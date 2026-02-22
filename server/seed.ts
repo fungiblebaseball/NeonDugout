@@ -2,18 +2,31 @@ import { db } from "./db";
 import { teams, players, matches } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
-const FIRST_NAMES = ["Jax", "Roxy", "Zane", "Nova", "Dash", "Blade", "Rex", "Viper", "Echo", "Rip", "Duke", "Spike", "Ace", "Jett", "Axel", "Luna", "Blitz", "Flux"];
-const LAST_NAMES = ["Neonstrike", "Voltbat", "Chromedrift", "Synthwave", "Cyberthrow", "Laserpitch", "Hologlove", "Turbo", "Stark", "Vanguard", "Plasma", "Pulse", "Mirage"];
+const FIRST_NAMES = ["Jax", "Roxy", "Zane", "Nova", "Dash", "Blade", "Rex", "Viper", "Echo", "Rip", "Duke", "Spike", "Ace", "Jett", "Axel", "Luna", "Blitz", "Flux", "Kira", "Storm", "Nyx", "Orion", "Cyrus", "Hex", "Volt"];
+const LAST_NAMES = ["Neonstrike", "Voltbat", "Chromedrift", "Synthwave", "Cyberthrow", "Laserpitch", "Hologlove", "Turbo", "Stark", "Vanguard", "Plasma", "Pulse", "Mirage", "Redline", "Blackout", "Frostbyte", "Nitro"];
 
-const DIV_A_TEAMS = [
-  "Neon Vortex Rays", "Volt City Thunder", "Chrome Ionizers", "Acid Palm Bombers", "Roxy Quantum Hawks",
-  "Jax Plasma Kings", "Luna Cyber Sox", "Blitz Neon Knights", "Echo Pulse Giants", "Flux Mirage Crushers"
-];
-
-const DIV_B_TEAMS = [
-  "Rusty Neon Rebels", "Chrome Alley Outlaws", "Volt Trash Pandas", "Acid Drop Dusters", "Roxy Street Sharks",
-  "Jax Backlot Bandits", "Luna Midnight Misfits", "Blitz Scrapyard Dogs", "Echo Junkyard Jokers", "Flux Shadow Stingers"
-];
+const LEAGUE_TEAMS: Record<string, Record<string, string[]>> = {
+  L1: {
+    A: [
+      "Neon Vortex Rays", "Volt City Thunder", "Chrome Ionizers", "Acid Palm Bombers", "Roxy Quantum Hawks",
+      "Jax Plasma Kings", "Luna Cyber Sox", "Blitz Neon Knights", "Echo Pulse Giants", "Flux Mirage Crushers"
+    ],
+    B: [
+      "Rusty Neon Rebels", "Chrome Alley Outlaws", "Volt Trash Pandas", "Acid Drop Dusters", "Roxy Street Sharks",
+      "Jax Backlot Bandits", "Luna Midnight Misfits", "Blitz Scrapyard Dogs", "Echo Junkyard Jokers", "Flux Shadow Stingers"
+    ],
+  },
+  L2: {
+    A: [
+      "Nova Astro Titans", "Storm Circuit Blazers", "Hex Grid Wolves", "Orion Darkfield Vipers", "Cyrus Warp Dragons",
+      "Kira Neon Samurai", "Nyx Shadowrun Aces", "Dash Turbo Stallions", "Duke Ion Raptors", "Spike Overdrive Cobras"
+    ],
+    B: [
+      "Zane Alley Rats", "Rex Rust Runners", "Blade Backstreet Brawlers", "Rip Current Drifters", "Ace Junkyard Jets",
+      "Axel Neon Nomads", "Volt Gutter Punks", "Storm Scrap Coyotes", "Hex Street Phantoms", "Orion Ash Crawlers"
+    ],
+  },
+};
 
 const rand = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
 
@@ -62,37 +75,144 @@ function generatePlayersForTeam(teamId: number) {
   });
 }
 
-function generateSchedule(teamIds: number[], division: string, startDate: string) {
+function generateRegularSchedule(teamIds: number[], division: string, startDate: Date): { matches: any[], nextDate: Date } {
   const n = teamIds.length;
   const allMatches: any[] = [];
-  let currentDate = new Date(startDate);
+  const currentDate = new Date(startDate);
 
-  for (let round = 0; round < (n - 1) * 2; round++) {
-    const isReverse = round >= n - 1;
-    const roundIdx = round % (n - 1);
-
+  for (let round = 0; round < 5; round++) {
     for (let i = 0; i < n / 2; i++) {
-      let homeIdx = (roundIdx + i) % (n - 1);
-      let awayIdx = (n - 1 - i + roundIdx) % (n - 1);
+      let homeIdx = (round + i) % (n - 1);
+      let awayIdx = (n - 1 - i + round) % (n - 1);
       if (i === 0) awayIdx = n - 1;
-
-      let home = teamIds[homeIdx];
-      let away = teamIds[awayIdx];
-      if (isReverse) [home, away] = [away, home];
 
       allMatches.push({
         seasonId: 1,
         division,
         day: round + 1,
         matchDate: currentDate.toISOString().split('T')[0],
-        homeTeamId: home,
-        awayTeamId: away,
+        homeTeamId: teamIds[homeIdx],
+        awayTeamId: teamIds[awayIdx],
         played: false,
+        matchType: "regular",
       });
     }
     currentDate.setDate(currentDate.getDate() + 1);
   }
-  return allMatches;
+
+  return { matches: allMatches, nextDate: currentDate };
+}
+
+function generateReturnSchedule(teamIds: number[], division: string, regularMatches: any[], startDate: Date): { matches: any[], nextDate: Date } {
+  const allMatches: any[] = [];
+  const currentDate = new Date(startDate);
+
+  const dayGroups: Map<number, any[]> = new Map();
+  for (const m of regularMatches) {
+    const day = m.day;
+    if (!dayGroups.has(day)) dayGroups.set(day, []);
+    dayGroups.get(day)!.push(m);
+  }
+
+  const sortedDays = Array.from(dayGroups.keys()).sort((a, b) => a - b);
+  for (let i = 0; i < sortedDays.length; i++) {
+    const origDay = sortedDays[i];
+    const returnDay = 8 + i;
+    for (const m of dayGroups.get(origDay)!) {
+      allMatches.push({
+        seasonId: 1,
+        division,
+        day: returnDay,
+        matchDate: currentDate.toISOString().split('T')[0],
+        homeTeamId: m.awayTeamId,
+        awayTeamId: m.homeTeamId,
+        played: false,
+        matchType: "regular",
+      });
+    }
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+
+  return { matches: allMatches, nextDate: currentDate };
+}
+
+function generateInterleagueSchedule(
+  seriesATeamsL1: number[], seriesATeamsL2: number[],
+  seriesBTeamsL1: number[], seriesBTeamsL2: number[],
+  startDate: Date
+): { matches: any[], nextDate: Date } {
+  const allMatches: any[] = [];
+  const currentDate = new Date(startDate);
+
+  for (let leg = 0; leg < 2; leg++) {
+    const day = 6 + leg;
+
+    for (let i = 0; i < 5; i++) {
+      const idxA = i % seriesATeamsL1.length;
+      const idxB = (i + leg) % seriesATeamsL2.length;
+      const home = leg === 0 ? seriesATeamsL1[idxA] : seriesATeamsL2[idxB];
+      const away = leg === 0 ? seriesATeamsL2[idxB] : seriesATeamsL1[idxA];
+      allMatches.push({
+        seasonId: 1,
+        division: "interleague_A",
+        day,
+        matchDate: currentDate.toISOString().split('T')[0],
+        homeTeamId: home,
+        awayTeamId: away,
+        played: false,
+        matchType: "interleague",
+      });
+    }
+
+    for (let i = 0; i < 5; i++) {
+      const idxA = i % seriesBTeamsL1.length;
+      const idxB = (i + leg) % seriesBTeamsL2.length;
+      const home = leg === 0 ? seriesBTeamsL1[idxA] : seriesBTeamsL2[idxB];
+      const away = leg === 0 ? seriesBTeamsL2[idxB] : seriesBTeamsL1[idxA];
+      allMatches.push({
+        seasonId: 1,
+        division: "interleague_B",
+        day,
+        matchDate: currentDate.toISOString().split('T')[0],
+        homeTeamId: home,
+        awayTeamId: away,
+        played: false,
+        matchType: "interleague",
+      });
+    }
+
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+
+  return { matches: allMatches, nextDate: currentDate };
+}
+
+function generatePlayoffPlaceholders(startDate: Date): { matches: any[], nextDate: Date } {
+  const allMatches: any[] = [];
+  const currentDate = new Date(startDate);
+
+  for (let leg = 0; leg < 2; leg++) {
+    const day = 13 + leg;
+
+    for (const league of ["L1", "L2"]) {
+      for (let i = 0; i < 2; i++) {
+        allMatches.push({
+          seasonId: 1,
+          division: `playoff_${league}`,
+          day,
+          matchDate: currentDate.toISOString().split('T')[0],
+          homeTeamId: 0,
+          awayTeamId: 0,
+          played: false,
+          matchType: "playoff",
+        });
+      }
+    }
+
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+
+  return { matches: allMatches, nextDate: currentDate };
 }
 
 export async function seedDatabase() {
@@ -102,46 +222,77 @@ export async function seedDatabase() {
     return;
   }
 
-  console.log("Seeding database...");
+  console.log("Seeding database with 2 leagues × 2 series...");
 
-  const divATeams = await Promise.all(
-    DIV_A_TEAMS.map(async (name) => {
-      const [t] = await db.insert(teams).values({
-        name,
-        primaryColor: "#06b6d4",
-        division: "A",
-        seasonId: 1,
-      }).returning();
-      return t;
-    })
-  );
+  const createdTeams: Record<string, Record<string, any[]>> = { L1: { A: [], B: [] }, L2: { A: [], B: [] } };
 
-  const divBTeams = await Promise.all(
-    DIV_B_TEAMS.map(async (name) => {
-      const [t] = await db.insert(teams).values({
-        name,
-        primaryColor: "#ec4899",
-        division: "B",
-        seasonId: 1,
-      }).returning();
-      return t;
-    })
-  );
+  for (const league of ["L1", "L2"]) {
+    for (const series of ["A", "B"]) {
+      const teamNames = LEAGUE_TEAMS[league][series];
+      const division = `${league}${series}`;
+      const color = series === "A" ? "#06b6d4" : "#ec4899";
 
-  for (const team of [...divATeams, ...divBTeams]) {
-    const roster = generatePlayersForTeam(team.id);
-    await db.insert(players).values(roster);
+      for (const name of teamNames) {
+        const [t] = await db.insert(teams).values({
+          name,
+          primaryColor: color,
+          league,
+          series,
+          division,
+          seasonId: 1,
+        }).returning();
+        createdTeams[league][series].push(t);
+      }
+    }
   }
 
-  const scheduleA = generateSchedule(divATeams.map(t => t.id), "A", "2026-03-01");
-  const scheduleB = generateSchedule(divBTeams.map(t => t.id), "B", "2026-03-01");
-
-  for (let i = 0; i < scheduleA.length; i += 50) {
-    await db.insert(matches).values(scheduleA.slice(i, i + 50));
+  let totalPlayers = 0;
+  for (const league of ["L1", "L2"]) {
+    for (const series of ["A", "B"]) {
+      for (const team of createdTeams[league][series]) {
+        const roster = generatePlayersForTeam(team.id);
+        await db.insert(players).values(roster);
+        totalPlayers += roster.length;
+      }
+    }
   }
-  for (let i = 0; i < scheduleB.length; i += 50) {
-    await db.insert(matches).values(scheduleB.slice(i, i + 50));
+
+  const allScheduleMatches: any[] = [];
+  const startDate = new Date("2026-03-01");
+
+  for (const league of ["L1", "L2"]) {
+    for (const series of ["A", "B"]) {
+      const division = `${league}${series}`;
+      const teamIds = createdTeams[league][series].map((t: any) => t.id);
+
+      const { matches: regularMatches, nextDate: afterAndata } = generateRegularSchedule(teamIds, division, startDate) as any;
+      allScheduleMatches.push(...regularMatches);
+
+      const returnStart = new Date(startDate);
+      returnStart.setDate(returnStart.getDate() + 7);
+      const { matches: returnMatches } = generateReturnSchedule(teamIds, division, regularMatches, returnStart) as any;
+      allScheduleMatches.push(...returnMatches);
+    }
   }
 
-  console.log(`Seeded: ${divATeams.length + divBTeams.length} teams, ${(divATeams.length + divBTeams.length) * 20} players, ${scheduleA.length + scheduleB.length} matches`);
+  const interleagueStart = new Date(startDate);
+  interleagueStart.setDate(interleagueStart.getDate() + 5);
+  const { matches: interleagueMatches } = generateInterleagueSchedule(
+    createdTeams.L1.A.map((t: any) => t.id), createdTeams.L2.A.map((t: any) => t.id),
+    createdTeams.L1.B.map((t: any) => t.id), createdTeams.L2.B.map((t: any) => t.id),
+    interleagueStart
+  ) as any;
+  allScheduleMatches.push(...interleagueMatches);
+
+  const playoffStart = new Date(startDate);
+  playoffStart.setDate(playoffStart.getDate() + 12);
+  const { matches: playoffMatches } = generatePlayoffPlaceholders(playoffStart);
+  allScheduleMatches.push(...playoffMatches);
+
+  for (let i = 0; i < allScheduleMatches.length; i += 50) {
+    await db.insert(matches).values(allScheduleMatches.slice(i, i + 50));
+  }
+
+  const totalTeams = Object.values(createdTeams).flatMap(l => Object.values(l).flat()).length;
+  console.log(`Seeded: ${totalTeams} teams, ${totalPlayers} players, ${allScheduleMatches.length} matches (14 match days)`);
 }

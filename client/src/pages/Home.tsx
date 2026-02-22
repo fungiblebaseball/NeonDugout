@@ -4,8 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
 import { Terminal, ShieldAlert, Calendar, Swords, Shield, ListOrdered, RotateCcw, Zap, Trophy, Play } from "lucide-react";
 import { useState } from "react";
-import { simulateGame, resetRng } from "@/lib/calculations";
-import type { SimPlayer, SimTeam, SimConfig, PitchingConfig, TacticsModifiers } from "@/lib/calculations";
+import type { SimPlayer } from "@/lib/calculations";
 
 interface MatchData {
   id: number;
@@ -17,6 +16,7 @@ interface MatchData {
   played: boolean;
   homeScore: number | null;
   awayScore: number | null;
+  matchType: string;
 }
 
 interface TeamInfo {
@@ -32,147 +32,69 @@ export default function Home() {
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
 
-  const { data: divMatches = [] } = useQuery<MatchData[]>({
-    queryKey: ['matches', team?.division],
+  const { data: allMatchesRaw = [] } = useQuery<MatchData[]>({
+    queryKey: ['matches-all'],
     queryFn: async () => {
-      const res = await fetch(`/api/matches/${team!.division}`);
+      const res = await fetch('/api/matches');
       return res.json();
     },
     enabled: !!team,
   });
 
-  const { data: divTeams = [] } = useQuery<TeamInfo[]>({
-    queryKey: ['teams', team?.division],
+  const { data: allTeamsRaw = [] } = useQuery<TeamInfo[]>({
+    queryKey: ['teams-all'],
     queryFn: async () => {
-      const res = await fetch(`/api/teams/${team!.division}`);
+      const res = await fetch('/api/teams');
       return res.json();
     },
     enabled: !!team,
   });
 
-  const userMatches = divMatches.filter(m =>
-    (m.homeTeamId === team?.id || m.awayTeamId === team?.id) && !m.played
-  ).sort((a, b) => a.day - b.day);
-  const nextLeagueMatch = userMatches[0];
+  const divMatches = allMatchesRaw.filter(m =>
+    m.division === team?.division ||
+    m.homeTeamId === team?.id || m.awayTeamId === team?.id
+  );
+  const divTeams = allTeamsRaw;
+
+  const userMatches = divMatches.filter(m => m.homeTeamId === team?.id || m.awayTeamId === team?.id);
+  const nextUnplayedDay = userMatches
+    .filter(m => !m.played)
+    .sort((a, b) => a.day - b.day)[0]?.day;
+
+  const nextLeagueMatch = nextUnplayedDay
+    ? userMatches.find(m => m.day === nextUnplayedDay && !m.played)
+    : undefined;
   const teamMap = new Map(divTeams.map(t => [t.id, t]));
 
-  const buildLineupFromSaved = (savedLineup: any, allPlayers: SimPlayer[], pitcherRotation: any): SimPlayer[] => {
-    if (!savedLineup?.battingOrder || savedLineup.battingOrder.length === 0) return [];
-    const playerMap = new Map(allPlayers.map(p => [p.id, p]));
-    return savedLineup.battingOrder
-      .map((id: number) => playerMap.get(id))
-      .filter(Boolean) as SimPlayer[];
-  };
-
-  const buildPitchingConfig = (rotation: any, allPlayers: SimPlayer[]): PitchingConfig | undefined => {
-    if (!rotation?.roles) return undefined;
-    const playerMap = new Map(allPlayers.map(p => [p.id, p]));
-    return {
-      sp: rotation.roles.sp ? playerMap.get(rotation.roles.sp) || null : null,
-      r1: rotation.roles.r1 ? playerMap.get(rotation.roles.r1) || null : null,
-      closer: rotation.roles.closer ? playerMap.get(rotation.roles.closer) || null : null,
-      maxPitches: rotation.maxPitches ?? 100,
-      maxInnings: rotation.maxInnings ?? 7,
-      maxBb: rotation.maxBb ?? 4,
-      maxEr: rotation.maxEr ?? 4,
-      r1MaxPitches: rotation.r1MaxPitches ?? 40,
-      r1MaxEr: rotation.r1MaxEr ?? 3,
-      closerMaxPitches: rotation.closerMaxPitches ?? 30,
-      closerMaxEr: rotation.closerMaxEr ?? 2,
-    };
-  };
-
-  const buildTactics = (tac: any): TacticsModifiers | undefined => {
-    if (!tac) return undefined;
-    return {
-      attackStyle: tac.attackStyle || 'neutral',
-      infieldPosition: tac.infieldPosition || 'neutral',
-      outfieldPosition: tac.outfieldPosition || 'neutral',
-    };
-  };
-
-  const playNextLeagueMatch = async () => {
-    if (!nextLeagueMatch || !team || players.length === 0) return;
+  const playNextMatchDay = async () => {
+    if (!nextUnplayedDay || !team) return;
     setSimulating(true);
     setLastResult(null);
     try {
-      const opponentId = nextLeagueMatch.homeTeamId === team.id ? nextLeagueMatch.awayTeamId : nextLeagueMatch.homeTeamId;
-      const isHome = nextLeagueMatch.homeTeamId === team.id;
-
-      const [oppPlayersRes, myLineupRes, myRotationRes, myTacticsRes, oppLineupRes, oppRotationRes, oppTacticsRes] = await Promise.all([
-        fetch(`/api/team/${opponentId}/players`),
-        fetch(`/api/lineup/${team.id}`),
-        fetch(`/api/pitcher-rotation/${team.id}`),
-        fetch(`/api/tactics/${team.id}`),
-        fetch(`/api/lineup/${opponentId}`),
-        fetch(`/api/pitcher-rotation/${opponentId}`),
-        fetch(`/api/tactics/${opponentId}`),
-      ]);
-
-      const opponentPlayers: SimPlayer[] = await oppPlayersRes.json();
-      const myLineup = await myLineupRes.json();
-      const myRotation = await myRotationRes.json();
-      const myTactics = await myTacticsRes.json();
-      const oppLineup = await oppLineupRes.json();
-      const oppRotation = await oppRotationRes.json();
-      const oppTactics = await oppTacticsRes.json();
-
-      const homeTeam: SimTeam = isHome
-        ? { id: team.id, name: team.name, division: team.division }
-        : { id: opponentId, name: teamMap.get(opponentId)?.name || 'Opponent', division: team.division };
-      const awayTeam: SimTeam = isHome
-        ? { id: opponentId, name: teamMap.get(opponentId)?.name || 'Opponent', division: team.division }
-        : { id: team.id, name: team.name, division: team.division };
-      const homePlayers = isHome ? (players as SimPlayer[]) : opponentPlayers;
-      const awayPlayers = isHome ? opponentPlayers : (players as SimPlayer[]);
-
-      const myBuiltLineup = buildLineupFromSaved(myLineup, players as SimPlayer[], myRotation);
-      const oppBuiltLineup = buildLineupFromSaved(oppLineup, opponentPlayers, oppRotation);
-
-      const simConfig: SimConfig = {
-        homeLineup: isHome ? (myBuiltLineup.length >= 9 ? myBuiltLineup : undefined) : (oppBuiltLineup.length >= 9 ? oppBuiltLineup : undefined),
-        awayLineup: isHome ? (oppBuiltLineup.length >= 9 ? oppBuiltLineup : undefined) : (myBuiltLineup.length >= 9 ? myBuiltLineup : undefined),
-        homePitching: isHome ? buildPitchingConfig(myRotation, players as SimPlayer[]) : buildPitchingConfig(oppRotation, opponentPlayers),
-        awayPitching: isHome ? buildPitchingConfig(oppRotation, opponentPlayers) : buildPitchingConfig(myRotation, players as SimPlayer[]),
-        homeTactics: isHome ? buildTactics(myTactics) : buildTactics(oppTactics),
-        awayTactics: isHome ? buildTactics(oppTactics) : buildTactics(myTactics),
-      };
-
-      resetRng();
-      const gameResult = simulateGame(homeTeam, awayTeam, homePlayers, awayPlayers, simConfig);
-
-      await fetch(`/api/matches/${nextLeagueMatch.id}/result`, {
+      const res = await fetch('/api/simulate-day', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          homeScore: gameResult.homeScore,
-          awayScore: gameResult.awayScore,
-          details: {
-            boxScore: gameResult.boxScore,
-            flavorTexts: gameResult.flavorTexts,
-            mvp: gameResult.mvp,
-            homeLineup: { playerIds: (simConfig.homeLineup || homePlayers.slice(0, 9)).map(p => p.id), pitcherId: gameResult.boxScore.homePitcher.playerId },
-            awayLineup: { playerIds: (simConfig.awayLineup || awayPlayers.slice(0, 9)).map(p => p.id), pitcherId: gameResult.boxScore.awayPitcher.playerId },
-            homeBatters: gameResult.boxScore.homeBatters,
-            awayBatters: gameResult.boxScore.awayBatters,
-            homePitcher: gameResult.boxScore.homePitcher,
-            awayPitcher: gameResult.boxScore.awayPitcher,
-          },
-        }),
+        body: JSON.stringify({ day: nextUnplayedDay }),
       });
+      const data = await res.json();
 
-      setLastResult({
-        home: homeTeam.name,
-        away: awayTeam.name,
-        hs: gameResult.homeScore,
-        as: gameResult.awayScore,
-        matchId: nextLeagueMatch.id,
-      });
+      if (data.results && nextLeagueMatch) {
+        const userResult = data.results.find((r: any) => r.matchId === nextLeagueMatch.id);
+        if (userResult) {
+          setLastResult({
+            home: teamMap.get(nextLeagueMatch.homeTeamId)?.name || 'Home',
+            away: teamMap.get(nextLeagueMatch.awayTeamId)?.name || 'Away',
+            hs: userResult.homeScore,
+            as: userResult.awayScore,
+            matchId: nextLeagueMatch.id,
+          });
+        }
+      }
 
       queryClient.invalidateQueries({ queryKey: ['matches', team.division] });
       queryClient.invalidateQueries({ queryKey: ['matches-all'] });
     } catch (err) {
-      console.error('League match failed:', err);
+      console.error('Match day simulation failed:', err);
     }
     setSimulating(false);
   };
@@ -277,7 +199,9 @@ export default function Home() {
               <div className="flex items-center justify-between">
                 <div>
                   <Play className="w-6 h-6 text-pink-400 mb-2" />
-                  <h3 className="font-black text-lg text-pink-400" style={{fontFamily: "'Orbitron', sans-serif"}}>NEXT LEAGUE GAME</h3>
+                  <h3 className="font-black text-lg text-pink-400" style={{fontFamily: "'Orbitron', sans-serif"}}>
+                    {nextLeagueMatch.matchType === 'interleague' ? 'INTERLEAGUE' : 'NEXT GAME'}
+                  </h3>
                   <p className="text-[10px] font-mono text-gray-500">
                     Day {nextLeagueMatch.day} — vs {teamMap.get(nextLeagueMatch.homeTeamId === team?.id ? nextLeagueMatch.awayTeamId : nextLeagueMatch.homeTeamId)?.name || 'TBD'}
                   </p>
@@ -286,11 +210,11 @@ export default function Home() {
               </div>
               <button
                 data-testid="button-play-league"
-                onClick={playNextLeagueMatch}
+                onClick={playNextMatchDay}
                 disabled={simulating}
                 className="w-full py-3 bg-pink-500 hover:bg-pink-400 text-black font-black uppercase tracking-widest rounded-xl transition-all shadow-[0_0_15px_rgba(236,72,153,0.4)] disabled:opacity-50 text-sm"
               >
-                {simulating ? "SIMULATING..." : "PLAY MATCH"}
+                {simulating ? "SIMULATING ALL GAMES..." : `PLAY DAY ${nextUnplayedDay}`}
               </button>
               {lastResult && (
                 <div className="p-3 rounded-lg border border-cyan-500/30 bg-black/40 text-center space-y-2">

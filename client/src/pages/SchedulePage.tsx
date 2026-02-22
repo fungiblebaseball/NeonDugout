@@ -14,6 +14,7 @@ interface MatchData {
   played: boolean;
   homeScore: number | null;
   awayScore: number | null;
+  matchType: string;
 }
 
 interface TeamData {
@@ -26,23 +27,30 @@ interface TeamData {
 export default function SchedulePage() {
   const { team, walletAddress } = useGameStore();
 
-  const { data: allMatches = [] } = useQuery<MatchData[]>({
-    queryKey: ['matches', team?.division],
+  const { data: allMatchesRaw = [] } = useQuery<MatchData[]>({
+    queryKey: ['matches-all'],
     queryFn: async () => {
-      const res = await fetch(`/api/matches/${team!.division}`);
+      const res = await fetch('/api/matches');
       return res.json();
     },
     enabled: !!team,
   });
 
-  const { data: divTeams = [] } = useQuery<TeamData[]>({
-    queryKey: ['teams', team?.division],
+  const { data: allTeamsRaw = [] } = useQuery<TeamData[]>({
+    queryKey: ['teams-all'],
     queryFn: async () => {
-      const res = await fetch(`/api/teams/${team!.division}`);
+      const res = await fetch('/api/teams');
       return res.json();
     },
     enabled: !!team,
   });
+
+  const divTeamIds = new Set(allTeamsRaw.filter(t => t.division === team?.division).map(t => t.id));
+  const allMatches = allMatchesRaw.filter(m =>
+    m.division === team?.division ||
+    divTeamIds.has(m.homeTeamId) || divTeamIds.has(m.awayTeamId)
+  );
+  const divTeams = allTeamsRaw;
 
   if (!walletAddress || !team) {
     return <div className="min-h-screen bg-black p-6 flex items-center justify-center text-center text-pink-500 font-mono text-xl uppercase tracking-widest">ACCESS DENIED</div>;
@@ -80,7 +88,7 @@ export default function SchedulePage() {
           Schedule
         </h1>
         <p className="text-xs font-mono text-cyan-200/60 mt-1">
-          {team.division === 'A' ? 'Neon Apex Division' : 'Chrome Street Division'} — Season 1
+          {team.division} — Season 1
         </p>
       </header>
 
@@ -138,7 +146,15 @@ export default function SchedulePage() {
             return (
               <div key={day} className={`rounded-lg border ${hasUserMatch ? 'border-cyan-500/30 bg-cyan-950/5' : 'border-gray-800 bg-black/20'}`}>
                 <div className="px-3 py-2 border-b border-gray-800/50 flex items-center justify-between">
-                  <span className="text-xs font-mono text-gray-400">DAY {day}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-gray-400">DAY {day}</span>
+                    {dayMatches[0]?.matchType === 'interleague' && (
+                      <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 text-[8px] font-mono rounded uppercase">Interleague</span>
+                    )}
+                    {dayMatches[0]?.matchType === 'playoff' && (
+                      <span className="px-1.5 py-0.5 bg-red-500/20 text-red-400 text-[8px] font-mono rounded uppercase">Playoff</span>
+                    )}
+                  </div>
                   <span className="text-[10px] font-mono text-gray-600">{dayDate}</span>
                 </div>
 

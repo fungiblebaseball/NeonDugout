@@ -1,0 +1,105 @@
+# MECHANICS_SPEC.md
+Ultimo aggiornamento: 21 febbraio 2026  
+Versione: 0.2-beta (estensione per dinamiche difesa/attacco/avanzamenti)
+
+## Principi generali (invariati da v0.1 + aggiunte beta)
+- Calcoli client-side, deterministici + pseudo-random (Math.random() con seed opzionale per riproducibilità test)
+- Partita: 9 inning standard (extra innings se tie dopo 9)
+- Simulazione: per at-bat aggregato (non full pitch-by-pitch per beta), ma con conteggio balls/strikes tracciato per stats e total pitches
+- Output: flavor text + box score + stats (incl. inherited runners, GIDP, CS, etc.)
+- Reuse matchup_rating come base per quasi tutte le decisioni "skill vs skill"
+
+## Attributi giocatori (scala 1–100, invariati)
+Offensive (batter): POW, CON, SPD, EYE  
+Pitching: VEL, CTL, MOV, STA  
+Aggiunti per beta (possono essere derivati o separati):
+- DEF_pos → attributo difensivo specifico per posizione (es. INF per SS/2B/3B, OF per esterni, C per catcher, 1B per prima base)
+  - Per semplicità MVP: media squadra per INF/OF/C/1B, o per giocatore se vuoi profondità futura
+
+## Conteggio balls/strikes e pitches totali (nuovo per beta)
+- Inizia ogni PA: 0-0
+- Per ogni at-bat simulato:
+  - Calcola strikes_prob = f(matchup_rating)  → es. strikes_prob = 0.45 + (pitcher_VEL - batter_CON)/400
+  - balls_prob   = 0.20 + (batter_EYE - pitcher_CTL)/400   (clamped 0.05–0.40)
+  - foul_prob    = 0.25 + (batter_CON - pitcher_VEL)/300   (foul prolunga count senza out)
+- Simula fino a: strikeout (3 strikes), walk (4 balls), o in-play (ball/strike/foul fino a decisione battuta)
+- Total pitches per PA ≈ somma tentativi fino a risoluzione (media ~3.8–4.2 in MLB)
+- Stats tracciate: balls, strikes, fouls per PA (visibili post-game)
+
+## Matchup_rating base (invariato da v0.1, ma riusato ovunque)
+matchup_rating = (batter_POW * 0.25 + batter_CON * 0.30 + batter_EYE * 0.20 + batter_SPD * 0.15) 
+               - (pitcher_VEL * 0.30 + pitcher_CTL * 0.25 + pitcher_MOV * 0.25 + pitcher_fatigue_penalty)
+
+Range tipico: -60 .. +60  
+Usato come input principale per tabella esiti e per tutti i confronti skill-vs-skill sotto.
+
+## Esiti at-bat principali (tabella da v0.1, invariata per beta)
+(matchup_rating → HR, XBH, 1B, BB, SO, Out-in-play, Error)  
+... (mantieni la tabella probabilistica di v0.1)
+
+## Dinamiche DIFESA – Error / Out su in-play (nuovo beta)
+Quando esito = Out-in-play o Error:
+
+1. Qualità battuta (hit_quality) = matchup_rating + random(-10..+10)   // influenza advance e fielding difficulty
+2. Posizione che riceve la battuta (determinata da spray semplificato o random ponderato)
+   - Es. 40% INF (2B/SS/3B), 25% 1B, 20% OF, 15% C/P
+
+3. Difesa rating per quella posizione = media DEF_pos dei giocatori in quella zona (o del ricevente principale)
+   - Es. grounder → media INF + 1B
+   - Fly/Line → media OF
+
+4. Error chance = 0.02 + (0.08 / (1 + exp(0.08 * (difesa_rating - 50))))   // sigmoid, errori più probabili vs battute forti
+   - Se RNG < error_chance → Error (batter on 1B, runners advance +1 base extra)
+
+5. Out chance se no error = 0.95 + (difesa_rating - 50)/200   // clamped 0.80–1.00
+   - Se fallisce → reached on error (simile a error sopra)
+
+## Advance on Hit / Error (nuovo beta)
+Su 1B, 2B, 3B, HR, Error:
+
+- Base advance prob per runner = base 50–80% + bonus da:
+  hit_quality (> +20 → +15–25% extra bases)
+  batter_SPD (>70 → +10%)
+  runner_SPD (>70 → +15–30%)
+
+- Esempi semplificati:
+  - Single: lead runner advance 1 base 70–95%, 2 bases 5–30% (dipende hit_quality + runner_SPD)
+  - Double: lead runner advance 2 basi 60–90%, score from 1st 40–80%
+  - Error: +1 base extra a tutti i runners con 60% prob
+
+## Stolen Base (nuovo beta – confronto skill)
+Tentativo SB opzionale (AI decide basato su SPD runner, count, outs, score diff)
+
+Success prob = 0.50 + (runner_SPD - catcher_DEF * 0.6 - middle_inf_DEF * 0.3)/150 + count_mod
+  - count_mod: +0.08 se 3-1 o 3-2 count (pitcher meno attento), -0.10 se 0-2
+  - Range ≈ 40–90%
+
+Se fallisce → caught stealing (out, runner removed)
+
+## Double Play / GIDP (nuovo beta – confronto multi-skill)
+Solo su grounder con runner su 1B e <2 outs
+
+GIDP prob = base 0.12 + modifiers:
+
++ (batter_POW + batter_SPD basso → +0.08 se hard hit ma lento)
++ (runner_SPD basso → +0.10–0.20)
+- (infield_DEF media (SS+2B+3B+1B) alta → -0.15–0.25)
+- (hit_quality bassa → grounder debole → -0.10)
+
+Formula approssimativa:
+gidp_prob = 0.08 + (80 - batter_SPD)/400 + (80 - runner_SPD)/300 - (infield_DEF_avg - 50)/200
+
+Se GIDP → 2 outs, batter out, runner out a 2B
+
+## Altre note per beta
+- Park factor: moltiplicatore su HR/XBH (0.85–1.20)
+- Home advantage: +8 a tutti i matchup_rating offensivi casa
+- Fatigue: pitcher STA penalty dopo inning 5–6
+- Stats aggregate: includi GIDP, CS, ROE, inherited runners scored %, etc.
+
+## Prossimi affinamenti post-beta test
+- Probabilità più granulari per advance (matrice da dati storici semplificata)
+- Momentum / hot streak temporaneo?
+- Full pitch-by-pitch opzionale per modalità exhibition?
+
+Fine v0.2-beta

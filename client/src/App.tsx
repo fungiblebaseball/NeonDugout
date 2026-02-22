@@ -4,7 +4,9 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Navigation } from "@/components/Navigation";
+import WalletProvider from "@/components/WalletProvider";
 import Home from "@/pages/Home";
+import LoginPage from "@/pages/LoginPage";
 import LineupPage from "@/pages/LineupPage";
 import PitchersPage from "@/pages/PitchersPage";
 import AttackPage from "@/pages/AttackPage";
@@ -16,13 +18,21 @@ import PlayerDetailPage from "@/pages/PlayerDetailPage";
 import MatchDetailPage from "@/pages/MatchDetailPage";
 import NotFound from "@/pages/not-found";
 import { useGameStore } from "@/lib/store";
+import { useEffect } from "react";
 
 function Router() {
-  const { walletAddress } = useGameStore();
+  const { walletAddress, restoreSession } = useGameStore();
+
+  useEffect(() => {
+    if (!walletAddress) {
+      restoreSession();
+    }
+  }, []);
 
   return (
     <>
       <Switch>
+        <Route path="/login" component={LoginPage} />
         <Route path="/" component={Home} />
         <Route path="/lineup" component={LineupPage} />
         <Route path="/pitchers" component={PitchersPage} />
@@ -44,8 +54,10 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
-        <Router />
+        <WalletProvider>
+          <Toaster />
+          <Router />
+        </WalletProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

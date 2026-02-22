@@ -36,12 +36,14 @@ interface UserData {
 
 interface GameState {
   walletAddress: string | null;
+  token: string | null;
   user: UserData | null;
   team: TeamData | null;
   players: PlayerData[];
   loading: boolean;
 
-  connectWallet: () => Promise<void>;
+  loginWithSignature: (walletAddress: string, signature: string, message: string) => Promise<{ success: boolean; error?: string }>;
+  restoreSession: () => Promise<boolean>;
   disconnectWallet: () => void;
 }
 
@@ -49,45 +51,85 @@ export const useGameStore = create<GameState>()(
   persist(
     (set, get) => ({
       walletAddress: null,
+      token: null,
       user: null,
       team: null,
       players: [],
       loading: false,
 
-      connectWallet: async () => {
+      loginWithSignature: async (walletAddress: string, signature: string, message: string) => {
         set({ loading: true });
-        const mockAddress = `mock_${Math.random().toString(36).substring(2, 10)}`;
 
         try {
-          const res = await fetch('/api/auth/connect', {
+          const res = await fetch('/api/auth/verify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ walletAddress: mockAddress }),
+            body: JSON.stringify({ walletAddress, signature, message }),
           });
+
+          if (!res.ok) {
+            const err = await res.json();
+            set({ loading: false });
+            return { success: false, error: err.message || 'Verification failed' };
+          }
+
           const data = await res.json();
 
           set({
-            walletAddress: mockAddress,
+            walletAddress,
+            token: data.token,
             user: data.user,
             team: data.team,
             players: data.players || [],
             loading: false,
           });
-        } catch (err) {
-          console.error('Connect failed:', err);
+
+          return { success: true };
+        } catch (err: any) {
+          console.error('Login failed:', err);
           set({ loading: false });
+          return { success: false, error: err?.message || 'Network error' };
+        }
+      },
+
+      restoreSession: async () => {
+        const { token } = get();
+        if (!token) return false;
+
+        try {
+          const res = await fetch('/api/auth/me', {
+            headers: { 'Authorization': `Bearer ${token}` },
+          });
+
+          if (!res.ok) {
+            set({ walletAddress: null, token: null, user: null, team: null, players: [] });
+            return false;
+          }
+
+          const data = await res.json();
+          set({
+            walletAddress: data.user.walletAddress,
+            user: data.user,
+            team: data.team,
+            players: data.players || [],
+          });
+          return true;
+        } catch {
+          set({ walletAddress: null, token: null, user: null, team: null, players: [] });
+          return false;
         }
       },
 
       disconnectWallet: () => set({
         walletAddress: null,
+        token: null,
         user: null,
         team: null,
         players: [],
       }),
     }),
     {
-      name: 'gridiron-ghosts-v3',
+      name: 'gridiron-ghosts-v4',
     }
   )
 );

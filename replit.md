@@ -4,23 +4,27 @@
 Text-based fantasy baseball manager game with retro 80s/90s cyberpunk aesthetic. Target platform: Solana Seeker mobile (Web3 integration planned). Zero MLB licenses - all fictional teams and players.
 
 ## Current State
-Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.1.1 — Playoff System & Season Management (dynamic playoff matchups, new season generation with promotion/relegation, clickable team previews in standings, relief pitcher stats in match reports, BB/K linescore).
+Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.2.0 — Wallet Authentication & Dynamic League Expansion (Solana wallet login with ed25519 signature verification, JWT sessions, auto-expanding leagues when all teams have owners).
 
 ## Architecture
-- **Frontend**: React + Vite, Tailwind CSS, Zustand (state), wouter (routing), TanStack Query (API)
-- **Backend**: Express.js, Drizzle ORM, PostgreSQL (Neon-backed on Replit)
+- **Frontend**: React + Vite, Tailwind CSS, Zustand (state), wouter (routing), TanStack Query (API), @solana/wallet-adapter-react (wallet connection)
+- **Backend**: Express.js, Drizzle ORM, PostgreSQL (Neon-backed on Replit), JWT auth (jsonwebtoken), ed25519 verification (tweetnacl)
+- **Auth**: Solana wallet signature-based login (challenge/verify flow), JWT sessions (7-day expiry)
 - **Design**: Neon pink/cyan palette, Orbitron/VT323/Press Start 2P fonts, mobile-first bottom nav
 
 ## Key Files
 - `shared/schema.ts` - Drizzle schema: users, teams, players, matches, match_details, lineups, pitcher_rotations (with roles JSONB), tactics
-- `server/routes.ts` - API routes (/api/auth/connect, /api/teams, /api/matches, /api/player/:id, /api/matches/:id/result, /api/match-details/:matchId, /api/lineup, /api/pitcher-rotation, /api/tactics)
+- `server/routes.ts` - API routes (/api/auth/challenge, /api/auth/verify, /api/auth/me, /api/teams, /api/matches, /api/player/:id, /api/matches/:id/result, /api/match-details/:matchId, /api/lineup, /api/pitcher-rotation, /api/tactics)
+- `server/auth.ts` - JWT token creation/verification, ed25519 signature validation, challenge nonce management
+- `server/expansion.ts` - Dynamic league expansion: auto-creates new league with 20 teams + 400 players + 228 matches when all teams are owned
 - `server/storage.ts` - DatabaseStorage class implementing IStorage interface
 - `server/seed.ts` - Seeds 40 teams (2 leagues × 2 series × 10 teams), 800 players, 14-day schedule (regular + interleague + playoff)
 - `server/simulation.ts` - Server-side batch simulation for match days
 - `server/season.ts` - Playoff matchup resolution + new season generation with promotion/relegation
 - `server/db.ts` - Database connection pool
-- `client/src/lib/store.ts` - Zustand store with wallet connect -> API call flow
-- `client/src/pages/` - Home, LineupPage, PitchersPage, AttackPage, DefensePage, SimulationPage, SchedulePage, StandingsPage, PlayerDetailPage, MatchDetailPage
+- `client/src/lib/store.ts` - Zustand store with wallet auth (loginWithSignature, restoreSession, disconnectWallet), JWT persistence
+- `client/src/components/WalletProvider.tsx` - Solana wallet adapter provider (auto-detects Phantom, Solflare, Backpack, Seeker)
+- `client/src/pages/` - LoginPage, Home, LineupPage, PitchersPage, AttackPage, DefensePage, SimulationPage, SchedulePage, StandingsPage, PlayerDetailPage, MatchDetailPage
 - `client/src/lib/calculations/` - Pure simulation engine (matchup, probability, simulate, rng, flavor, types)
 - `client/src/components/Navigation.tsx` - Bottom nav (7 items: Hub, Lineup, Pitch, ATK, DEF, Sched, Rank)
 
@@ -35,7 +39,8 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 - `tactics` - attack style + infield/outfield positioning
 
 ## Pages
-1. **Home** (/) - Connect wallet, team dashboard, nav grid, play next league match button with "View Match Report" link
+0. **Login** (/login) - Solana wallet authentication: select wallet (Phantom/Solflare/Backpack/Seeker), sign challenge message, verify signature
+1. **Home** (/) - Team dashboard, nav grid, play next league match button with "View Match Report" link, redirect to login if not authenticated
 2. **Lineup** (/lineup) - Assign field positions (SP read-only from pitching, C,1B...RF), DH toggle, reorder batting order 1-9 (SP moveable)
 3. **Pitchers** (/pitchers) - Assign pitcher roles: SP, R1, C, 2P. SP/R1/Closer switch conditions via sliders (pitches, innings, BB, ER)
 4. **Attack** (/attack) - Choose offensive strategy with probability modifiers: bunt (+15% contact, -20% XBH), hit-and-run (+15% 1B, -25% HR), neutral (base), swing-on-sight (+20% XBH, +15% HR, +20% SO)
@@ -79,8 +84,24 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 - League matches can be played manually from Home (results + full details saved to DB)
 - Match details stored in DB for later review (lineup, batter stats, pitcher stats, box score, flavor text, MVP)
 
+## Authentication Flow
+1. User visits /login → selects wallet (Phantom/Solflare/Backpack/Seeker)
+2. Wallet adapter connects → publicKey available
+3. Frontend requests challenge: POST /api/auth/challenge → nonce returned
+4. User signs challenge message with wallet
+5. Frontend sends signature: POST /api/auth/verify → JWT token + user + team returned
+6. JWT stored in Zustand (localStorage persist), included in Authorization header
+7. Session restore on app load: GET /api/auth/me with Bearer token
+
+## Dynamic League Expansion
+- Triggered automatically when a new user registers and all existing teams have owners
+- Creates next league (L3, L4, ...) with SerieA + SerieB (10 teams each)
+- Generates 400 players (20 per team) with gaussian stat distribution
+- Creates full 14-day schedule (regular + interleague + playoff placeholders)
+- New team from expansion is automatically assigned to the registering user
+
 ## Page Documentation
-Each page has a dedicated .md file in root: PAGE_HOME.md, PAGE_LINEUP.md, PAGE_PITCHERS.md, PAGE_ATTACK.md, PAGE_DEFENSE.md, PAGE_SIMULATE.md, PAGE_SCHEDULE.md, PAGE_STANDINGS.md, PAGE_PLAYER_DETAIL.md, PAGE_MATCH_DETAIL.md
+Each page has a dedicated .md file in root: PAGE_LOGIN.md, PAGE_HOME.md, PAGE_LINEUP.md, PAGE_PITCHERS.md, PAGE_ATTACK.md, PAGE_DEFENSE.md, PAGE_SIMULATE.md, PAGE_SCHEDULE.md, PAGE_STANDINGS.md, PAGE_PLAYER_DETAIL.md, PAGE_MATCH_DETAIL.md
 
 ## Deployment
 - Development: Replit (port 5000)

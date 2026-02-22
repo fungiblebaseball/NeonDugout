@@ -26,7 +26,7 @@ interface TeamInfo {
 }
 
 export default function Home() {
-  const { walletAddress, connectWallet, disconnectWallet, team, players, loading } = useGameStore();
+  const { walletAddress, disconnectWallet, team, players, loading } = useGameStore();
   const [simulating, setSimulating] = useState(false);
   const [lastResult, setLastResult] = useState<{ home: string; away: string; hs: number; as: number; matchId: number } | null>(null);
   const queryClient = useQueryClient();
@@ -148,7 +148,7 @@ export default function Home() {
             </p>
             <Button
               data-testid="button-connect-wallet"
-              onClick={connectWallet}
+              onClick={() => navigate("/login")}
               disabled={loading}
               className="w-full h-14 bg-cyan-500 hover:bg-cyan-400 text-black font-black uppercase tracking-widest text-lg transition-all shadow-[0_0_15px_rgba(34,211,238,0.4)]"
             >

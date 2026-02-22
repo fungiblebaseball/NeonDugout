@@ -1,17 +1,34 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { simulateMatchDay, updatePlayoffMatchups } from "./simulation";
 import { generateNewSeason } from "./season";
+import { generateChallenge, verifySignature, createToken, verifyToken } from "./auth";
+import { expandLeague } from "./expansion";
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
 
-  app.post("/api/auth/connect", async (req, res) => {
+  app.post("/api/auth/challenge", async (req, res) => {
     const { walletAddress } = req.body;
     if (!walletAddress) return res.status(400).json({ message: "walletAddress required" });
+
+    const challenge = generateChallenge(walletAddress);
+    res.json(challenge);
+  });
+
+  app.post("/api/auth/verify", async (req, res) => {
+    const { walletAddress, signature, message } = req.body;
+    if (!walletAddress || !signature || !message) {
+      return res.status(400).json({ message: "walletAddress, signature, and message required" });
+    }
+
+    const valid = verifySignature(walletAddress, signature, message);
+    if (!valid) {
+      return res.status(401).json({ message: "Invalid signature" });
+    }
 
     let user = await storage.getUserByWallet(walletAddress);
     if (!user) {
@@ -19,12 +36,48 @@ export async function registerRoutes(
     }
 
     if (!user.teamId) {
-      const unownedTeam = await storage.getUnownedTeam();
+      let unownedTeam = await storage.getUnownedTeam();
+
+      if (!unownedTeam) {
+        try {
+          const expansion = await expandLeague();
+          console.log(`Dynamic expansion triggered: ${expansion.league}`);
+          unownedTeam = await storage.getUnownedTeam();
+        } catch (err) {
+          console.error("League expansion failed:", err);
+        }
+      }
+
       if (unownedTeam) {
         await storage.assignTeamOwner(unownedTeam.id, walletAddress);
         await storage.updateUserTeam(user.id, unownedTeam.id);
         user = await storage.getUser(user.id) as typeof user;
+      } else {
+        return res.status(503).json({ message: "No teams available. League expansion failed." });
       }
+    }
+
+    const token = createToken(user.id, walletAddress);
+    const team = user.teamId ? await storage.getTeam(user.teamId) : null;
+    const playersList = team ? await storage.getPlayersByTeam(team.id) : [];
+
+    res.json({ token, user, team, players: playersList });
+  });
+
+  app.get("/api/auth/me", async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ message: "No token provided" });
+    }
+
+    const tokenData = verifyToken(authHeader.split(" ")[1]);
+    if (!tokenData) {
+      return res.status(401).json({ message: "Invalid or expired token" });
+    }
+
+    const user = await storage.getUser(tokenData.userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
     }
 
     const team = user.teamId ? await storage.getTeam(user.teamId) : null;

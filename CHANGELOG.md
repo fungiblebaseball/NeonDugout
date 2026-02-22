@@ -9,6 +9,33 @@ Formato:
 ## Unreleased / In planning
 - nulla ancora
 
+## v0.8 – 22 febbraio 2026 – Standings, Player Detail, League Play
+- **StandingsPage** (client/src/pages/StandingsPage.tsx):
+  * Classifica divisionale con W/L/PCT/RF/RA calcolata da risultati match
+  * Switch tra divisioni (Neon Apex / Chrome Street)
+  * Divisione e team utente evidenziati con ★ e bordo cyan
+  * Bottone "Match Preview" espandibile con formazioni affiancate
+  * Top 9 giocatori per overall, cliccabili (link a /player/:id)
+  * Confronto stat-by-stat con barre (POW, CON, SPD, etc.)
+  * Overall medio squadre a confronto
+- **PlayerDetailPage** (client/src/pages/PlayerDetailPage.tsx):
+  * Carta giocatore con spazio immagine (placeholder per future NFT art)
+  * Nome, posizioni, overall rating, BAT avg, PITCH avg
+  * 9 barre attributi colorate per fascia (rosso→cyan)
+  * Career averages grid (OVR, BAT, PITCH, DEF, SPD, STA)
+- **Home aggiornata**:
+  * Bottone "NEXT LEAGUE GAME" con simulazione campionato manuale
+  * Risultato inline dopo simulazione (score + nomi team)
+  * Card STANDINGS aggiunta con link a /standings
+  * Schedule e Standings in grid 2x1 (erano col-span-2)
+- **API nuove**:
+  * `GET /api/matches` — tutte le partite (per classifica cross-divisione)
+  * `GET /api/player/:id` — dettaglio giocatore singolo
+  * `POST /api/matches/:id/result` — salva risultato gara giocata
+- **Navigation** aggiornata a 7 items: + Rank (Standings)
+- **File MD per pagina**: 9 file PAGE_*.md in root per ogni pagina
+- Files modificati: `server/routes.ts`, `server/storage.ts`, `client/src/pages/Home.tsx`, `client/src/pages/StandingsPage.tsx` (new), `client/src/pages/PlayerDetailPage.tsx` (new), `client/src/components/Navigation.tsx`, `client/src/App.tsx`
+
 ## v0.7 – 22 febbraio 2026 – Schedule + Pitcher Roles rework
 - **Pitcher Roles rework** (PitchersPage.tsx):
   * Schema: aggiunto campo `roles` JSONB a `pitcher_rotations` (`{ sp, r1, closer, nextSp }`)

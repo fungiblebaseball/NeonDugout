@@ -47,9 +47,37 @@ export async function registerRoutes(
     res.json(playersList);
   });
 
+  app.get("/api/matches", async (_req, res) => {
+    const allMatches = await storage.getAllMatches();
+    res.json(allMatches);
+  });
+
   app.get("/api/matches/:division", async (req, res) => {
     const matchesList = await storage.getMatchesByDivision(req.params.division);
     res.json(matchesList);
+  });
+
+  app.get("/api/player/:id", async (req, res) => {
+    const playerId = parseInt(req.params.id);
+    const player = await storage.getPlayer(playerId);
+    if (!player) return res.status(404).json({ message: "Player not found" });
+    res.json(player);
+  });
+
+  app.post("/api/matches/:id/result", async (req, res) => {
+    const matchId = parseInt(req.params.id);
+    const { homeScore, awayScore } = req.body;
+    if (homeScore === undefined || awayScore === undefined ||
+        typeof homeScore !== 'number' || typeof awayScore !== 'number' ||
+        homeScore < 0 || awayScore < 0) {
+      return res.status(400).json({ message: "homeScore and awayScore must be non-negative numbers" });
+    }
+    const allMatches = await storage.getAllMatches();
+    const match = allMatches.find(m => m.id === matchId);
+    if (!match) return res.status(404).json({ message: "Match not found" });
+    if (match.played) return res.status(409).json({ message: "Match already played" });
+    const updated = await storage.updateMatchResult(matchId, homeScore, awayScore);
+    res.json(updated);
   });
 
   app.get("/api/lineup/:teamId", async (req, res) => {

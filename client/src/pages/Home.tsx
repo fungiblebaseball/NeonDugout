@@ -1,10 +1,103 @@
 import { useGameStore } from "@/lib/store";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Link } from "wouter";
-import { Terminal, ShieldAlert, Calendar, Swords, Shield, ListOrdered, RotateCcw, Zap } from "lucide-react";
+import { Link, useLocation } from "wouter";
+import { Terminal, ShieldAlert, Calendar, Swords, Shield, ListOrdered, RotateCcw, Zap, Trophy, Play } from "lucide-react";
+import { useState } from "react";
+import { simulateGame, resetRng } from "@/lib/calculations";
+import type { SimPlayer, SimTeam } from "@/lib/calculations";
+
+interface MatchData {
+  id: number;
+  division: string;
+  day: number;
+  matchDate: string;
+  homeTeamId: number;
+  awayTeamId: number;
+  played: boolean;
+  homeScore: number | null;
+  awayScore: number | null;
+}
+
+interface TeamInfo {
+  id: number;
+  name: string;
+  division: string;
+}
 
 export default function Home() {
-  const { walletAddress, connectWallet, disconnectWallet, team, loading } = useGameStore();
+  const { walletAddress, connectWallet, disconnectWallet, team, players, loading } = useGameStore();
+  const [simulating, setSimulating] = useState(false);
+  const [lastResult, setLastResult] = useState<{ home: string; away: string; hs: number; as: number } | null>(null);
+  const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
+
+  const { data: divMatches = [] } = useQuery<MatchData[]>({
+    queryKey: ['matches', team?.division],
+    queryFn: async () => {
+      const res = await fetch(`/api/matches/${team!.division}`);
+      return res.json();
+    },
+    enabled: !!team,
+  });
+
+  const { data: divTeams = [] } = useQuery<TeamInfo[]>({
+    queryKey: ['teams', team?.division],
+    queryFn: async () => {
+      const res = await fetch(`/api/teams/${team!.division}`);
+      return res.json();
+    },
+    enabled: !!team,
+  });
+
+  const userMatches = divMatches.filter(m =>
+    (m.homeTeamId === team?.id || m.awayTeamId === team?.id) && !m.played
+  ).sort((a, b) => a.day - b.day);
+  const nextLeagueMatch = userMatches[0];
+  const teamMap = new Map(divTeams.map(t => [t.id, t]));
+
+  const playNextLeagueMatch = async () => {
+    if (!nextLeagueMatch || !team || players.length === 0) return;
+    setSimulating(true);
+    setLastResult(null);
+    try {
+      const opponentId = nextLeagueMatch.homeTeamId === team.id ? nextLeagueMatch.awayTeamId : nextLeagueMatch.homeTeamId;
+      const res = await fetch(`/api/team/${opponentId}/players`);
+      const opponentPlayers: SimPlayer[] = await res.json();
+
+      const isHome = nextLeagueMatch.homeTeamId === team.id;
+      const homeTeam: SimTeam = isHome
+        ? { id: team.id, name: team.name, division: team.division }
+        : { id: opponentId, name: teamMap.get(opponentId)?.name || 'Opponent', division: team.division };
+      const awayTeam: SimTeam = isHome
+        ? { id: opponentId, name: teamMap.get(opponentId)?.name || 'Opponent', division: team.division }
+        : { id: team.id, name: team.name, division: team.division };
+      const homePlayers = isHome ? (players as SimPlayer[]) : opponentPlayers;
+      const awayPlayers = isHome ? opponentPlayers : (players as SimPlayer[]);
+
+      resetRng();
+      const gameResult = simulateGame(homeTeam, awayTeam, homePlayers, awayPlayers);
+
+      await fetch(`/api/matches/${nextLeagueMatch.id}/result`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ homeScore: gameResult.homeScore, awayScore: gameResult.awayScore }),
+      });
+
+      setLastResult({
+        home: homeTeam.name,
+        away: awayTeam.name,
+        hs: gameResult.homeScore,
+        as: gameResult.awayScore,
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['matches', team.division] });
+      queryClient.invalidateQueries({ queryKey: ['matches-all'] });
+    } catch (err) {
+      console.error('League match failed:', err);
+    }
+    setSimulating(false);
+  };
 
   if (!walletAddress) {
     return (
@@ -101,14 +194,51 @@ export default function Home() {
             </div>
           </Link>
 
-          <Link href="/schedule" data-testid="link-schedule" className="col-span-2 block p-5 rounded-2xl border border-pink-500/30 bg-black/40 hover:bg-pink-900/20 transition-colors group">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-black text-lg text-pink-400 mb-1 group-hover:drop-shadow-[0_0_8px_rgba(236,72,153,0.8)]" style={{fontFamily: "'Orbitron', sans-serif"}}>SCHEDULE</h3>
-                <p className="text-[10px] font-mono text-gray-500">Division calendar & match results</p>
+          {nextLeagueMatch && (
+            <div className="col-span-2 p-5 rounded-2xl border-2 border-pink-400/50 bg-gradient-to-r from-pink-950/30 to-cyan-950/30 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Play className="w-6 h-6 text-pink-400 mb-2" />
+                  <h3 className="font-black text-lg text-pink-400" style={{fontFamily: "'Orbitron', sans-serif"}}>NEXT LEAGUE GAME</h3>
+                  <p className="text-[10px] font-mono text-gray-500">
+                    Day {nextLeagueMatch.day} — vs {teamMap.get(nextLeagueMatch.homeTeamId === team?.id ? nextLeagueMatch.awayTeamId : nextLeagueMatch.homeTeamId)?.name || 'TBD'}
+                  </p>
+                </div>
+                <span className="text-3xl">🏟️</span>
               </div>
-              <Calendar className="w-8 h-8 text-pink-500 group-hover:animate-pulse" />
+              <button
+                data-testid="button-play-league"
+                onClick={playNextLeagueMatch}
+                disabled={simulating}
+                className="w-full py-3 bg-pink-500 hover:bg-pink-400 text-black font-black uppercase tracking-widest rounded-xl transition-all shadow-[0_0_15px_rgba(236,72,153,0.4)] disabled:opacity-50 text-sm"
+              >
+                {simulating ? "SIMULATING..." : "PLAY MATCH"}
+              </button>
+              {lastResult && (
+                <div className="p-3 rounded-lg border border-cyan-500/30 bg-black/40 text-center">
+                  <p className="text-xs font-mono text-gray-400">FINAL SCORE</p>
+                  <div className="flex items-center justify-center gap-3 mt-1">
+                    <span className="text-sm font-bold text-cyan-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{lastResult.home}</span>
+                    <span className="text-lg font-black text-cyan-400" style={{fontFamily: "'Press Start 2P', cursive", fontSize: '14px'}}>{lastResult.hs}</span>
+                    <span className="text-gray-600">-</span>
+                    <span className="text-lg font-black text-pink-400" style={{fontFamily: "'Press Start 2P', cursive", fontSize: '14px'}}>{lastResult.as}</span>
+                    <span className="text-sm font-bold text-pink-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{lastResult.away}</span>
+                  </div>
+                </div>
+              )}
             </div>
+          )}
+
+          <Link href="/schedule" data-testid="link-schedule" className="block p-5 rounded-2xl border border-pink-500/30 bg-black/40 hover:bg-pink-900/20 transition-colors group">
+            <Calendar className="w-6 h-6 text-pink-500 mb-2 group-hover:animate-pulse" />
+            <h3 className="font-black text-lg text-pink-400 mb-1 group-hover:drop-shadow-[0_0_8px_rgba(236,72,153,0.8)]" style={{fontFamily: "'Orbitron', sans-serif"}}>SCHEDULE</h3>
+            <p className="text-[10px] font-mono text-gray-500">Calendar & results</p>
+          </Link>
+
+          <Link href="/standings" data-testid="link-standings" className="block p-5 rounded-2xl border border-cyan-500/30 bg-black/40 hover:bg-cyan-900/20 transition-colors group">
+            <Trophy className="w-6 h-6 text-cyan-500 mb-2 group-hover:animate-pulse" />
+            <h3 className="font-black text-lg text-cyan-400 mb-1 group-hover:drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]" style={{fontFamily: "'Orbitron', sans-serif"}}>STANDINGS</h3>
+            <p className="text-[10px] font-mono text-gray-500">Rankings & preview</p>
           </Link>
         </div>
       </main>

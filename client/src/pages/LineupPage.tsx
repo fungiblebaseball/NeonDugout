@@ -19,15 +19,36 @@ export default function LineupPage() {
     enabled: !!team,
   });
 
+  const { data: pitcherRotation } = useQuery({
+    queryKey: ['pitcher-rotation', team?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/pitcher-rotation/${team!.id}`);
+      return res.json();
+    },
+    enabled: !!team,
+  });
+
   const [fieldPositions, setFieldPositions] = useState<Record<string, number | null>>({});
   const [battingOrder, setBattingOrder] = useState<number[]>([]);
 
+  const spId = pitcherRotation?.roles?.sp ?? null;
+
   useEffect(() => {
     if (savedLineup) {
-      setFieldPositions(savedLineup.fieldPositions || {});
+      const fp = { ...(savedLineup.fieldPositions || {}) };
+      if (spId !== null) {
+        fp['P'] = spId;
+      }
+      setFieldPositions(fp);
       setBattingOrder(savedLineup.battingOrder || []);
     }
-  }, [savedLineup]);
+  }, [savedLineup, spId]);
+
+  useEffect(() => {
+    if (spId !== null && fieldPositions['P'] !== spId) {
+      setFieldPositions(prev => ({ ...prev, P: spId }));
+    }
+  }, [spId]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -48,6 +69,7 @@ export default function LineupPage() {
   const getPlayer = (id: number | null) => players.find(p => p.id === id);
 
   const assignField = (pos: string, playerIdStr: string) => {
+    if (pos === 'P') return;
     const playerId = playerIdStr === 'none' ? null : parseInt(playerIdStr);
     const newPositions = { ...fieldPositions, [pos]: playerId };
     setFieldPositions(newPositions);
@@ -68,6 +90,12 @@ export default function LineupPage() {
 
   const assignedIds = new Set(Object.values(fieldPositions).filter(Boolean));
 
+  const isPitcherPos = (pos: string) => pos === 'P';
+  const getPosLabel = (pos: string) => {
+    if (pos === 'P') return 'SP';
+    return pos;
+  };
+
   return (
     <div className="min-h-screen pb-24 bg-black text-cyan-50">
       <header className="p-6 bg-gradient-to-b from-cyan-900/30 to-black border-b border-cyan-500/20 sticky top-0 z-10 backdrop-blur-md">
@@ -84,36 +112,59 @@ export default function LineupPage() {
           {FIELD_POSITIONS.map(pos => {
             const assignedId = fieldPositions[pos] ?? null;
             const assignedPlayer = getPlayer(assignedId);
+            const isPitcher = isPitcherPos(pos);
 
             return (
-              <div key={pos} data-testid={`field-position-${pos}`} className="flex items-center gap-3 p-3 rounded-lg border border-gray-800 bg-gray-950/50">
-                <div className="w-10 h-10 shrink-0 bg-cyan-950/40 flex items-center justify-center rounded border border-cyan-500/40 text-cyan-400 font-black" style={{fontFamily: "'Orbitron', sans-serif"}}>
-                  {pos}
+              <div key={pos} data-testid={`field-position-${pos}`} className={`flex items-center gap-3 p-3 rounded-lg border ${isPitcher ? 'border-pink-500/30 bg-pink-950/10' : 'border-gray-800 bg-gray-950/50'}`}>
+                <div className={`w-10 h-10 shrink-0 flex items-center justify-center rounded border font-black ${isPitcher ? 'bg-pink-950/40 border-pink-500/40 text-pink-400' : 'bg-cyan-950/40 border-cyan-500/40 text-cyan-400'}`} style={{fontFamily: "'Orbitron', sans-serif"}}>
+                  {getPosLabel(pos)}
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <Select
-                    value={assignedId?.toString() || undefined}
-                    onValueChange={(val) => assignField(pos, val)}
-                  >
-                    <SelectTrigger data-testid={`select-position-${pos}`} className="w-full bg-black border-gray-800 text-cyan-50 font-mono text-sm h-10 truncate">
-                      <SelectValue placeholder="EMPTY SLOT" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-gray-950 border-cyan-500/30 text-cyan-50 max-h-64">
-                      <SelectItem value="none" className="text-gray-500 font-mono text-xs">-- EMPTY --</SelectItem>
-                      {players.map(p => (
-                        <SelectItem key={p.id} value={p.id.toString()} className="font-mono text-xs">
-                          {p.name} <span className="text-gray-600 ml-1">[{p.positions.join(',')}]</span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {isPitcher ? (
+                    <div className="py-2">
+                      {assignedPlayer ? (
+                        <div>
+                          <span className="text-sm font-mono text-pink-100 block">{assignedPlayer.name}</span>
+                          <span className="text-[10px] font-mono text-pink-400/60">Set via Pitching Staff page</span>
+                        </div>
+                      ) : (
+                        <span className="text-sm font-mono text-gray-500">No SP assigned - set in Pitching Staff</span>
+                      )}
+                    </div>
+                  ) : (
+                    <Select
+                      value={assignedId?.toString() || undefined}
+                      onValueChange={(val) => assignField(pos, val)}
+                    >
+                      <SelectTrigger data-testid={`select-position-${pos}`} className="w-full bg-black border-gray-800 text-cyan-50 font-mono text-sm h-10 truncate">
+                        <SelectValue placeholder="EMPTY SLOT" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-gray-950 border-cyan-500/30 text-cyan-50 max-h-64">
+                        <SelectItem value="none" className="text-gray-500 font-mono text-xs">-- EMPTY --</SelectItem>
+                        {players.filter(p => !p.positions.includes('P')).map(p => (
+                          <SelectItem key={p.id} value={p.id.toString()} className="font-mono text-xs">
+                            {p.name} <span className="text-gray-600 ml-1">[{p.positions.join(',')}]</span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
 
                 {assignedPlayer && (
                   <div className="flex flex-col gap-1 w-16 text-right shrink-0">
-                    <span className="text-[10px] font-mono text-gray-400">POW <span className="text-pink-400 font-bold">{assignedPlayer.pow}</span></span>
-                    <span className="text-[10px] font-mono text-gray-400">CON <span className="text-cyan-400 font-bold">{assignedPlayer.con}</span></span>
+                    {isPitcher ? (
+                      <>
+                        <span className="text-[10px] font-mono text-gray-400">VEL <span className="text-pink-400 font-bold">{assignedPlayer.vel}</span></span>
+                        <span className="text-[10px] font-mono text-gray-400">CTL <span className="text-cyan-400 font-bold">{assignedPlayer.ctl}</span></span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-[10px] font-mono text-gray-400">POW <span className="text-pink-400 font-bold">{assignedPlayer.pow}</span></span>
+                        <span className="text-[10px] font-mono text-gray-400">CON <span className="text-cyan-400 font-bold">{assignedPlayer.con}</span></span>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -136,8 +187,8 @@ export default function LineupPage() {
                 </div>
                 <span className="flex-1 text-sm font-mono text-cyan-100 truncate">{p.name}</span>
                 <div className="flex gap-1">
-                  <button data-testid={`button-move-up-${idx}`} onClick={() => moveBatter(idx, 'up')} disabled={idx === 0} className="w-7 h-7 rounded bg-gray-800 text-cyan-400 disabled:opacity-20 hover:bg-cyan-900/50 text-xs font-bold">▲</button>
-                  <button data-testid={`button-move-down-${idx}`} onClick={() => moveBatter(idx, 'down')} disabled={idx === battingOrder.length - 1} className="w-7 h-7 rounded bg-gray-800 text-cyan-400 disabled:opacity-20 hover:bg-cyan-900/50 text-xs font-bold">▼</button>
+                  <button data-testid={`button-move-up-${idx}`} onClick={() => moveBatter(idx, 'up')} disabled={idx === 0} className="w-7 h-7 rounded bg-gray-800 text-cyan-400 disabled:opacity-20 hover:bg-cyan-900/50 text-xs font-bold">&#9650;</button>
+                  <button data-testid={`button-move-down-${idx}`} onClick={() => moveBatter(idx, 'down')} disabled={idx === battingOrder.length - 1} className="w-7 h-7 rounded bg-gray-800 text-cyan-400 disabled:opacity-20 hover:bg-cyan-900/50 text-xs font-bold">&#9660;</button>
                 </div>
               </div>
             );
@@ -154,9 +205,9 @@ export default function LineupPage() {
         </button>
 
         <div className="pt-4 space-y-4">
-          <h2 className="text-sm font-mono text-gray-500 border-b border-gray-800 pb-2">BENCH / BULLPEN</h2>
+          <h2 className="text-sm font-mono text-gray-500 border-b border-gray-800 pb-2">BENCH</h2>
           <div className="grid grid-cols-2 gap-2">
-            {players.filter(p => !assignedIds.has(p.id)).map(p => (
+            {players.filter(p => !assignedIds.has(p.id) && !p.positions.includes('P')).map(p => (
               <div key={p.id} data-testid={`bench-player-${p.id}`} className="p-3 border border-gray-800 rounded bg-black/40 flex flex-col justify-between">
                 <span className="text-xs font-bold truncate text-gray-300 mb-1">{p.name}</span>
                 <span className="text-[10px] font-mono text-pink-500/70">{p.positions.join(', ')}</span>

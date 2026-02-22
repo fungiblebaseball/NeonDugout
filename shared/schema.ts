@@ -59,6 +59,7 @@ export const pitcherRotations = pgTable("pitcher_rotations", {
   id: serial("id").primaryKey(),
   teamId: integer("team_id").notNull(),
   rotationOrder: jsonb("rotation_order").notNull().$type<number[]>(),
+  roles: jsonb("roles").notNull().$type<{ sp: number | null; r1: number | null; closer: number | null; nextSp: number | null }>().default({ sp: null, r1: null, closer: null, nextSp: null }),
   maxPitches: integer("max_pitches").notNull().default(100),
   maxInnings: integer("max_innings").notNull().default(7),
   maxBb: integer("max_bb").notNull().default(4),

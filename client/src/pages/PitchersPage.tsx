@@ -2,6 +2,16 @@ import { useGameStore } from "@/lib/store";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { Slider } from "@/components/ui/slider";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+type PitcherRoles = { sp: number | null; r1: number | null; closer: number | null; nextSp: number | null };
+
+const ROLE_CONFIG = [
+  { key: 'sp' as const, label: 'SP', fullLabel: 'STARTING PITCHER', color: 'pink', desc: 'Partente gara corrente' },
+  { key: 'r1' as const, label: 'R1', fullLabel: 'RELIEF 1', color: 'cyan', desc: 'Primo rilievo' },
+  { key: 'closer' as const, label: 'C', fullLabel: 'CLOSER', color: 'pink', desc: 'Chiusura / salvataggio' },
+  { key: 'nextSp' as const, label: '2P', fullLabel: 'NEXT STARTER', color: 'cyan', desc: 'Partente prossima gara (auto-rotato)' },
+];
 
 export default function PitchersPage() {
   const { team, players, walletAddress } = useGameStore();
@@ -17,7 +27,7 @@ export default function PitchersPage() {
     enabled: !!team,
   });
 
-  const [rotationOrder, setRotationOrder] = useState<number[]>([]);
+  const [roles, setRoles] = useState<PitcherRoles>({ sp: null, r1: null, closer: null, nextSp: null });
   const [maxPitches, setMaxPitches] = useState(100);
   const [maxInnings, setMaxInnings] = useState(7);
   const [maxBb, setMaxBb] = useState(4);
@@ -25,83 +35,150 @@ export default function PitchersPage() {
 
   useEffect(() => {
     if (saved) {
-      setRotationOrder(saved.rotationOrder || []);
+      const savedRoles = saved.roles || { sp: null, r1: null, closer: null, nextSp: null };
+      if (savedRoles.sp === null && saved.rotationOrder?.length > 0) {
+        const order = saved.rotationOrder;
+        savedRoles.sp = order[0] ?? null;
+        savedRoles.r1 = order[1] ?? null;
+        savedRoles.closer = order[2] ?? null;
+        savedRoles.nextSp = order[3] ?? null;
+      }
+      setRoles(savedRoles);
       setMaxPitches(saved.maxPitches ?? 100);
       setMaxInnings(saved.maxInnings ?? 7);
       setMaxBb(saved.maxBb ?? 4);
       setMaxEr(saved.maxEr ?? 4);
-    } else if (pitchers.length > 0 && rotationOrder.length === 0) {
-      setRotationOrder(pitchers.map(p => p.id));
+    } else if (pitchers.length > 0 && !roles.sp) {
+      setRoles({
+        sp: pitchers[0]?.id ?? null,
+        r1: pitchers[1]?.id ?? null,
+        closer: pitchers[2]?.id ?? null,
+        nextSp: pitchers[3]?.id ?? null,
+      });
     }
   }, [saved, pitchers.length]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      const rotationOrder = [roles.sp, roles.r1, roles.closer, roles.nextSp].filter((id): id is number => id !== null);
       const res = await fetch('/api/pitcher-rotation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamId: team!.id, rotationOrder, maxPitches, maxInnings, maxBb, maxEr }),
+        body: JSON.stringify({ teamId: team!.id, rotationOrder, roles, maxPitches, maxInnings, maxBb, maxEr }),
       });
       return res.json();
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pitcher-rotation'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pitcher-rotation'] });
+      queryClient.invalidateQueries({ queryKey: ['lineup'] });
+    },
   });
 
   if (!walletAddress || !team) {
     return <div className="min-h-screen bg-black p-6 flex items-center justify-center text-center text-pink-500 font-mono text-xl uppercase tracking-widest">ACCESS DENIED</div>;
   }
 
-  const movePitcher = (idx: number, direction: 'up' | 'down') => {
-    const newOrder = [...rotationOrder];
-    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
-    if (swapIdx < 0 || swapIdx >= newOrder.length) return;
-    [newOrder[idx], newOrder[swapIdx]] = [newOrder[swapIdx], newOrder[idx]];
-    setRotationOrder(newOrder);
+  const getPlayer = (id: number | null) => id ? players.find(p => p.id === id) : undefined;
+
+  const assignedRoleIds = new Set(Object.values(roles).filter((id): id is number => id !== null));
+
+  const getAvailablePitchers = (currentRoleKey: keyof PitcherRoles) => {
+    return pitchers.filter(p => !assignedRoleIds.has(p.id) || roles[currentRoleKey] === p.id);
   };
 
-  const getPlayer = (id: number) => players.find(p => p.id === id);
+  const setRole = (roleKey: keyof PitcherRoles, value: string) => {
+    const playerId = value === 'none' ? null : parseInt(value);
+    setRoles(prev => ({ ...prev, [roleKey]: playerId }));
+  };
+
+  const bullpenPitchers = pitchers.filter(p => !assignedRoleIds.has(p.id));
 
   return (
     <div className="min-h-screen pb-24 bg-black text-cyan-50">
       <header className="p-6 bg-gradient-to-b from-pink-900/30 to-black border-b border-pink-500/20 sticky top-0 z-10 backdrop-blur-md">
         <h1 className="text-2xl font-black uppercase text-pink-400 drop-shadow-[0_0_8px_rgba(236,72,153,0.6)]" style={{fontFamily: "'Orbitron', sans-serif"}}>
-          Pitcher Rotation
+          Pitching Staff
         </h1>
         <p className="text-xs font-mono text-pink-200/60 mt-1">{team.name}</p>
       </header>
 
       <main className="p-4 space-y-6">
         <div className="space-y-4">
-          <h2 className="text-sm font-mono text-cyan-500 border-b border-cyan-500/30 pb-2">ROTATION ORDER</h2>
-          {rotationOrder.map((pid, idx) => {
-            const p = getPlayer(pid);
-            if (!p) return null;
+          <h2 className="text-sm font-mono text-cyan-500 border-b border-cyan-500/30 pb-2">ROLE ASSIGNMENTS</h2>
+
+          {ROLE_CONFIG.map(({ key, label, fullLabel, color, desc }) => {
+            const assigned = getPlayer(roles[key]);
+            const available = getAvailablePitchers(key);
+            const borderColor = color === 'pink' ? 'border-pink-500/30' : 'border-cyan-500/30';
+            const bgColor = color === 'pink' ? 'bg-pink-950/10' : 'bg-cyan-950/10';
+            const badgeColor = color === 'pink' ? 'bg-pink-600 text-white' : 'bg-cyan-600 text-white';
+            const labelColor = color === 'pink' ? 'text-pink-400' : 'text-cyan-400';
+
             return (
-              <div key={pid} data-testid={`pitcher-slot-${idx}`} className="flex items-center gap-3 p-3 rounded-lg border border-pink-500/20 bg-pink-950/10">
-                <div className="w-8 h-8 shrink-0 bg-pink-950/40 flex items-center justify-center rounded text-pink-400 font-black" style={{fontFamily: "'Press Start 2P', cursive", fontSize: '10px'}}>
-                  SP{idx + 1}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <span className="text-sm font-mono text-cyan-100 truncate block">{p.name}</span>
-                  <div className="flex gap-3 mt-1">
-                    <span className="text-[10px] font-mono text-gray-500">VEL <span className="text-pink-400">{p.vel}</span></span>
-                    <span className="text-[10px] font-mono text-gray-500">CTL <span className="text-cyan-400">{p.ctl}</span></span>
-                    <span className="text-[10px] font-mono text-gray-500">MOV <span className="text-pink-400">{p.mov}</span></span>
-                    <span className="text-[10px] font-mono text-gray-500">STA <span className="text-cyan-400">{p.sta}</span></span>
+              <div key={key} data-testid={`pitcher-role-${key}`} className={`p-4 rounded-xl border ${borderColor} ${bgColor}`}>
+                <div className="flex items-center gap-3 mb-3">
+                  <span className={`px-2 py-1 rounded text-xs font-black ${badgeColor}`} style={{fontFamily: "'Press Start 2P', cursive", fontSize: '10px'}}>
+                    {label}
+                  </span>
+                  <div>
+                    <span className={`text-xs font-bold uppercase ${labelColor}`} style={{fontFamily: "'Orbitron', sans-serif"}}>{fullLabel}</span>
+                    <p className="text-[10px] font-mono text-gray-500">{desc}</p>
                   </div>
                 </div>
-                <div className="flex gap-1">
-                  <button data-testid={`button-pitcher-up-${idx}`} onClick={() => movePitcher(idx, 'up')} disabled={idx === 0} className="w-7 h-7 rounded bg-gray-800 text-pink-400 disabled:opacity-20 hover:bg-pink-900/50 text-xs font-bold">▲</button>
-                  <button data-testid={`button-pitcher-down-${idx}`} onClick={() => movePitcher(idx, 'down')} disabled={idx === rotationOrder.length - 1} className="w-7 h-7 rounded bg-gray-800 text-pink-400 disabled:opacity-20 hover:bg-pink-900/50 text-xs font-bold">▼</button>
-                </div>
+
+                <Select
+                  value={roles[key]?.toString() || undefined}
+                  onValueChange={(val) => setRole(key, val)}
+                >
+                  <SelectTrigger data-testid={`select-role-${key}`} className="w-full bg-black border-gray-800 text-cyan-50 font-mono text-sm h-10">
+                    <SelectValue placeholder="-- SELECT PITCHER --" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-950 border-cyan-500/30 text-cyan-50 max-h-64">
+                    <SelectItem value="none" className="text-gray-500 font-mono text-xs">-- EMPTY --</SelectItem>
+                    {available.map(p => (
+                      <SelectItem key={p.id} value={p.id.toString()} className="font-mono text-xs">
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {assigned && (
+                  <div className="flex gap-4 mt-3 px-1">
+                    <span className="text-[10px] font-mono text-gray-500">VEL <span className="text-pink-400 font-bold">{assigned.vel}</span></span>
+                    <span className="text-[10px] font-mono text-gray-500">CTL <span className="text-cyan-400 font-bold">{assigned.ctl}</span></span>
+                    <span className="text-[10px] font-mono text-gray-500">MOV <span className="text-pink-400 font-bold">{assigned.mov}</span></span>
+                    <span className="text-[10px] font-mono text-gray-500">STA <span className="text-cyan-400 font-bold">{assigned.sta}</span></span>
+                    <span className="text-[10px] font-mono text-gray-500">DEF <span className="text-cyan-400 font-bold">{assigned.def}</span></span>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
 
+        {bullpenPitchers.length > 0 && (
+          <div className="space-y-3">
+            <h2 className="text-sm font-mono text-gray-500 border-b border-gray-800 pb-2">BULLPEN ({bullpenPitchers.length})</h2>
+            <div className="grid grid-cols-2 gap-2">
+              {bullpenPitchers.map(p => (
+                <div key={p.id} data-testid={`bullpen-pitcher-${p.id}`} className="p-3 border border-gray-800 rounded-lg bg-black/40">
+                  <span className="text-xs font-bold text-gray-300 truncate block">{p.name}</span>
+                  <div className="flex gap-2 mt-1">
+                    <span className="text-[9px] font-mono text-gray-600">V{p.vel}</span>
+                    <span className="text-[9px] font-mono text-gray-600">C{p.ctl}</span>
+                    <span className="text-[9px] font-mono text-gray-600">M{p.mov}</span>
+                    <span className="text-[9px] font-mono text-gray-600">S{p.sta}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="space-y-5">
-          <h2 className="text-sm font-mono text-pink-500 border-b border-pink-500/30 pb-2">SWITCH CONDITIONS</h2>
-          <p className="text-[10px] font-mono text-gray-500">Pitcher will be pulled when ANY condition is met</p>
+          <h2 className="text-sm font-mono text-pink-500 border-b border-pink-500/30 pb-2">SP SWITCH CONDITIONS</h2>
+          <p className="text-[10px] font-mono text-gray-500">Starting Pitcher will be replaced by R1 when ANY condition is met</p>
 
           <div className="space-y-1">
             <div className="flex justify-between">
@@ -142,7 +219,7 @@ export default function PitchersPage() {
           disabled={saveMutation.isPending}
           className="w-full py-4 bg-pink-500 hover:bg-pink-400 text-black font-black uppercase tracking-widest rounded-xl transition-all shadow-[0_0_15px_rgba(236,72,153,0.4)] disabled:opacity-50"
         >
-          {saveMutation.isPending ? "SAVING..." : "SAVE ROTATION"}
+          {saveMutation.isPending ? "SAVING..." : "SAVE PITCHING STAFF"}
         </button>
       </main>
     </div>

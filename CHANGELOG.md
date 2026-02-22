@@ -9,6 +9,27 @@ Formato:
 ## Unreleased / In planning
 - nulla ancora
 
+## v0.7 – 22 febbraio 2026 – Schedule + Pitcher Roles rework
+- **Pitcher Roles rework** (PitchersPage.tsx):
+  * Schema: aggiunto campo `roles` JSONB a `pitcher_rotations` (`{ sp, r1, closer, nextSp }`)
+  * UI: 4 ruoli con select dedicati: SP (Starting Pitcher), R1 (Rilievo 1), C (Closer), 2P (Next Starter auto-rotato)
+  * Ogni ruolo mostra stats VEL/CTL/MOV/STA/DEF del lanciatore assegnato
+  * Bullpen section per lanciatori non assegnati a ruoli
+  * Switch conditions (pitches, innings, BB, ER) applicate allo SP
+- **Lineup integration** (LineupPage.tsx):
+  * Posizione P rinominata visivamente in "SP" — mostra dinamicamente il pitcher dal pitching staff
+  * SP non editabile dal Lineup (impostato via Pitching Staff page)
+  * Bench ora filtra i lanciatori (gestiti in pagina separata)
+- **SchedulePage** (client/src/pages/SchedulePage.tsx):
+  * Calendario completo divisione utente (90 partite, 18 giornate round-robin)
+  * Card "NEXT MATCH" evidenziata con avversario, data, giorno
+  * Record W-L, partite giocate, rimanenti
+  * Ogni giornata espansa con tutte le partite del girone, partite utente evidenziate
+  * Risultati (score + FINAL) per partite giocate
+- **Navigation** aggiornata a 6 items: Hub, Lineup, Pitch, ATK, DEF, Sched
+- **Home** dashboard: card SCHEDULE ora attiva con link a /schedule (non più disabled)
+- Files modificati: `shared/schema.ts`, `server/routes.ts`, `client/src/pages/PitchersPage.tsx`, `client/src/pages/LineupPage.tsx`, `client/src/pages/SchedulePage.tsx`, `client/src/pages/Home.tsx`, `client/src/components/Navigation.tsx`, `client/src/App.tsx`
+
 ## v0.6 – 22 febbraio 2026 – Fase 6 completata (Simulazione core client-side)
 - Implementato motore di simulazione partita in `client/src/lib/calculations/`:
   • `matchup.ts` – matchupRating (formula da MECHANICS_SPEC v0.2-beta), teamDefenseAvg, gidpChance, errorChance

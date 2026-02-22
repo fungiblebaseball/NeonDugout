@@ -101,13 +101,15 @@ export default function Home() {
             </div>
           </Link>
 
-          <div className="p-5 rounded-2xl border border-gray-800 bg-black/40 opacity-50 col-span-2 flex items-center justify-between">
-            <div>
-              <h3 className="font-black text-lg text-gray-500 mb-1" style={{fontFamily: "'Orbitron', sans-serif"}}>SCHEDULE</h3>
-              <p className="text-[10px] font-mono text-gray-600">Next match: Simulated at 00:00 CET</p>
+          <Link href="/schedule" data-testid="link-schedule" className="col-span-2 block p-5 rounded-2xl border border-pink-500/30 bg-black/40 hover:bg-pink-900/20 transition-colors group">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-black text-lg text-pink-400 mb-1 group-hover:drop-shadow-[0_0_8px_rgba(236,72,153,0.8)]" style={{fontFamily: "'Orbitron', sans-serif"}}>SCHEDULE</h3>
+                <p className="text-[10px] font-mono text-gray-500">Division calendar & match results</p>
+              </div>
+              <Calendar className="w-8 h-8 text-pink-500 group-hover:animate-pulse" />
             </div>
-            <Calendar className="w-8 h-8 text-gray-700" />
-          </div>
+          </Link>
         </div>
       </main>
     </div>

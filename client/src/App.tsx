@@ -10,6 +10,7 @@ import PitchersPage from "@/pages/PitchersPage";
 import AttackPage from "@/pages/AttackPage";
 import DefensePage from "@/pages/DefensePage";
 import SimulationPage from "@/pages/SimulationPage";
+import SchedulePage from "@/pages/SchedulePage";
 import NotFound from "@/pages/not-found";
 import { useGameStore } from "@/lib/store";
 
@@ -25,6 +26,7 @@ function Router() {
         <Route path="/attack" component={AttackPage} />
         <Route path="/defense" component={DefensePage} />
         <Route path="/simulate" component={SimulationPage} />
+        <Route path="/schedule" component={SchedulePage} />
         <Route component={NotFound} />
       </Switch>
       {walletAddress && <Navigation />}

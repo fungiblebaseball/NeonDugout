@@ -129,7 +129,13 @@ export const useGameStore = create<GameState>()(
       }),
     }),
     {
-      name: 'gridiron-ghosts-v4',
+      name: 'gridiron-ghosts-v5',
+      partialize: (state) => ({
+        walletAddress: state.walletAddress,
+        token: state.token,
+        user: state.user,
+        team: state.team,
+      }),
     }
   )
 );

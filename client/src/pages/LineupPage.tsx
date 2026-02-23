@@ -69,13 +69,42 @@ export default function LineupPage() {
     if (savedLineup) {
       const fp = { ...(savedLineup.fieldPositions || {}) };
       setFieldPositions(fp);
-      setBattingOrder(savedLineup.battingOrder || []);
+      const savedOrder = savedLineup.battingOrder || [];
+      setBattingOrder(savedOrder);
       if (fp['DH']) {
         setUseDH(true);
         setDhPlayerId(fp['DH']);
       }
     }
   }, [savedLineup]);
+
+  useEffect(() => {
+    if (!players.length) return;
+
+    const fieldPlayerIds = Object.entries(fieldPositions)
+      .filter(([k]) => k !== 'DH' && k !== 'P')
+      .map(([, v]) => v)
+      .filter(Boolean) as number[];
+
+    const validIds = new Set([
+      ...fieldPlayerIds,
+      ...(useDH && dhPlayerId ? [dhPlayerId] : []),
+      ...(!useDH && spId ? [spId] : []),
+    ]);
+
+    if (validIds.size === 0) return;
+
+    setBattingOrder(prev => {
+      const cleaned = prev.filter(id => validIds.has(id));
+      const missing = Array.from(validIds).filter(id => !cleaned.includes(id));
+      const merged = [...cleaned, ...missing].slice(0, 9);
+
+      if (merged.length === prev.length && merged.every((id, i) => id === prev[i])) {
+        return prev;
+      }
+      return merged;
+    });
+  }, [spId, fieldPositions, useDH, dhPlayerId, players]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -105,14 +134,7 @@ export default function LineupPage() {
 
   const assignField = (pos: string, playerIdStr: string) => {
     const playerId = playerIdStr === 'none' ? null : parseInt(playerIdStr);
-    const newPositions = { ...fieldPositions, [pos]: playerId };
-    setFieldPositions(newPositions);
-
-    if (playerId && !battingOrder.includes(playerId)) {
-      const oldId = fieldPositions[pos];
-      const newOrder = [...battingOrder.filter(id => id !== oldId), playerId];
-      setBattingOrder(newOrder.slice(0, 9));
-    }
+    setFieldPositions(prev => ({ ...prev, [pos]: playerId }));
   };
 
   const moveBatter = (idx: number, direction: 'up' | 'down') => {
@@ -132,31 +154,15 @@ export default function LineupPage() {
   const toggleDH = () => {
     if (useDH) {
       setUseDH(false);
-      if (dhPlayerId) {
-        setBattingOrder(prev => prev.filter(id => id !== dhPlayerId));
-      }
       setDhPlayerId(null);
-      if (spId && !battingOrder.includes(spId)) {
-        setBattingOrder(prev => [...prev, spId].slice(0, 9));
-      }
     } else {
       setUseDH(true);
-      if (spId) {
-        setBattingOrder(prev => prev.filter(id => id !== spId));
-      }
     }
   };
 
   const assignDH = (val: string) => {
     const pid = val === 'none' ? null : parseInt(val);
-    const oldDh = dhPlayerId;
     setDhPlayerId(pid);
-    if (pid && !battingOrder.includes(pid)) {
-      const newOrder = [...battingOrder.filter(id => id !== oldDh), pid];
-      setBattingOrder(newOrder.slice(0, 9));
-    } else if (!pid && oldDh) {
-      setBattingOrder(prev => prev.filter(id => id !== oldDh));
-    }
   };
 
   const getBatterPosition = (playerId: number): string => {

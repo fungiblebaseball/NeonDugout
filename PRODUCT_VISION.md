@@ -50,6 +50,9 @@ Un gioco manager testuale ultra-leggero di baseball fantasy completamente on-cha
    - “Manager’s mind” → il vero skill è bilanciare trade-off tra power/contact/speed/pitching control/resistenza  
    - Partita singola ≈ 30–90 secondi di caricamento + lettura flavor  
    - Stagione / league → asincrona, turn-based, con calendari generati deterministicamente
+   - Tattiche pre-partita RPS
+   - Il giocatore sceglie 4 tattiche (Batter Approach, Pitcher Style, Defense Setup, Offensive Attack) che creano matchup pietra-carta-forbice con le scelte dell'avversario.
+   - Lo skill del manager sta nel prevedere e contrastare le tattiche avversarie, modificando probabilità senza alterare drasticamente i rating dei giocatori.
 
 ## Vincoli di budget / sviluppo
 - Sviluppo principale su Replit + Replit AI Agent/Ghostwriter  

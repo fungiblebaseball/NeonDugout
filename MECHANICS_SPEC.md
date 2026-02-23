@@ -2,12 +2,21 @@
 Ultimo aggiornamento: 21 febbraio 2026  
 Versione: 0.2-beta (estensione per dinamiche difesa/attacco/avanzamenti)
 
+### Scopo del file
+Questo documento definisce le specifiche tecniche e le regole di gioco. Serve come riferimento per gli sviluppatori, gli architetti e i designer per garantire la coerenza e la determinazione del gameplay.  **Questo documento è una fonte di verità per il comportamento del gioco e deve essere consultato prima di qualsiasi modifica al codice.**
+
 ## Principi generali (invariati da v0.1 + aggiunte beta)
 - Calcoli client-side, deterministici + pseudo-random (Math.random() con seed opzionale per riproducibilità test)
 - Partita: 9 inning standard (extra innings se tie dopo 9)
 - Simulazione: per at-bat aggregato (non full pitch-by-pitch per beta), ma con conteggio balls/strikes tracciato per stats e total pitches
 - Output: flavor text + box score + stats (incl. inherited runners, GIDP, CS, etc.)
 - Reuse matchup_rating come base per quasi tutte le decisioni "skill vs skill"
+
+### Linee guida per l'implementazione
+*   **Determinismo:** Tutte le simulazioni devono essere deterministiche, dato un set di input identico.
+*   **Coerenza:** Le statistiche e i calcoli devono essere coerenti tra il client e il server.
+*   **Testabilità:** Il codice deve essere scritto in modo da essere facilmente testabile.
+*   **Modularità:** Le funzioni devono essere piccole e focalizzate su un singolo compito.
 
 ## Attributi giocatori (scala 1–100, invariati)
 Offensive (batter): POW, CON, SPD, EYE  
@@ -103,3 +112,61 @@ Se GIDP → 2 outs, batter out, runner out a 2B
 - Full pitch-by-pitch opzionale per modalità exhibition?
 
 Fine v0.2-beta
+
+=== Tattiche RPS globali pre-partita (v0.3) ===
+
+Prima di ogni simulazione (league o exhibition) valuta 4 tattiche salvate nella configurazione delle 2 squadre (una per categoria).  
+Queste tattiche creano matchup RPS che modificano probabilità base, esiti at-bat, avanzamenti corridori, errori e tentativi di rubata.
+
+Categorie e opzioni:
+
+1. Batter Approach
+   - Power
+   - Contact
+   - Patient
+
+2. Pitcher Style
+   - Velocity
+   - Movement
+   - Command
+
+3. Defense Setup
+   - Aggressive     (infield in + quick to plate / pickoff heavy)
+   - Balanced       (standard positioning + delivery media)
+   - Protective     (deep/gaps + slow/deceptive holds)
+
+4. Offensive Attack
+   - Aggressive     (big leads, steal frequente, extra base sempre)
+   - Balanced       (jump standard, steal situazionale)
+   - Conservative   (lead piccolo, delayed steal, hit&run cauto)
+
+Matchup Batter Approach vs Pitcher Style
+Determina bias sull'esito base at-bat (weak contact → barrel / HR trajectory)
+
+| Batter Approach \ Pitcher Style | Velocity | Movement | Command  |
+|--------------------------------|----------|----------|----------|
+| Power                          | Tie      | Power    | Movement |
+| Contact                        | Command  | Tie      | Contact  |
+| Patient                        | Patient  | Contact  | Tie      |
+
+"Vince" = bias favorevole all'esito migliore per chi vince  
+"Tie"  = distribuzione neutra
+
+Offensive Attack vs Defense Setup
+Determina successo rubate, extra base su hit, esecuzione small ball / bunt / hit&run
+
+| Offensive Attack \ Defense Setup | Aggressive          | Balanced | Protective          |
+|----------------------------------|---------------------|----------|---------------------|
+| Aggressive                       | Defense vince       | Tie      | Attack vince        |
+| Balanced                         | Attack vince lieve  | Tie      | Defense vince       |
+| Conservative                     | Defense vince       | Tie      | Tie                 |
+
+Defense Setup influenza anche esiti in-play
+- Aggressive: + out prob su grounder/bunt/weak contact, - extra base prob
+- Protective: + preso prob su fly/line drive, + extra base concesse su hard hit
+- Balanced: baseline
+
+Note per motore:
+- I coefficienti / modificatori esatti (es. +10%, -15%, +20 punti matchup_rating) sono decisi dall'implementazione.
+- I matchup RPS servono solo a determinare direzione e intensità del bias.
+- Salvare le 4 tattiche scelte nel record della partita per report post-gara.

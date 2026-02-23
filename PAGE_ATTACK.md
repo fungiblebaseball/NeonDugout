@@ -1,24 +1,29 @@
-# Attack Page (/attack)
+# Page_Attack.md  (/defence)
 
 ## File
 `client/src/pages/AttackPage.tsx`
-
 ## Descrizione
-Scelta della strategia offensiva della squadra.
+Scelta della strategia offensiva / base running.
 
-## Sezioni
-1. **Header** — Titolo "Attack Strategy"
-2. **Strategy Selection** — 4 opzioni:
-   - Bunt — Strategia conservativa, sacrifici
-   - Hit-and-Run — Combinata corsa + battuta
-   - Neutral — Bilanciata
-   - Swing-on-Sight — Aggressiva, massima potenza
-3. **Save Button**
+##Sezioni
+Header — Titolo "Offensive Attack"
+Offensive Attack — 3 opzioni (scelta esclusiva):
+- Aggressive     → big leads, steal frequente, extra base sempre, hit&run aggressivi
+- Balanced       → jump standard, steal in situazioni favorevoli, avanza su hit sicuri
+- Conservative   → lead piccolo, delayed steal, hit&run solo con conteggio buono
+
+Save Button
 
 ## Dati
-- Store: team
-- API: `GET/POST /api/tactics`
-- Campo: `attackStyle` (text)
+Store: team
+API: `GET/POST /api/tactics`
+Campo: `offensiveAttack` (string: "Aggressive" | "Balanced" | "Conservative")
 
 ## Note
-- La strategia influenza il motore di simulazione (tabelle probabilità)
+La tattica Offensive Attack interagisce con Defense Setup dell'avversario per determinare:
+- probabilità successo rubata
+- probabilità extra base su hit
+- esecuzione bunt / hit&run
+- rischio caught stealing / pickoff
+
+Sostituisce le precedenti opzioni Bunt / Hit-and-Run / Neutral / Swing-on-Sight.

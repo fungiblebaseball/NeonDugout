@@ -22,10 +22,20 @@ interface TeamData {
   name: string;
   division: string;
   ownerWallet: string | null;
+  seasonId: number;
 }
 
 export default function SchedulePage() {
   const { team, walletAddress } = useGameStore();
+
+  const { data: seasonData } = useQuery<{ seasonId: number }>({
+    queryKey: ['current-season'],
+    queryFn: async () => {
+      const res = await fetch('/api/season');
+      return res.json();
+    },
+  });
+  const currentSeason = seasonData?.seasonId ?? 1;
 
   const { data: allMatchesRaw = [] } = useQuery<MatchData[]>({
     queryKey: ['matches-all'],
@@ -45,12 +55,14 @@ export default function SchedulePage() {
     enabled: !!team,
   });
 
-  const divTeamIds = new Set(allTeamsRaw.filter(t => t.division === team?.division).map(t => t.id));
-  const allMatches = allMatchesRaw.filter(m =>
+  const seasonMatches = allMatchesRaw.filter(m => m.seasonId === currentSeason);
+  const seasonTeams = allTeamsRaw.filter(t => t.seasonId === currentSeason);
+  const divTeamIds = new Set(seasonTeams.filter(t => t.division === team?.division).map(t => t.id));
+  const allMatches = seasonMatches.filter(m =>
     m.division === team?.division ||
     divTeamIds.has(m.homeTeamId) || divTeamIds.has(m.awayTeamId)
   );
-  const divTeams = allTeamsRaw;
+  const divTeams = seasonTeams;
 
   if (!walletAddress || !team) {
     return <div className="min-h-screen bg-black p-6 flex items-center justify-center text-center text-pink-500 font-mono text-xl uppercase tracking-widest">ACCESS DENIED</div>;
@@ -88,7 +100,7 @@ export default function SchedulePage() {
           Schedule
         </h1>
         <p className="text-xs font-mono text-cyan-200/60 mt-1">
-          {team.division} — Season 1
+          {team.division} — Season {currentSeason}
         </p>
       </header>
 

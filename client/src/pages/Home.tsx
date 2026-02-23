@@ -80,6 +80,15 @@ export default function Home() {
     }
   }, [editingName]);
 
+  const { data: seasonData } = useQuery<{ seasonId: number }>({
+    queryKey: ['current-season'],
+    queryFn: async () => {
+      const res = await fetch('/api/season');
+      return res.json();
+    },
+  });
+  const currentSeason = seasonData?.seasonId ?? 1;
+
   const { data: allMatchesRaw = [] } = useQuery<MatchData[]>({
     queryKey: ['matches-all'],
     queryFn: async () => {
@@ -192,6 +201,7 @@ export default function Home() {
       if (data.seasonId) {
         queryClient.invalidateQueries({ queryKey: ['matches-all'] });
         queryClient.invalidateQueries({ queryKey: ['teams-all'] });
+        queryClient.invalidateQueries({ queryKey: ['current-season'] });
         setLastResult(null);
       }
     } catch (err) {
@@ -385,13 +395,13 @@ export default function Home() {
                   <Play className="w-6 h-6 text-pink-400 mb-2" />
                   <h3 className="font-black text-lg text-pink-400" style={{fontFamily: "'Orbitron', sans-serif"}}>
                     {nextLeagueMatch
-                      ? (nextLeagueMatch.matchType === 'interleague' ? 'INTERLEAGUE' : nextLeagueMatch.matchType === 'playoff' ? 'PLAYOFF' : 'NEXT GAME')
-                      : nextUnplayedDay >= 13 ? 'PLAYOFF DAY' : 'LEAGUE DAY'}
+                      ? (nextLeagueMatch.matchType === 'interleague' ? 'INTERLEAGUE' : nextLeagueMatch.matchType === 'playoff' ? 'PLAYOFF' : `GAME DAY ${nextLeagueMatch.day}`)
+                      : nextUnplayedDay >= 13 ? 'PLAYOFF DAY' : `GAME DAY ${nextUnplayedDay}`}
                   </h3>
                   <p className="text-[10px] font-mono text-gray-500">
                     {nextLeagueMatch
-                      ? `Day ${nextLeagueMatch.day} — vs ${teamMap.get(opponentId!)?.name || 'TBD'}`
-                      : `Day ${nextUnplayedDay} — Your team is not playing`}
+                      ? `Season ${currentSeason} — vs ${teamMap.get(opponentId!)?.name || 'TBD'}`
+                      : `Season ${currentSeason} — Day ${nextUnplayedDay} — Your team is not playing`}
                   </p>
                 </div>
                 <span className="text-3xl">🏟️</span>

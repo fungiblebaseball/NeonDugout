@@ -1,7 +1,7 @@
 import { useGameStore } from "@/lib/store";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Trophy, Eye, ChevronDown, ChevronUp, X } from "lucide-react";
+import { Trophy, Eye, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { Link } from "wouter";
 
 interface MatchData {
@@ -197,6 +197,17 @@ export default function StandingsPage() {
   const [selectedDiv, setSelectedDiv] = useState<string>(team?.division || 'B');
   const [previewMatchId, setPreviewMatchId] = useState<number | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
+  const [viewingSeason, setViewingSeason] = useState<number | null>(null);
+
+  const { data: seasonData } = useQuery<{ seasonId: number }>({
+    queryKey: ['current-season'],
+    queryFn: async () => {
+      const res = await fetch('/api/season');
+      return res.json();
+    },
+  });
+  const currentSeason = seasonData?.seasonId ?? 1;
+  const displaySeason = viewingSeason ?? currentSeason;
 
   const { data: allTeams = [] } = useQuery<TeamData[]>({
     queryKey: ['teams-all'],
@@ -218,9 +229,11 @@ export default function StandingsPage() {
     return <div className="min-h-screen bg-black p-6 flex items-center justify-center text-center text-pink-500 font-mono text-xl uppercase tracking-widest">ACCESS DENIED</div>;
   }
 
-  const divisions = Array.from(new Set(allTeams.map(t => t.division))).sort();
-  const divTeams = allTeams.filter(t => t.division === selectedDiv);
-  const divMatches = allMatches.filter(m => m.division === selectedDiv);
+  const seasonMatches = allMatches.filter(m => m.seasonId === displaySeason);
+  const seasonTeams = allTeams.filter(t => t.seasonId === displaySeason);
+  const divisions = Array.from(new Set(seasonTeams.map(t => t.division))).sort();
+  const divTeams = seasonTeams.filter(t => t.division === selectedDiv);
+  const divMatches = seasonMatches.filter(m => m.division === selectedDiv);
   const standings = computeStandings(divTeams, divMatches);
 
   const isUserDiv = selectedDiv === team.division;
@@ -237,7 +250,30 @@ export default function StandingsPage() {
         <h1 className="text-2xl font-black uppercase text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.6)]" style={{fontFamily: "'Orbitron', sans-serif"}}>
           Standings
         </h1>
-        <p className="text-xs font-mono text-cyan-200/60 mt-1">Season 1 — League Overview</p>
+        <div className="flex items-center gap-3 mt-1">
+          <p className="text-xs font-mono text-cyan-200/60">Season {displaySeason} — League Overview</p>
+          {currentSeason > 1 && (
+            <div className="flex items-center gap-1 ml-auto">
+              <button
+                data-testid="button-prev-season"
+                onClick={() => setViewingSeason(Math.max(1, displaySeason - 1))}
+                disabled={displaySeason <= 1}
+                className="p-0.5 rounded border border-gray-700 text-gray-400 hover:text-cyan-400 hover:border-cyan-500/50 disabled:opacity-30 transition-colors"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+              <span className="text-[10px] font-mono text-gray-500 min-w-[16px] text-center">{displaySeason}</span>
+              <button
+                data-testid="button-next-season"
+                onClick={() => setViewingSeason(Math.min(currentSeason, displaySeason + 1))}
+                disabled={displaySeason >= currentSeason}
+                className="p-0.5 rounded border border-gray-700 text-gray-400 hover:text-cyan-400 hover:border-cyan-500/50 disabled:opacity-30 transition-colors"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
       </header>
 
       <main className="p-4 space-y-6">
@@ -317,7 +353,7 @@ export default function StandingsPage() {
           <TeamRosterPreview teamId={selectedTeamId} allTeams={allTeams} onClose={() => setSelectedTeamId(null)} />
         )}
 
-        {isUserDiv && nextMatch && (
+        {isUserDiv && nextMatch && displaySeason === currentSeason && (
           <div className="space-y-3">
             <button
               data-testid="button-match-preview"

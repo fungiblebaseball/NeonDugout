@@ -6,6 +6,21 @@ Formato:
   • Dettaglio 2 (file modificati)  
   • Trade-off / note (se rilevanti)
 
+## v1.4.3 – 23 febbraio 2026 – Dynamic Season Labels & History Navigation
+- **Season dinamica in Schedule** (SchedulePage.tsx):
+  * Titolo "{division} — Season N" ora usa il seasonId corrente da `/api/season`
+  * Rimosso "Season 1" hardcoded
+- **Season dinamica in Standings + navigazione storico** (StandingsPage.tsx):
+  * Titolo "Season N — League Overview" dinamico
+  * Selettore con frecce ◀ ▶ per navigare tra season passate e corrente
+  * Standings e divisioni filtrate per seasonId selezionato
+  * Match preview nascosto quando si visualizza una season passata
+- **Game Day label in Home** (Home.tsx):
+  * Titolo box partita: "GAME DAY X" (campionato) / "INTERLEAGUE" / "PLAYOFF"
+  * Sottotitolo: "Season N — vs {avversario}" al posto di "Day X — vs ..."
+  * Query `current-season` invalidata al cambio stagione
+- Files modificati: `client/src/pages/SchedulePage.tsx`, `client/src/pages/StandingsPage.tsx`, `client/src/pages/Home.tsx`
+
 ## v1.4.2 – 23 febbraio 2026 – User Placement Fix
 - **Assegnamento nuovi utenti invertito** (server/storage.ts):
   * `getUnownedTeam()` ora assegna nella lega più alta e serie più alta disponibile (desc)

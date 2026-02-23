@@ -6,6 +6,14 @@ Formato:
   • Dettaglio 2 (file modificati)  
   • Trade-off / note (se rilevanti)
 
+## v1.4.2 – 23 febbraio 2026 – User Placement Fix
+- **Assegnamento nuovi utenti invertito** (server/storage.ts):
+  * `getUnownedTeam()` ora assegna nella lega più alta e serie più alta disponibile (desc)
+  * Ordine: L5E → L5D → ... → L5A → L4E → ... → L1A (scalabile su N leghe × N serie)
+  * Prima era ascendente (L1A → L1B → ...), ora parte dall'ultima serie dell'ultima lega
+  * Preparato per scaling futuro a 5 leghe × 5 gironi
+- Files modificati: `server/storage.ts`
+
 ## v1.4.1 – 23 febbraio 2026 – Home Page Enhancements
 - **Team Rename inline** (Home.tsx, routes.ts, storage.ts):
   * Icona matita accanto al nome team nell'header

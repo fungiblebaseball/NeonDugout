@@ -106,8 +106,8 @@ export class DatabaseStorage implements IStorage {
     unowned.sort((a, b) => {
       const leagueA = parseInt(a.league.replace('L', '')) || 0;
       const leagueB = parseInt(b.league.replace('L', '')) || 0;
-      if (leagueA !== leagueB) return leagueA - leagueB;
-      return a.series.localeCompare(b.series);
+      if (leagueA !== leagueB) return leagueB - leagueA;
+      return b.series.localeCompare(a.series);
     });
     return unowned[0];
   }

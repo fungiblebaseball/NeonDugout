@@ -289,6 +289,39 @@ export default function Home() {
             </div>
           ) : null}
 
+          {(() => {
+            const recentResults = userMatches
+              .filter(m => m.played)
+              .sort((a, b) => b.day - a.day)
+              .slice(0, 3);
+            if (recentResults.length === 0) return null;
+            return (
+              <div className="col-span-2 rounded-xl border border-gray-800 bg-black/30 p-3 space-y-2">
+                <p className="text-[10px] font-mono text-gray-500 uppercase">Recent Results</p>
+                {recentResults.map(m => {
+                  const isHome = m.homeTeamId === team?.id;
+                  const won = isHome ? (m.homeScore ?? 0) > (m.awayScore ?? 0) : (m.awayScore ?? 0) > (m.homeScore ?? 0);
+                  const oppName = teamMap.get(isHome ? m.awayTeamId : m.homeTeamId)?.name || '???';
+                  return (
+                    <Link key={m.id} href={`/match/${m.id}`}>
+                      <div className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-gray-900/40 transition-colors cursor-pointer">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${won ? 'bg-cyan-500/20 text-cyan-400' : 'bg-pink-500/20 text-pink-400'}`}>
+                            {won ? 'W' : 'L'}
+                          </span>
+                          <span className="text-xs font-mono text-gray-400">{isHome ? 'vs' : '@'} {oppName}</span>
+                        </div>
+                        <span className="text-xs font-black font-mono text-gray-300">
+                          {isHome ? `${m.homeScore}-${m.awayScore}` : `${m.awayScore}-${m.homeScore}`}
+                        </span>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            );
+          })()}
+
           <Link href="/schedule" data-testid="link-schedule" className="block p-5 rounded-2xl border border-pink-500/30 bg-black/40 hover:bg-pink-900/20 transition-colors group">
             <Calendar className="w-6 h-6 text-pink-500 mb-2 group-hover:animate-pulse" />
             <h3 className="font-black text-lg text-pink-400 mb-1 group-hover:drop-shadow-[0_0_8px_rgba(236,72,153,0.8)]" style={{fontFamily: "'Orbitron', sans-serif"}}>SCHEDULE</h3>

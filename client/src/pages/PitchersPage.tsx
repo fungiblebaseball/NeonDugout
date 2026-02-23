@@ -4,8 +4,29 @@ import { useState, useEffect } from "react";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { PitcherStyle } from "@/lib/types";
+import { useLocation } from "wouter";
 
 type PitcherRoles = { sp: number | null; r1: number | null; closer: number | null; nextSp: number | null };
+
+interface SeasonStats {
+  playerId: number;
+  gamesPlayed: number;
+  ip: number;
+  pitcherH: number;
+  er: number;
+  pitcherBb: number;
+  pitcherSo: number;
+  pitchCount: number;
+  gamesStarted: number;
+  wins: number;
+  losses: number;
+  ab: number;
+  hits: number;
+  hr: number;
+  rbi: number;
+  bb: number;
+  so: number;
+}
 
 const ROLE_CONFIG = [
   { key: 'sp' as const, label: 'SP', fullLabel: 'STARTING PITCHER', color: 'pink', desc: 'Partente gara corrente' },
@@ -41,9 +62,26 @@ const PITCHER_STYLE_OPTIONS: { value: PitcherStyle; label: string; desc: string;
   },
 ];
 
+function PitcherSeasonLine({ stats }: { stats: SeasonStats | undefined }) {
+  if (!stats || stats.ip === 0) return <span className="text-[9px] font-mono text-gray-600 italic">No season data</span>;
+  const era = stats.ip > 0 ? ((stats.er / stats.ip) * 9).toFixed(2) : '0.00';
+  const whip = stats.ip > 0 ? ((stats.pitcherH + stats.pitcherBb) / stats.ip).toFixed(2) : '0.00';
+  return (
+    <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1">
+      <span className="text-[9px] font-mono text-gray-500">W/L <span className="text-green-400">{stats.wins}</span>/<span className="text-red-400">{stats.losses}</span></span>
+      <span className="text-[9px] font-mono text-gray-500">ERA <span className="text-pink-400">{era}</span></span>
+      <span className="text-[9px] font-mono text-gray-500">IP <span className="text-cyan-400">{stats.ip}</span></span>
+      <span className="text-[9px] font-mono text-gray-500">SO <span className="text-cyan-400">{stats.pitcherSo}</span></span>
+      <span className="text-[9px] font-mono text-gray-500">WHIP <span className="text-pink-400">{whip}</span></span>
+      <span className="text-[9px] font-mono text-gray-500">GS <span className="text-cyan-400">{stats.gamesStarted}</span></span>
+    </div>
+  );
+}
+
 export default function PitchersPage() {
   const { team, players, walletAddress } = useGameStore();
   const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
   const pitchers = players.filter(p => p.positions.includes('P'));
 
   const { data: saved } = useQuery({
@@ -54,6 +92,20 @@ export default function PitchersPage() {
     },
     enabled: !!team,
   });
+
+  const { data: teamStats } = useQuery<SeasonStats[]>({
+    queryKey: ['team-stats', team?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/team/${team!.id}/stats`);
+      return res.json();
+    },
+    enabled: !!team,
+  });
+
+  const statsMap = new Map<number, SeasonStats>();
+  if (teamStats) {
+    for (const s of teamStats) statsMap.set(s.playerId, s);
+  }
 
   const { data: savedTactics } = useQuery({
     queryKey: ['tactics', team?.id],
@@ -213,12 +265,16 @@ export default function PitchersPage() {
                 </Select>
 
                 {assigned && (
-                  <div className="flex gap-4 mt-3 px-1">
-                    <span className="text-[10px] font-mono text-gray-500">VEL <span className="text-pink-400 font-bold">{assigned.vel}</span></span>
-                    <span className="text-[10px] font-mono text-gray-500">CTL <span className="text-cyan-400 font-bold">{assigned.ctl}</span></span>
-                    <span className="text-[10px] font-mono text-gray-500">MOV <span className="text-pink-400 font-bold">{assigned.mov}</span></span>
-                    <span className="text-[10px] font-mono text-gray-500">STA <span className="text-cyan-400 font-bold">{assigned.sta}</span></span>
-                    <span className="text-[10px] font-mono text-gray-500">DEF <span className="text-cyan-400 font-bold">{assigned.def}</span></span>
+                  <div className="mt-3 px-1">
+                    <button onClick={() => navigate(`/player/${assigned.id}`)} className="text-xs font-bold text-cyan-300 hover:text-cyan-100 underline underline-offset-2 mb-1 block">{assigned.name}</button>
+                    <div className="flex gap-4">
+                      <span className="text-[10px] font-mono text-gray-500">VEL <span className="text-pink-400 font-bold">{assigned.vel}</span></span>
+                      <span className="text-[10px] font-mono text-gray-500">CTL <span className="text-cyan-400 font-bold">{assigned.ctl}</span></span>
+                      <span className="text-[10px] font-mono text-gray-500">MOV <span className="text-pink-400 font-bold">{assigned.mov}</span></span>
+                      <span className="text-[10px] font-mono text-gray-500">STA <span className="text-cyan-400 font-bold">{assigned.sta}</span></span>
+                      <span className="text-[10px] font-mono text-gray-500">DEF <span className="text-cyan-400 font-bold">{assigned.def}</span></span>
+                    </div>
+                    <PitcherSeasonLine stats={statsMap.get(assigned.id)} />
                   </div>
                 )}
               </div>
@@ -232,13 +288,14 @@ export default function PitchersPage() {
             <div className="grid grid-cols-2 gap-2">
               {bullpenPitchers.map(p => (
                 <div key={p.id} data-testid={`bullpen-pitcher-${p.id}`} className="p-3 border border-gray-800 rounded-lg bg-black/40">
-                  <span className="text-xs font-bold text-gray-300 truncate block">{p.name}</span>
+                  <button onClick={() => navigate(`/player/${p.id}`)} className="text-xs font-bold text-gray-300 hover:text-cyan-300 truncate block underline underline-offset-2">{p.name}</button>
                   <div className="flex gap-2 mt-1">
                     <span className="text-[9px] font-mono text-gray-600">V{p.vel}</span>
                     <span className="text-[9px] font-mono text-gray-600">C{p.ctl}</span>
                     <span className="text-[9px] font-mono text-gray-600">M{p.mov}</span>
                     <span className="text-[9px] font-mono text-gray-600">S{p.sta}</span>
                   </div>
+                  <PitcherSeasonLine stats={statsMap.get(p.id)} />
                 </div>
               ))}
             </div>

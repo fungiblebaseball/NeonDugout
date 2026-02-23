@@ -26,6 +26,27 @@ interface TeamData {
   primaryColor: string;
 }
 
+interface SeasonStats {
+  playerId: number;
+  seasonId: number;
+  gamesPlayed: number;
+  ab: number;
+  hits: number;
+  hr: number;
+  rbi: number;
+  bb: number;
+  so: number;
+  ip: number;
+  pitcherH: number;
+  er: number;
+  pitcherBb: number;
+  pitcherSo: number;
+  pitchCount: number;
+  gamesStarted: number;
+  wins: number;
+  losses: number;
+}
+
 const statLabels: Record<string, string> = {
   pow: 'POWER',
   con: 'CONTACT',
@@ -93,7 +114,26 @@ export default function PlayerDetailPage() {
     enabled: !!player,
   });
 
+  const { data: seasonStats = [] } = useQuery<SeasonStats[]>({
+    queryKey: ['player-stats', playerId],
+    queryFn: async () => {
+      const res = await fetch(`/api/player/${playerId}/stats`);
+      return res.json();
+    },
+    enabled: playerId > 0,
+  });
+
   const team = allTeams.find(t => t.id === player?.teamId);
+  const latestStats = seasonStats.length > 0 ? seasonStats[seasonStats.length - 1] : null;
+  const careerStats = seasonStats.length > 0 ? seasonStats.reduce((acc, s) => ({
+    gamesPlayed: acc.gamesPlayed + s.gamesPlayed,
+    ab: acc.ab + s.ab, hits: acc.hits + s.hits, hr: acc.hr + s.hr,
+    rbi: acc.rbi + s.rbi, bb: acc.bb + s.bb, so: acc.so + s.so,
+    ip: acc.ip + s.ip, pitcherH: acc.pitcherH + s.pitcherH, er: acc.er + s.er,
+    pitcherBb: acc.pitcherBb + s.pitcherBb, pitcherSo: acc.pitcherSo + s.pitcherSo,
+    wins: acc.wins + s.wins, losses: acc.losses + s.losses,
+    gamesStarted: acc.gamesStarted + s.gamesStarted, pitchCount: acc.pitchCount + s.pitchCount,
+  }), { gamesPlayed: 0, ab: 0, hits: 0, hr: 0, rbi: 0, bb: 0, so: 0, ip: 0, pitcherH: 0, er: 0, pitcherBb: 0, pitcherSo: 0, wins: 0, losses: 0, gamesStarted: 0, pitchCount: 0 }) : null;
 
   if (isLoading) {
     return (
@@ -176,16 +216,48 @@ export default function PlayerDetailPage() {
               <span className="text-[10px] font-mono text-gray-500">VALUE</span>
             </div>
 
-            {statKeys.map(key => {
+            <div className="mb-2 px-2">
+              <span className="text-[10px] font-mono text-pink-400 uppercase tracking-wider">Batting</span>
+            </div>
+            {(['pow', 'con', 'spd', 'eye'] as const).map(key => {
               const val = player[key];
               return (
                 <div key={key} className="flex items-center gap-2 px-2">
                   <span className="text-[10px] font-mono text-gray-400 w-16 uppercase">{statLabels[key]}</span>
                   <div className="flex-1 h-3 bg-gray-900 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${statBarColor(val)}`}
-                      style={{ width: `${val}%` }}
-                    />
+                    <div className={`h-full rounded-full transition-all ${statBarColor(val)}`} style={{ width: `${val}%` }} />
+                  </div>
+                  <span className={`text-sm font-black w-8 text-right ${statColor(val)}`} style={{fontFamily: "'Orbitron', sans-serif"}}>{val}</span>
+                </div>
+              );
+            })}
+
+            <div className="mb-2 mt-4 px-2">
+              <span className="text-[10px] font-mono text-cyan-400 uppercase tracking-wider">Pitching</span>
+            </div>
+            {(['vel', 'ctl', 'mov', 'sta'] as const).map(key => {
+              const val = player[key];
+              return (
+                <div key={key} className="flex items-center gap-2 px-2">
+                  <span className="text-[10px] font-mono text-gray-400 w-16 uppercase">{statLabels[key]}</span>
+                  <div className="flex-1 h-3 bg-gray-900 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full transition-all ${statBarColor(val)}`} style={{ width: `${val}%` }} />
+                  </div>
+                  <span className={`text-sm font-black w-8 text-right ${statColor(val)}`} style={{fontFamily: "'Orbitron', sans-serif"}}>{val}</span>
+                </div>
+              );
+            })}
+
+            <div className="mb-2 mt-4 px-2">
+              <span className="text-[10px] font-mono text-green-400 uppercase tracking-wider">Defense</span>
+            </div>
+            {(['def'] as const).map(key => {
+              const val = player[key];
+              return (
+                <div key={key} className="flex items-center gap-2 px-2">
+                  <span className="text-[10px] font-mono text-gray-400 w-16 uppercase">{statLabels[key]}</span>
+                  <div className="flex-1 h-3 bg-gray-900 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full transition-all ${statBarColor(val)}`} style={{ width: `${val}%` }} />
                   </div>
                   <span className={`text-sm font-black w-8 text-right ${statColor(val)}`} style={{fontFamily: "'Orbitron', sans-serif"}}>{val}</span>
                 </div>
@@ -194,35 +266,120 @@ export default function PlayerDetailPage() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-pink-500/30 bg-pink-950/10 p-4">
-          <h3 className="text-xs font-mono text-pink-500 mb-3 uppercase">Career Averages</h3>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="text-center p-2 rounded-lg bg-black/40 border border-gray-800">
-              <span className="text-lg font-black text-cyan-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{overall}</span>
-              <p className="text-[9px] font-mono text-gray-500">OVR</p>
-            </div>
-            <div className="text-center p-2 rounded-lg bg-black/40 border border-gray-800">
-              <span className="text-lg font-black text-cyan-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{battingAvg}</span>
-              <p className="text-[9px] font-mono text-gray-500">BAT</p>
-            </div>
-            <div className="text-center p-2 rounded-lg bg-black/40 border border-gray-800">
-              <span className="text-lg font-black text-pink-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{pitchingAvg}</span>
-              <p className="text-[9px] font-mono text-gray-500">PITCH</p>
-            </div>
-            <div className="text-center p-2 rounded-lg bg-black/40 border border-gray-800">
-              <span className="text-lg font-black text-gray-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{player.def}</span>
-              <p className="text-[9px] font-mono text-gray-500">DEF</p>
-            </div>
-            <div className="text-center p-2 rounded-lg bg-black/40 border border-gray-800">
-              <span className="text-lg font-black text-gray-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{player.spd}</span>
-              <p className="text-[9px] font-mono text-gray-500">SPD</p>
-            </div>
-            <div className="text-center p-2 rounded-lg bg-black/40 border border-gray-800">
-              <span className="text-lg font-black text-gray-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{player.sta}</span>
-              <p className="text-[9px] font-mono text-gray-500">STA</p>
+        {latestStats && (
+          <div className="rounded-xl border border-cyan-500/30 bg-cyan-950/10 p-4">
+            <h3 className="text-xs font-mono text-cyan-500 mb-3 uppercase">Season {latestStats.seasonId} Stats</h3>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="text-center p-2 rounded-lg bg-black/40 border border-gray-800">
+                <span className="text-sm font-black text-cyan-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{latestStats.gamesPlayed}</span>
+                <p className="text-[9px] font-mono text-gray-500">GP</p>
+              </div>
+              {latestStats.ab > 0 && (
+                <>
+                  <div className="text-center p-2 rounded-lg bg-black/40 border border-gray-800">
+                    <span className="text-sm font-black text-cyan-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{latestStats.ab > 0 ? (latestStats.hits / latestStats.ab).toFixed(3).replace(/^0/, '') : '.000'}</span>
+                    <p className="text-[9px] font-mono text-gray-500">AVG</p>
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-black/40 border border-gray-800">
+                    <span className="text-sm font-black text-pink-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{latestStats.hr}</span>
+                    <p className="text-[9px] font-mono text-gray-500">HR</p>
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-black/40 border border-gray-800">
+                    <span className="text-sm font-black text-cyan-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{latestStats.rbi}</span>
+                    <p className="text-[9px] font-mono text-gray-500">RBI</p>
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-black/40 border border-gray-800">
+                    <span className="text-sm font-black text-green-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{latestStats.bb}</span>
+                    <p className="text-[9px] font-mono text-gray-500">BB</p>
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-black/40 border border-gray-800">
+                    <span className="text-sm font-black text-red-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{latestStats.so}</span>
+                    <p className="text-[9px] font-mono text-gray-500">SO</p>
+                  </div>
+                </>
+              )}
+              {latestStats.ip > 0 && (
+                <>
+                  <div className="text-center p-2 rounded-lg bg-black/40 border border-gray-800">
+                    <span className="text-sm font-black text-pink-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{((latestStats.er / latestStats.ip) * 9).toFixed(2)}</span>
+                    <p className="text-[9px] font-mono text-gray-500">ERA</p>
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-black/40 border border-gray-800">
+                    <span className="text-sm font-black text-cyan-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{latestStats.ip}</span>
+                    <p className="text-[9px] font-mono text-gray-500">IP</p>
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-black/40 border border-gray-800">
+                    <span className="text-sm font-black text-cyan-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{latestStats.pitcherSo}</span>
+                    <p className="text-[9px] font-mono text-gray-500">K</p>
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-black/40 border border-gray-800">
+                    <span className="text-sm font-black text-green-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{latestStats.wins}-{latestStats.losses}</span>
+                    <p className="text-[9px] font-mono text-gray-500">W-L</p>
+                  </div>
+                </>
+              )}
             </div>
           </div>
-          <p className="text-[9px] font-mono text-gray-600 mt-3 text-center">Season 1 — No prior history</p>
+        )}
+
+        <div className="rounded-xl border border-pink-500/30 bg-pink-950/10 p-4">
+          <h3 className="text-xs font-mono text-pink-500 mb-3 uppercase">
+            {careerStats ? 'Career Totals' : 'Attribute Summary'}
+          </h3>
+          {careerStats ? (
+            <div className="grid grid-cols-3 gap-2">
+              <div className="text-center p-2 rounded-lg bg-black/40 border border-gray-800">
+                <span className="text-sm font-black text-cyan-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{careerStats.gamesPlayed}</span>
+                <p className="text-[9px] font-mono text-gray-500">GP</p>
+              </div>
+              {careerStats.ab > 0 && (
+                <>
+                  <div className="text-center p-2 rounded-lg bg-black/40 border border-gray-800">
+                    <span className="text-sm font-black text-cyan-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{(careerStats.hits / careerStats.ab).toFixed(3).replace(/^0/, '')}</span>
+                    <p className="text-[9px] font-mono text-gray-500">AVG</p>
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-black/40 border border-gray-800">
+                    <span className="text-sm font-black text-pink-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{careerStats.hr}</span>
+                    <p className="text-[9px] font-mono text-gray-500">HR</p>
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-black/40 border border-gray-800">
+                    <span className="text-sm font-black text-cyan-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{careerStats.rbi}</span>
+                    <p className="text-[9px] font-mono text-gray-500">RBI</p>
+                  </div>
+                </>
+              )}
+              {careerStats.ip > 0 && (
+                <>
+                  <div className="text-center p-2 rounded-lg bg-black/40 border border-gray-800">
+                    <span className="text-sm font-black text-pink-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{((careerStats.er / careerStats.ip) * 9).toFixed(2)}</span>
+                    <p className="text-[9px] font-mono text-gray-500">ERA</p>
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-black/40 border border-gray-800">
+                    <span className="text-sm font-black text-green-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{careerStats.wins}-{careerStats.losses}</span>
+                    <p className="text-[9px] font-mono text-gray-500">W-L</p>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-3">
+              <div className="text-center p-2 rounded-lg bg-black/40 border border-gray-800">
+                <span className="text-lg font-black text-cyan-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{overall}</span>
+                <p className="text-[9px] font-mono text-gray-500">OVR</p>
+              </div>
+              <div className="text-center p-2 rounded-lg bg-black/40 border border-gray-800">
+                <span className="text-lg font-black text-cyan-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{battingAvg}</span>
+                <p className="text-[9px] font-mono text-gray-500">BAT</p>
+              </div>
+              <div className="text-center p-2 rounded-lg bg-black/40 border border-gray-800">
+                <span className="text-lg font-black text-pink-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{pitchingAvg}</span>
+                <p className="text-[9px] font-mono text-gray-500">PITCH</p>
+              </div>
+            </div>
+          )}
+          <p className="text-[9px] font-mono text-gray-600 mt-3 text-center">
+            {seasonStats.length > 0 ? `${seasonStats.length} season(s) tracked` : 'No game history yet'}
+          </p>
         </div>
       </main>
     </div>

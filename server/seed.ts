@@ -2,8 +2,27 @@ import { db } from "./db";
 import { teams, players, matches } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
-const FIRST_NAMES = ["Jax", "Roxy", "Zane", "Nova", "Dash", "Blade", "Rex", "Viper", "Echo", "Rip", "Duke", "Spike", "Ace", "Jett", "Axel", "Luna", "Blitz", "Flux", "Kira", "Storm", "Nyx", "Orion", "Cyrus", "Hex", "Volt"];
-const LAST_NAMES = ["Neonstrike", "Voltbat", "Chromedrift", "Synthwave", "Cyberthrow", "Laserpitch", "Hologlove", "Turbo", "Stark", "Vanguard", "Plasma", "Pulse", "Mirage", "Redline", "Blackout", "Frostbyte", "Nitro"];
+const FIRST_NAMES = [
+  "Jax", "Roxy", "Zane", "Nova", "Dash", "Blade", "Rex", "Viper", "Echo", "Rip",
+  "Duke", "Spike", "Ace", "Jett", "Axel", "Luna", "Blitz", "Flux", "Kira", "Storm",
+  "Nyx", "Orion", "Cyrus", "Hex", "Volt", "Marco", "Ren", "Sable", "Kai", "Ash",
+  "Drake", "Finn", "Nash", "Cruz", "Mako", "Ryker", "Ty", "Cal", "Thorn", "Knox",
+  "Dex", "Troy", "Wolf", "Blaze", "Talon", "Colt", "Stone", "Haze", "Zen", "Phoenix",
+  "Rocco", "Bruno", "Grit", "Pax", "Brick", "Flint", "Banks", "Miles", "Leon", "Slate",
+  "Dom", "Otto", "Clay", "Gage", "Reed", "Kit", "Hank", "Brock", "Chase", "Luca",
+  "Dante", "Vance", "Dirk", "Lance", "Kane", "Shane", "Wade", "Cole", "Jet", "Sly"
+];
+const LAST_NAMES = [
+  "Neonstrike", "Voltbat", "Chromedrift", "Synthwave", "Cyberthrow", "Laserpitch",
+  "Hologlove", "Turbo", "Stark", "Vanguard", "Plasma", "Pulse", "Mirage", "Redline",
+  "Blackout", "Frostbyte", "Nitro", "Ironfield", "Steelhands", "Warhammer", "Burnside",
+  "Darkpitch", "Coldsteel", "Ashford", "Galvani", "Stormborn", "Highvolt", "Shockwave",
+  "Bladerunner", "Chromatic", "Wavecrest", "Thundergap", "Firewall", "Gridlock", "Deadbolt",
+  "Copperfield", "Sunstrike", "Moonshot", "Silverarm", "Nightfall", "Skybreak", "Longshot",
+  "Hardline", "Crossfire", "Sledge", "Broadside", "Sandstorm", "Razorback", "Backdraft",
+  "Quicksilver", "Darkwave", "Overcast", "Wildcard", "Powergrid", "Hotshot", "Pitchfork",
+  "Voltaire", "Uppercut", "Knuckleball", "Fastbreak"
+];
 
 const LEAGUE_TEAMS: Record<string, Record<string, string[]>> = {
   L1: {

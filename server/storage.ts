@@ -1,12 +1,13 @@
 import { db } from "./db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import {
-  users, teams, players, matches, lineups, pitcherRotations, tactics, matchDetails,
+  users, teams, players, matches, lineups, pitcherRotations, tactics, matchDetails, playerSeasonStats,
   type User, type InsertUser, type Team, type InsertTeam,
   type Player, type Match, type Lineup, type InsertLineup,
   type PitcherRotation, type InsertPitcherRotation,
   type Tactics, type InsertTactics,
   type MatchDetails, type InsertMatchDetails,
+  type PlayerSeasonStats,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -43,6 +44,11 @@ export interface IStorage {
   updateTeamDivision(teamId: number, series: string, division: string): Promise<Team>;
   deleteMatchesBySeason(seasonId: number): Promise<void>;
   resetMatchDetails(seasonId: number): Promise<void>;
+
+  upsertPlayerSeasonStats(playerId: number, teamId: number, seasonId: number, batting: { ab: number; hits: number; hr: number; rbi: number; bb: number; so: number } | null, pitching: { ip: number; h: number; er: number; bb: number; so: number; pitchCount: number; started: boolean } | null, won: boolean): Promise<void>;
+  getPlayerSeasonStats(playerId: number, seasonId?: number): Promise<PlayerSeasonStats[]>;
+  getTeamSeasonStats(teamId: number, seasonId?: number): Promise<PlayerSeasonStats[]>;
+  getCurrentSeasonId(): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -202,6 +208,93 @@ export class DatabaseStorage implements IStorage {
     for (const m of seasonMatches) {
       await db.delete(matchDetails).where(eq(matchDetails.matchId, m.id));
     }
+  }
+
+  async getCurrentSeasonId(): Promise<number> {
+    const allTeams = await db.select().from(teams).limit(1);
+    return allTeams.length > 0 ? allTeams[0].seasonId : 1;
+  }
+
+  async upsertPlayerSeasonStats(
+    playerId: number,
+    teamId: number,
+    seasonId: number,
+    batting: { ab: number; hits: number; hr: number; rbi: number; bb: number; so: number } | null,
+    pitching: { ip: number; h: number; er: number; bb: number; so: number; pitchCount: number; started: boolean } | null,
+    won: boolean,
+  ): Promise<void> {
+    const [existing] = await db.select().from(playerSeasonStats)
+      .where(and(eq(playerSeasonStats.playerId, playerId), eq(playerSeasonStats.seasonId, seasonId)));
+
+    if (existing) {
+      const updates: Record<string, any> = {};
+      if (batting) {
+        updates.gamesPlayed = existing.gamesPlayed + 1;
+        updates.ab = existing.ab + batting.ab;
+        updates.hits = existing.hits + batting.hits;
+        updates.hr = existing.hr + batting.hr;
+        updates.rbi = existing.rbi + batting.rbi;
+        updates.bb = existing.bb + batting.bb;
+        updates.so = existing.so + batting.so;
+        if (won) updates.wins = existing.wins + 1;
+        else updates.losses = existing.losses + 1;
+      }
+      if (pitching) {
+        if (!batting) {
+          updates.gamesPlayed = existing.gamesPlayed + 1;
+          if (won) updates.wins = existing.wins + 1;
+          else updates.losses = existing.losses + 1;
+        }
+        updates.ip = existing.ip + pitching.ip;
+        updates.pitcherH = existing.pitcherH + pitching.h;
+        updates.er = existing.er + pitching.er;
+        updates.pitcherBb = existing.pitcherBb + pitching.bb;
+        updates.pitcherSo = existing.pitcherSo + pitching.so;
+        updates.pitchCount = existing.pitchCount + pitching.pitchCount;
+        if (pitching.started) updates.gamesStarted = existing.gamesStarted + 1;
+      }
+      if (Object.keys(updates).length > 0) {
+        await db.update(playerSeasonStats).set(updates).where(eq(playerSeasonStats.id, existing.id));
+      }
+    } else {
+      await db.insert(playerSeasonStats).values({
+        playerId,
+        teamId,
+        seasonId,
+        gamesPlayed: 1,
+        ab: batting?.ab ?? 0,
+        hits: batting?.hits ?? 0,
+        hr: batting?.hr ?? 0,
+        rbi: batting?.rbi ?? 0,
+        bb: batting?.bb ?? 0,
+        so: batting?.so ?? 0,
+        ip: pitching?.ip ?? 0,
+        pitcherH: pitching?.h ?? 0,
+        er: pitching?.er ?? 0,
+        pitcherBb: pitching?.bb ?? 0,
+        pitcherSo: pitching?.so ?? 0,
+        pitchCount: pitching?.pitchCount ?? 0,
+        gamesStarted: pitching?.started ? 1 : 0,
+        wins: won ? 1 : 0,
+        losses: won ? 0 : 1,
+      });
+    }
+  }
+
+  async getPlayerSeasonStats(playerId: number, seasonId?: number): Promise<PlayerSeasonStats[]> {
+    if (seasonId !== undefined) {
+      return db.select().from(playerSeasonStats)
+        .where(and(eq(playerSeasonStats.playerId, playerId), eq(playerSeasonStats.seasonId, seasonId)));
+    }
+    return db.select().from(playerSeasonStats).where(eq(playerSeasonStats.playerId, playerId));
+  }
+
+  async getTeamSeasonStats(teamId: number, seasonId?: number): Promise<PlayerSeasonStats[]> {
+    if (seasonId !== undefined) {
+      return db.select().from(playerSeasonStats)
+        .where(and(eq(playerSeasonStats.teamId, teamId), eq(playerSeasonStats.seasonId, seasonId)));
+    }
+    return db.select().from(playerSeasonStats).where(eq(playerSeasonStats.teamId, teamId));
   }
 }
 

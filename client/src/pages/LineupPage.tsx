@@ -3,12 +3,42 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { LineupPositions } from "@/lib/types";
+import { useLocation } from "wouter";
+
+interface SeasonStats {
+  playerId: number;
+  ab: number;
+  hits: number;
+  hr: number;
+  rbi: number;
+}
 
 const FIELD_POSITIONS: LineupPositions[] = ['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF'];
 
 export default function LineupPage() {
   const { team, players, walletAddress } = useGameStore();
   const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
+
+  const { data: teamStats } = useQuery<SeasonStats[]>({
+    queryKey: ['team-stats', team?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/team/${team!.id}/stats`);
+      return res.json();
+    },
+    enabled: !!team,
+  });
+
+  const statsMap = new Map<number, SeasonStats>();
+  if (teamStats) {
+    for (const s of teamStats) statsMap.set(s.playerId, s);
+  }
+
+  const getAvg = (playerId: number): string => {
+    const s = statsMap.get(playerId);
+    if (!s || s.ab === 0) return '---';
+    return (s.hits / s.ab).toFixed(3).replace(/^0/, '');
+  };
 
   const { data: savedLineup } = useQuery({
     queryKey: ['lineup', team?.id],
@@ -273,7 +303,8 @@ export default function LineupPage() {
                   #{idx + 1}
                 </div>
                 <span className={`text-[10px] font-mono w-8 shrink-0 ${isPitcher ? 'text-pink-400' : 'text-cyan-400'}`}>{pos}</span>
-                <span className="flex-1 text-sm font-mono text-cyan-100 truncate">{p.name}</span>
+                <button onClick={() => navigate(`/player/${p.id}`)} className="flex-1 text-sm font-mono text-cyan-100 truncate text-left hover:text-cyan-300 underline underline-offset-2">{p.name}</button>
+                <span className="text-[9px] font-mono text-gray-500 w-10 text-right">{getAvg(p.id)}</span>
                 <div className="flex gap-1">
                   <button data-testid={`button-move-up-${idx}`} onClick={() => moveBatter(idx, 'up')} disabled={idx === 0} className="w-7 h-7 rounded bg-gray-800 text-cyan-400 disabled:opacity-20 hover:bg-cyan-900/50 text-xs font-bold">&#9650;</button>
                   <button data-testid={`button-move-down-${idx}`} onClick={() => moveBatter(idx, 'down')} disabled={idx === battingOrder.length - 1} className="w-7 h-7 rounded bg-gray-800 text-cyan-400 disabled:opacity-20 hover:bg-cyan-900/50 text-xs font-bold">&#9660;</button>
@@ -297,8 +328,11 @@ export default function LineupPage() {
           <div className="grid grid-cols-2 gap-2">
             {players.filter(p => !allAssignedIds.has(p.id) && !p.positions.includes('P')).map(p => (
               <div key={p.id} data-testid={`bench-player-${p.id}`} className="p-3 border border-gray-800 rounded bg-black/40 flex flex-col justify-between">
-                <span className="text-xs font-bold truncate text-gray-300 mb-1">{p.name}</span>
-                <span className="text-[10px] font-mono text-pink-500/70">{p.positions.join(', ')}</span>
+                <button onClick={() => navigate(`/player/${p.id}`)} className="text-xs font-bold truncate text-gray-300 hover:text-cyan-300 mb-1 underline underline-offset-2 text-left">{p.name}</button>
+                <div className="flex justify-between">
+                  <span className="text-[10px] font-mono text-pink-500/70">{p.positions.join(', ')}</span>
+                  <span className="text-[9px] font-mono text-gray-600">{getAvg(p.id)}</span>
+                </div>
               </div>
             ))}
           </div>

@@ -161,6 +161,67 @@ export async function updatePlayoffMatchups(): Promise<{ updated: number }> {
   return { updated };
 }
 
+async function accumulateMatchStats(
+  gameResult: any,
+  homeTeamId: number,
+  awayTeamId: number,
+  seasonId: number,
+  homeWon: boolean,
+): Promise<void> {
+  const box = gameResult.boxScore;
+
+  const homePitcherIds = new Set(
+    (box.homePitchers || [box.homePitcher]).map((p: any) => p.playerId)
+  );
+  const awayPitcherIds = new Set(
+    (box.awayPitchers || [box.awayPitcher]).map((p: any) => p.playerId)
+  );
+
+  const homePitcherMap = new Map<number, { ip: number; h: number; er: number; bb: number; so: number; pitchCount: number; started: boolean }>();
+  const homePitcherList = box.homePitchers || [box.homePitcher];
+  for (let i = 0; i < homePitcherList.length; i++) {
+    const p = homePitcherList[i];
+    homePitcherMap.set(p.playerId, { ip: p.ip, h: p.h, er: p.er, bb: p.bb, so: p.so, pitchCount: p.pitchCount, started: i === 0 });
+  }
+
+  const awayPitcherMap = new Map<number, { ip: number; h: number; er: number; bb: number; so: number; pitchCount: number; started: boolean }>();
+  const awayPitcherList = box.awayPitchers || [box.awayPitcher];
+  for (let i = 0; i < awayPitcherList.length; i++) {
+    const p = awayPitcherList[i];
+    awayPitcherMap.set(p.playerId, { ip: p.ip, h: p.h, er: p.er, bb: p.bb, so: p.so, pitchCount: p.pitchCount, started: i === 0 });
+  }
+
+  for (const batter of box.homeBatters) {
+    const pitching = homePitcherIds.has(batter.playerId) ? homePitcherMap.get(batter.playerId) || null : null;
+    await storage.upsertPlayerSeasonStats(
+      batter.playerId, homeTeamId, seasonId,
+      { ab: batter.ab, hits: batter.hits, hr: batter.hr, rbi: batter.rbi, bb: batter.bb, so: batter.so },
+      pitching,
+      homeWon,
+    );
+    if (pitching) homePitcherMap.delete(batter.playerId);
+  }
+
+  for (const [pitcherId, pitching] of homePitcherMap) {
+    await storage.upsertPlayerSeasonStats(pitcherId, homeTeamId, seasonId, null, pitching, homeWon);
+  }
+
+  for (const batter of box.awayBatters) {
+    const pitching = awayPitcherIds.has(batter.playerId) ? awayPitcherMap.get(batter.playerId) || null : null;
+    await storage.upsertPlayerSeasonStats(
+      batter.playerId, awayTeamId, seasonId,
+      { ab: batter.ab, hits: batter.hits, hr: batter.hr, rbi: batter.rbi, bb: batter.bb, so: batter.so },
+      pitching,
+      !homeWon,
+    );
+    if (pitching) awayPitcherMap.delete(batter.playerId);
+  }
+
+  for (const [pitcherId, pitching] of awayPitcherMap) {
+    await storage.upsertPlayerSeasonStats(pitcherId, awayTeamId, seasonId, null, pitching, !homeWon);
+  }
+}
+
 export async function simulateMatchDay(day: number): Promise<SimulationResult[]> {
   if (day >= 13) {
     await updatePlayoffMatchups();
@@ -224,6 +285,14 @@ export async function simulateMatchDay(day: number): Promise<SimulationResult[]>
       const gameResult = simulateGame(homeTeam, awayTeam, homeSimPlayers, awaySimPlayers, simConfig);
 
       await storage.updateMatchResult(match.id, gameResult.homeScore, gameResult.awayScore);
+
+      const seasonId = await storage.getCurrentSeasonId();
+      const homeWon = gameResult.homeScore > gameResult.awayScore;
+      try {
+        await accumulateMatchStats(gameResult, match.homeTeamId, match.awayTeamId, seasonId, homeWon);
+      } catch (err) {
+        console.error(`Failed to accumulate stats for match ${match.id}:`, err);
+      }
 
       const details = {
         boxScore: gameResult.boxScore,

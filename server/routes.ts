@@ -119,6 +119,25 @@ export async function registerRoutes(
     res.json(player);
   });
 
+  app.get("/api/player/:id/stats", async (req, res) => {
+    const playerId = parseInt(req.params.id);
+    const seasonId = req.query.season ? parseInt(req.query.season as string) : undefined;
+    const stats = await storage.getPlayerSeasonStats(playerId, seasonId);
+    res.json(stats);
+  });
+
+  app.get("/api/team/:teamId/stats", async (req, res) => {
+    const teamId = parseInt(req.params.teamId);
+    const seasonId = req.query.season ? parseInt(req.query.season as string) : undefined;
+    const stats = await storage.getTeamSeasonStats(teamId, seasonId);
+    res.json(stats);
+  });
+
+  app.get("/api/season", async (_req, res) => {
+    const seasonId = await storage.getCurrentSeasonId();
+    res.json({ seasonId });
+  });
+
   app.post("/api/matches/:id/result", async (req, res) => {
     const matchId = parseInt(req.params.id);
     const { homeScore, awayScore, details } = req.body;
@@ -152,6 +171,53 @@ export async function registerRoutes(
       } catch (err) {
         console.error('Failed to save match details:', err);
         return res.status(500).json({ message: "Match result saved but details failed to persist", match: updated });
+      }
+
+      try {
+        const seasonId = await storage.getCurrentSeasonId();
+        const homeWon = homeScore > awayScore;
+        const box = details.boxScore || details;
+        const homePitcherIds = new Set(
+          ((box.homePitchers || (box.homePitcher ? [box.homePitcher] : [])) as any[]).map((p: any) => p.playerId)
+        );
+        const awayPitcherIds = new Set(
+          ((box.awayPitchers || (box.awayPitcher ? [box.awayPitcher] : [])) as any[]).map((p: any) => p.playerId)
+        );
+        const homePitcherMap = new Map<number, any>();
+        const hpList = box.homePitchers || (box.homePitcher ? [box.homePitcher] : []);
+        for (let i = 0; i < hpList.length; i++) {
+          const p = hpList[i];
+          homePitcherMap.set(p.playerId, { ip: p.ip, h: p.h, er: p.er, bb: p.bb, so: p.so, pitchCount: p.pitchCount, started: i === 0 });
+        }
+        const awayPitcherMap = new Map<number, any>();
+        const apList = box.awayPitchers || (box.awayPitcher ? [box.awayPitcher] : []);
+        for (let i = 0; i < apList.length; i++) {
+          const p = apList[i];
+          awayPitcherMap.set(p.playerId, { ip: p.ip, h: p.h, er: p.er, bb: p.bb, so: p.so, pitchCount: p.pitchCount, started: i === 0 });
+        }
+
+        for (const batter of (details.homeBatters || box.homeBatters || [])) {
+          const pitching = homePitcherIds.has(batter.playerId) ? homePitcherMap.get(batter.playerId) || null : null;
+          await storage.upsertPlayerSeasonStats(batter.playerId, match.homeTeamId, seasonId,
+            { ab: batter.ab, hits: batter.hits, hr: batter.hr, rbi: batter.rbi, bb: batter.bb, so: batter.so },
+            pitching, homeWon);
+          if (pitching) homePitcherMap.delete(batter.playerId);
+        }
+        for (const [pid, pitching] of homePitcherMap) {
+          await storage.upsertPlayerSeasonStats(pid, match.homeTeamId, seasonId, null, pitching, homeWon);
+        }
+        for (const batter of (details.awayBatters || box.awayBatters || [])) {
+          const pitching = awayPitcherIds.has(batter.playerId) ? awayPitcherMap.get(batter.playerId) || null : null;
+          await storage.upsertPlayerSeasonStats(batter.playerId, match.awayTeamId, seasonId,
+            { ab: batter.ab, hits: batter.hits, hr: batter.hr, rbi: batter.rbi, bb: batter.bb, so: batter.so },
+            pitching, !homeWon);
+          if (pitching) awayPitcherMap.delete(batter.playerId);
+        }
+        for (const [pid, pitching] of awayPitcherMap) {
+          await storage.upsertPlayerSeasonStats(pid, match.awayTeamId, seasonId, null, pitching, !homeWon);
+        }
+      } catch (err) {
+        console.error('Failed to accumulate player stats:', err);
       }
     }
 

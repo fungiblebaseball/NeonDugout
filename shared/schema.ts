@@ -101,6 +101,29 @@ export const matchDetails = pgTable("match_details", {
   awayPitchers: jsonb("away_pitchers").$type<any[]>(),
 });
 
+export const playerSeasonStats = pgTable("player_season_stats", {
+  id: serial("id").primaryKey(),
+  playerId: integer("player_id").notNull(),
+  seasonId: integer("season_id").notNull().default(1),
+  teamId: integer("team_id").notNull(),
+  gamesPlayed: integer("games_played").notNull().default(0),
+  ab: integer("ab").notNull().default(0),
+  hits: integer("hits").notNull().default(0),
+  hr: integer("hr").notNull().default(0),
+  rbi: integer("rbi").notNull().default(0),
+  bb: integer("bb").notNull().default(0),
+  so: integer("so").notNull().default(0),
+  ip: integer("ip").notNull().default(0),
+  pitcherH: integer("pitcher_h").notNull().default(0),
+  er: integer("er").notNull().default(0),
+  pitcherBb: integer("pitcher_bb").notNull().default(0),
+  pitcherSo: integer("pitcher_so").notNull().default(0),
+  pitchCount: integer("pitch_count").notNull().default(0),
+  gamesStarted: integer("games_started").notNull().default(0),
+  wins: integer("wins").notNull().default(0),
+  losses: integer("losses").notNull().default(0),
+});
+
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertTeamSchema = createInsertSchema(teams).omit({ id: true });
 export const insertPlayerSchema = createInsertSchema(players).omit({ id: true });
@@ -109,6 +132,7 @@ export const insertLineupSchema = createInsertSchema(lineups).omit({ id: true })
 export const insertPitcherRotationSchema = createInsertSchema(pitcherRotations).omit({ id: true });
 export const insertTacticsSchema = createInsertSchema(tactics).omit({ id: true });
 export const insertMatchDetailsSchema = createInsertSchema(matchDetails).omit({ id: true });
+export const insertPlayerSeasonStatsSchema = createInsertSchema(playerSeasonStats).omit({ id: true });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -126,3 +150,5 @@ export type InsertTactics = z.infer<typeof insertTacticsSchema>;
 export type Tactics = typeof tactics.$inferSelect;
 export type InsertMatchDetails = z.infer<typeof insertMatchDetailsSchema>;
 export type MatchDetails = typeof matchDetails.$inferSelect;
+export type InsertPlayerSeasonStats = z.infer<typeof insertPlayerSeasonStatsSchema>;
+export type PlayerSeasonStats = typeof playerSeasonStats.$inferSelect;

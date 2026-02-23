@@ -114,21 +114,30 @@ export async function updatePlayoffMatchups(): Promise<{ updated: number }> {
 
   let updated = 0;
 
-  for (const league of ['L1', 'L2']) {
-    const serieATeams = allTeams.filter(t => t.league === league && t.series === 'A');
-    const serieBTeams = allTeams.filter(t => t.league === league && t.series === 'B');
-    const divA = `${league}A`;
-    const divB = `${league}B`;
+  const leagues = Array.from(new Set(allTeams.map(t => t.league)))
+    .sort((a, b) => (parseInt(a.replace('L', '')) || 0) - (parseInt(b.replace('L', '')) || 0));
 
-    const standingsA = computeDivisionStandings(allMatches, serieATeams.map(t => t.id));
-    const standingsB = computeDivisionStandings(allMatches, serieBTeams.map(t => t.id));
+  for (const league of leagues) {
+    const leagueTeams = allTeams.filter(t => t.league === league);
+    const seriesKeys = Array.from(new Set(leagueTeams.map(t => t.series))).sort();
+    if (seriesKeys.length < 2) continue;
 
-    const a9th = standingsA[8]?.id;
-    const a10th = standingsA[9]?.id;
-    const b1st = standingsB[0]?.id;
-    const b2nd = standingsB[1]?.id;
+    const topSeries = seriesKeys[0];
+    const bottomSeries = seriesKeys[seriesKeys.length - 1];
 
-    if (!a9th || !a10th || !b1st || !b2nd) continue;
+    const topTeams = leagueTeams.filter(t => t.series === topSeries);
+    const bottomTeams = leagueTeams.filter(t => t.series === bottomSeries);
+
+    const standingsTop = computeDivisionStandings(allMatches, topTeams.map(t => t.id));
+    const standingsBottom = computeDivisionStandings(allMatches, bottomTeams.map(t => t.id));
+
+    const topLen = standingsTop.length;
+    const top9th = topLen >= 2 ? standingsTop[topLen - 2]?.id : undefined;
+    const top10th = topLen >= 1 ? standingsTop[topLen - 1]?.id : undefined;
+    const bottom1st = standingsBottom[0]?.id;
+    const bottom2nd = standingsBottom[1]?.id;
+
+    if (!top9th || !top10th || !bottom1st || !bottom2nd) continue;
 
     const playoffDay13 = allMatches.filter(m =>
       m.matchType === 'playoff' && m.day === 13 && m.division === `playoff_${league}`
@@ -138,8 +147,8 @@ export async function updatePlayoffMatchups(): Promise<{ updated: number }> {
     );
 
     if (playoffDay13.length >= 2) {
-      await storage.updateMatchTeams(playoffDay13[0].id, a9th, b1st);
-      await storage.updateMatchTeams(playoffDay13[1].id, a10th, b2nd);
+      await storage.updateMatchTeams(playoffDay13[0].id, top9th, bottom1st);
+      await storage.updateMatchTeams(playoffDay13[1].id, top10th, bottom2nd);
       updated += 2;
     }
 
@@ -153,6 +162,61 @@ export async function updatePlayoffMatchups(): Promise<{ updated: number }> {
         const loser2 = (match2.homeScore ?? 0) > (match2.awayScore ?? 0) ? match2.awayTeamId : match2.homeTeamId;
         await storage.updateMatchTeams(playoffDay14[0].id, winner1, winner2);
         await storage.updateMatchTeams(playoffDay14[1].id, loser1, loser2);
+        updated += 2;
+      }
+    }
+  }
+
+  for (let i = 0; i < leagues.length - 1; i++) {
+    const upperLeague = leagues[i];
+    const lowerLeague = leagues[i + 1];
+    const promoDivision = `promo_${lowerLeague}_to_${upperLeague}`;
+
+    const upperTeams = allTeams.filter(t => t.league === upperLeague);
+    const lowerTeams = allTeams.filter(t => t.league === lowerLeague);
+
+    const upperSeriesKeys = Array.from(new Set(upperTeams.map(t => t.series))).sort();
+    const lowerSeriesKeys = Array.from(new Set(lowerTeams.map(t => t.series))).sort();
+    const upperBottomSeries = upperSeriesKeys[upperSeriesKeys.length - 1];
+    const lowerTopSeries = lowerSeriesKeys[0];
+
+    const upperBottomTeams = upperTeams.filter(t => t.series === upperBottomSeries);
+    const lowerTopTeams = lowerTeams.filter(t => t.series === lowerTopSeries);
+
+    const standingsUpperBottom = computeDivisionStandings(allMatches, upperBottomTeams.map(t => t.id));
+    const standingsLowerTop = computeDivisionStandings(allMatches, lowerTopTeams.map(t => t.id));
+
+    const ubLen = standingsUpperBottom.length;
+    const upper9th = ubLen >= 2 ? standingsUpperBottom[ubLen - 2]?.id : undefined;
+    const upper10th = ubLen >= 1 ? standingsUpperBottom[ubLen - 1]?.id : undefined;
+    const lower1st = standingsLowerTop[0]?.id;
+    const lower2nd = standingsLowerTop[1]?.id;
+
+    if (!upper9th || !upper10th || !lower1st || !lower2nd) continue;
+
+    const promoDay13 = allMatches.filter(m =>
+      m.matchType === 'promotion' && m.day === 13 && m.division === promoDivision
+    );
+    const promoDay14 = allMatches.filter(m =>
+      m.matchType === 'promotion' && m.day === 14 && m.division === promoDivision
+    );
+
+    if (promoDay13.length >= 2) {
+      await storage.updateMatchTeams(promoDay13[0].id, upper9th, lower1st);
+      await storage.updateMatchTeams(promoDay13[1].id, upper10th, lower2nd);
+      updated += 2;
+    }
+
+    if (promoDay14.length >= 2 && promoDay13.every((m: any) => m.played)) {
+      const match1 = allMatches.find(m => m.id === promoDay13[0].id);
+      const match2 = allMatches.find(m => m.id === promoDay13[1].id);
+      if (match1?.played && match2?.played) {
+        const winner1 = (match1.homeScore ?? 0) > (match1.awayScore ?? 0) ? match1.homeTeamId : match1.awayTeamId;
+        const loser1 = (match1.homeScore ?? 0) > (match1.awayScore ?? 0) ? match1.awayTeamId : match1.homeTeamId;
+        const winner2 = (match2.homeScore ?? 0) > (match2.awayScore ?? 0) ? match2.homeTeamId : match2.awayTeamId;
+        const loser2 = (match2.homeScore ?? 0) > (match2.awayScore ?? 0) ? match2.awayTeamId : match2.homeTeamId;
+        await storage.updateMatchTeams(promoDay14[0].id, winner1, winner2);
+        await storage.updateMatchTeams(promoDay14[1].id, loser1, loser2);
         updated += 2;
       }
     }

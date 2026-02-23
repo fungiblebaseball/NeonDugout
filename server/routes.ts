@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { simulateMatchDay, updatePlayoffMatchups } from "./simulation";
 import { generateNewSeason } from "./season";
 import { generateChallenge, verifySignature, createToken, verifyToken } from "./auth";
-import { expandLeague } from "./expansion";
+import { expandLeague, ensureExtraLeague } from "./expansion";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -40,6 +40,15 @@ export async function registerRoutes(
 
       if (!unownedTeam) {
         try {
+          await ensureExtraLeague();
+          unownedTeam = await storage.getUnownedTeam();
+        } catch (err) {
+          console.error("ensureExtraLeague pre-assign failed:", err);
+        }
+      }
+
+      if (!unownedTeam) {
+        try {
           const expansion = await expandLeague();
           console.log(`Dynamic expansion triggered: ${expansion.league}`);
           unownedTeam = await storage.getUnownedTeam();
@@ -52,6 +61,12 @@ export async function registerRoutes(
         await storage.assignTeamOwner(unownedTeam.id, walletAddress);
         await storage.updateUserTeam(user.id, unownedTeam.id);
         user = await storage.getUser(user.id) as typeof user;
+
+        try {
+          await ensureExtraLeague();
+        } catch (err) {
+          console.error("ensureExtraLeague failed:", err);
+        }
       } else {
         return res.status(503).json({ message: "No teams available. League expansion failed." });
       }
@@ -326,6 +341,13 @@ export async function registerRoutes(
   app.post("/api/new-season", async (_req, res) => {
     try {
       const result = await generateNewSeason();
+
+      try {
+        await ensureExtraLeague();
+      } catch (err) {
+        console.error("ensureExtraLeague after new season failed:", err);
+      }
+
       res.json(result);
     } catch (err) {
       console.error('New season generation failed:', err);

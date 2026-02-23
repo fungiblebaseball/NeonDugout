@@ -249,3 +249,28 @@ export async function expandLeague(): Promise<{ league: string; teamsCreated: nu
     matchesCreated: allScheduleMatches.length,
   };
 }
+
+export async function ensureExtraLeague(): Promise<void> {
+  const existingTeams = await db.select().from(teams);
+
+  const leaguesWithOwners = new Set<string>();
+  for (const t of existingTeams) {
+    if (t.ownerWallet) {
+      leaguesWithOwners.add(t.league);
+    }
+  }
+
+  if (leaguesWithOwners.size === 0) return;
+
+  const maxOccupiedNum = Math.max(
+    ...Array.from(leaguesWithOwners).map(l => parseInt(l.replace('L', '')) || 0)
+  );
+
+  const allLeagues = new Set(existingTeams.map(t => t.league));
+  const nextLeagueId = `L${maxOccupiedNum + 1}`;
+
+  if (!allLeagues.has(nextLeagueId)) {
+    console.log(`ensureExtraLeague: Creating ${nextLeagueId} (max occupied: L${maxOccupiedNum})`);
+    await expandLeague();
+  }
+}

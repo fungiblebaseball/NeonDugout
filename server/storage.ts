@@ -19,7 +19,7 @@ export interface IStorage {
   getTeams(division?: string): Promise<Team[]>;
   getTeam(id: number): Promise<Team | undefined>;
   assignTeamOwner(teamId: number, wallet: string): Promise<Team>;
-  getUnownedTeam(division?: string): Promise<Team | undefined>;
+  getUnownedTeam(): Promise<Team | undefined>;
 
   getPlayersByTeam(teamId: number): Promise<Player[]>;
   getPlayer(id: number): Promise<Player | undefined>;
@@ -42,6 +42,7 @@ export interface IStorage {
 
   updateMatchTeams(matchId: number, homeTeamId: number, awayTeamId: number): Promise<Match>;
   updateTeamDivision(teamId: number, series: string, division: string): Promise<Team>;
+  updateTeamLeague(teamId: number, league: string, series: string, division: string): Promise<Team>;
   deleteMatchesBySeason(seasonId: number): Promise<void>;
   resetMatchDetails(seasonId: number): Promise<void>;
 
@@ -88,9 +89,15 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async getUnownedTeam(division?: string): Promise<Team | undefined> {
-    const allTeams = await db.select().from(teams).where(eq(teams.series, 'B'));
+  async getUnownedTeam(): Promise<Team | undefined> {
+    const allTeams = await db.select().from(teams);
     const unowned = allTeams.filter(t => !t.ownerWallet);
+    unowned.sort((a, b) => {
+      const leagueA = parseInt(a.league.replace('L', '')) || 0;
+      const leagueB = parseInt(b.league.replace('L', '')) || 0;
+      if (leagueA !== leagueB) return leagueA - leagueB;
+      return a.series.localeCompare(b.series);
+    });
     return unowned[0];
   }
 
@@ -187,6 +194,14 @@ export class DatabaseStorage implements IStorage {
   async updateTeamDivision(teamId: number, series: string, division: string): Promise<Team> {
     const [updated] = await db.update(teams)
       .set({ series, division })
+      .where(eq(teams.id, teamId))
+      .returning();
+    return updated;
+  }
+
+  async updateTeamLeague(teamId: number, league: string, series: string, division: string): Promise<Team> {
+    const [updated] = await db.update(teams)
+      .set({ league, series, division })
       .where(eq(teams.id, teamId))
       .returning();
     return updated;

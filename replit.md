@@ -4,7 +4,7 @@
 Text-based fantasy baseball manager game with retro 80s/90s cyberpunk aesthetic. Target platform: Solana Seeker mobile (Web3 integration planned). Zero MLB licenses - all fictional teams and players.
 
 ## Current State
-Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.3.0 — Strategic Polishing (4-category RPS tactics system, season history tracking with player_season_stats, factual flavor text, expanded name generation, recent results on Home page, clickable player names across all pages).
+Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.4.0 — New Season & Dynamic Leagues (multi-season history preservation, dynamic N-league expansion, cross-league promotion/relegation playoffs, user placement in lowest available league/series).
 
 ## Architecture
 - **Frontend**: React + Vite, Tailwind CSS, Zustand (state), wouter (routing), TanStack Query (API), @solana/wallet-adapter-react (wallet connection)

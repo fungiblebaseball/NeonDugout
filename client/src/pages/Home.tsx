@@ -418,25 +418,40 @@ export default function Home() {
               >
                 {simulating ? "SIMULATING ALL GAMES..." : `PLAY DAY ${nextUnplayedDay}`}
               </button>
-              {lastResult && (
-                <div className="p-3 rounded-lg border border-cyan-500/30 bg-black/40 text-center space-y-2">
-                  <p className="text-xs font-mono text-gray-400">FINAL SCORE</p>
-                  <div className="flex items-center justify-center gap-3 mt-1">
-                    <span className="text-sm font-bold text-cyan-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{lastResult.home}</span>
-                    <span className="text-lg font-black text-cyan-400" style={{fontFamily: "'Press Start 2P', cursive", fontSize: '14px'}}>{lastResult.hs}</span>
-                    <span className="text-gray-600">-</span>
-                    <span className="text-lg font-black text-pink-400" style={{fontFamily: "'Press Start 2P', cursive", fontSize: '14px'}}>{lastResult.as}</span>
-                    <span className="text-sm font-bold text-pink-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{lastResult.away}</span>
-                  </div>
-                  <Link href={`/match/${lastResult.matchId}`}>
-                    <button data-testid="button-view-details" className="mt-1 px-4 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 font-mono text-xs uppercase tracking-wider rounded-lg transition-all">
-                      VIEW MATCH REPORT
-                    </button>
-                  </Link>
-                </div>
-              )}
             </div>
           ) : null}
+
+          {(() => {
+            const display = lastResult || (() => {
+              const lastPlayed = recentResults[0];
+              if (!lastPlayed) return null;
+              return {
+                home: teamMap.get(lastPlayed.homeTeamId)?.name || 'Home',
+                away: teamMap.get(lastPlayed.awayTeamId)?.name || 'Away',
+                hs: lastPlayed.homeScore ?? 0,
+                as: lastPlayed.awayScore ?? 0,
+                matchId: lastPlayed.id,
+              };
+            })();
+            if (!display) return null;
+            return (
+              <div className="col-span-2 p-3 rounded-lg border border-cyan-500/30 bg-black/40 text-center space-y-2">
+                <p className="text-xs font-mono text-gray-400">FINAL SCORE</p>
+                <div className="flex items-center justify-center gap-3 mt-1">
+                  <span className="text-sm font-bold text-cyan-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{display.home}</span>
+                  <span className="text-lg font-black text-cyan-400" style={{fontFamily: "'Press Start 2P', cursive", fontSize: '14px'}}>{display.hs}</span>
+                  <span className="text-gray-600">-</span>
+                  <span className="text-lg font-black text-pink-400" style={{fontFamily: "'Press Start 2P', cursive", fontSize: '14px'}}>{display.as}</span>
+                  <span className="text-sm font-bold text-pink-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{display.away}</span>
+                </div>
+                <Link href={`/match/${display.matchId}`}>
+                  <button data-testid="button-view-details" className="mt-1 px-4 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 font-mono text-xs uppercase tracking-wider rounded-lg transition-all">
+                    VIEW MATCH REPORT
+                  </button>
+                </Link>
+              </div>
+            );
+          })()}
 
           {recentResults.length > 0 && (
             <div className="col-span-2 rounded-xl border border-gray-800 bg-black/30 p-3 space-y-1">

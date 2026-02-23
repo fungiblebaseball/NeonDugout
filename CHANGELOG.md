@@ -6,6 +6,86 @@ Formato:
   • Dettaglio 2 (file modificati)  
   • Trade-off / note (se rilevanti)
 
+## v1.4.1 – 23 febbraio 2026 – Home Page Enhancements
+- **Team Rename inline** (Home.tsx, routes.ts, storage.ts):
+  * Icona matita accanto al nome team nell'header
+  * Click → campo input editabile, conferma con Enter/Check, annulla con Escape/X
+  * Nuovo endpoint `PATCH /api/teams/:id/name` con validazione 1-30 caratteri
+  * Aggiornamento immediato nello store Zustand + invalidazione cache
+- **Next Game Sector Preview** (Home.tsx):
+  * Grafico confronto barre ATK/DEF/PIT tra team utente e prossimo avversario
+  * ATK = media (pow + con + spd + eye) roster, DEF = media (def), PIT = media (vel + ctl + mov + sta)
+  * Fetch roster avversario via `/api/team/:id/players`
+  * Barre sovrapposte cyan (utente) / pink (avversario) con valori numerici
+- **FINAL SCORE sempre visibile** (Home.tsx):
+  * Blocco FINAL SCORE ora persistente: mostra sempre l'ultima gara giocata dall'utente
+  * Si aggiorna quando si preme Play Day (lastResult dallo state locale ha priorità)
+  * Fallback ai dati API (recentResults[0]) per persistenza tra sessioni
+  * Link "VIEW MATCH REPORT" sempre disponibile
+- **Recent Results scrollabili** (Home.tsx):
+  * Rimosso limite a 3 risultati, ora mostra tutte le gare disputate
+  * Container con `max-h-40 overflow-y-auto` per scroll verticale
+  * Aggiunto numero giornata (D1, D2...) per ogni risultato
+  * Ogni gara cliccabile → apre dettaglio match
+- **Fix Test Match per lega/serie corrente** (SimulationPage.tsx):
+  * Cambiato fetch avversari da `/api/teams/:division` a `/api/teams/league/:league/series/:series`
+  * Dopo promozione/retrocessione, avversari si aggiornano automaticamente alla lega/serie corrente
+  * Nuovo endpoint `GET /api/teams/league/:league/series/:series` (routes.ts, storage.ts)
+- **Header aggiornato**: mostra Lega — Serie — Divisione (non più solo Division)
+- **Test Match card**: testo aggiornato "Exhibition vs L1 Serie A rival" con lega/serie dinamica
+- Files modificati: `client/src/pages/Home.tsx`, `client/src/pages/SimulationPage.tsx`, `server/routes.ts`, `server/storage.ts`, `PAGE_HOME.md`
+
+## v1.4.0 – 23 febbraio 2026 – New Season & Dynamic Leagues
+- **Sistema Nuova Stagione** (server/season.ts):
+  * `generateNewSeason()` con supporto dinamico N leghe e N serie per lega
+  * Preservazione storico: match e risultati delle stagioni precedenti mantenuti (seasonId incrementale)
+  * Calendario rigenerato: regular (giorni 1-10), interleague (11-12), playoff (13-14) per ogni lega
+  * Interleague scheduling dinamico tra serie adiacenti (A↔B, B↔C, ...)
+  * Playoff placeholders con seeding dinamico (ultimi 2 vs primi 2 delle serie)
+- **Promozione/Retrocessione cross-lega** (server/season.ts):
+  * `applyPromotionRelegation()` gestisce sia intra-lega (swap serie) che cross-lega (swap lega)
+  * Cross-league promotion: 1°/2° di lower league Serie A vs ultimi 2 di upper league bottom series (giorni 13-14)
+  * Vincitori promossi nella lega superiore, perdenti retrocessi nella lega inferiore
+  * Validazione: controlla appartenenza lega prima di muovere i team
+  * `updateTeamLeague()` aggiorna league + series + division atomicamente
+- **Dynamic League Expansion potenziata** (server/expansion.ts):
+  * `ensureExtraLeague()` garantisce sempre una lega vuota oltre la più alta occupata
+  * Chiamato pre-assign (auth/verify quando nessun team libero), post-assign, e dopo new-season
+  * Supporto serie multiple per lega (A, B, C, ...)
+- **Batch Simulation server-side** (server/simulation.ts, server/routes.ts):
+  * `POST /api/simulate-day` simula tutte le partite di una giornata per tutti i gironi
+  * Usa lineup, rotazione lanciatori e tattiche salvate da DB per ogni team
+  * Salva risultati + match details (box score, batter stats, pitcher stats, MVP, flavor text)
+  * `POST /api/update-playoff-matchups` aggiorna seeding playoff dinamicamente
+- **Playoff Matchup Updates** (server/routes.ts):
+  * Seeding dinamico: ultimi N e primi N dalla classifica (non più indici hardcoded 9°/10°)
+  * Supporta serie con numero variabile di team
+- **Placement utente corretto** (server/storage.ts):
+  * `getUnownedTeam()` ordina per: numero lega più basso → serie alfabeticamente più bassa (L1A → L1B → L2A → ...)
+- Files modificati: `server/season.ts`, `server/expansion.ts`, `server/simulation.ts`, `server/routes.ts`, `server/storage.ts`, `replit.md`
+
+## v1.3.0 – 23 febbraio 2026 – Strategic Polishing
+- **RPS Tactics rework** (shared/calculations/probability.ts):
+  * Sistema tattico è un LAYER di buff/debuff, non sostituisce le meccaniche base
+  * Modificatori moltiplicativi applicati alla tabella probabilità di base
+  * Interplay rock-paper-scissors: short counters bunt, neutral counters H&R, deep counters swing-on-sight
+- **Flavor text fattuali** (shared/calculations/flavor.ts → server-side):
+  * Rimossi flavor text ironici/inventati, sostituiti con descrizioni fattuali degli eventi partita
+  * Generazione basata su eventi reali della simulazione (HR, SO, BB, etc.)
+- **Season Stats tracking** (server/expansion.ts, shared/schema.ts):
+  * Tabella `player_season_stats` per tracciamento statistiche per stagione
+  * Accumulazione stats con `?? 0` defaults per prevenire NaN
+  * Career averages calcolate da storico multi-stagione
+- **Nomi giocatori espansi**: pool di nomi e cognomi ampliato per maggiore varietà
+- **Risultati recenti in Home** (Home.tsx):
+  * Sezione "Recent Results" con ultime gare disputate dall'utente
+  * Badge W/L colorati, nome avversario, punteggio
+- **Player names cliccabili** (LineupPage, PitchersPage, PlayerDetailPage):
+  * Nomi giocatori ora cliccabili in tutte le pagine → link a /player/:id
+  * PlayerDetailPage potenziata con career averages e statistiche stagionali
+- **Calcoli condivisi**: motore simulazione spostato in `shared/calculations/` per riuso client+server
+- Files modificati: `shared/calculations/probability.ts`, `shared/calculations/flavor.ts`, `shared/calculations/simulate.ts`, `client/src/pages/Home.tsx`, `client/src/pages/LineupPage.tsx`, `client/src/pages/PitchersPage.tsx`, `client/src/pages/PlayerDetailPage.tsx`, `server/expansion.ts`, `replit.md`
+
 ## v1.2.0 – 22 febbraio 2026 – Wallet Authentication & Dynamic League Expansion
 - **Autenticazione Solana wallet** (server/auth.ts, server/routes.ts, LoginPage.tsx, store.ts):
   * Flow challenge/verify: POST /api/auth/challenge → nonce, POST /api/auth/verify → JWT + user + team

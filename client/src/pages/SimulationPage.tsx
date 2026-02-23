@@ -10,9 +10,9 @@ export default function SimulationPage() {
   const [simulating, setSimulating] = useState(false);
 
   const { data: allTeams } = useQuery({
-    queryKey: ['teams', team?.division],
+    queryKey: ['teams-league-series', team?.league, team?.series],
     queryFn: async () => {
-      const res = await fetch(`/api/teams/${team!.division}`);
+      const res = await fetch(`/api/teams/league/${team!.league}/series/${team!.series}`);
       return res.json() as Promise<SimTeam[]>;
     },
     enabled: !!team,

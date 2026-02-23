@@ -106,9 +106,28 @@ export async function registerRoutes(
     res.json(allTeams);
   });
 
+  app.get("/api/teams/league/:league/series/:series", async (req, res) => {
+    const teamsList = await storage.getTeamsByLeagueSeries(req.params.league, req.params.series);
+    res.json(teamsList);
+  });
+
   app.get("/api/teams/:division", async (req, res) => {
     const teamsList = await storage.getTeams(req.params.division);
     res.json(teamsList);
+  });
+
+  app.patch("/api/teams/:id/name", async (req, res) => {
+    try {
+      const teamId = parseInt(req.params.id);
+      const { name } = req.body;
+      if (!name || typeof name !== 'string' || name.trim().length === 0 || name.trim().length > 30) {
+        return res.status(400).json({ message: "Name must be 1-30 characters" });
+      }
+      const updated = await storage.renameTeam(teamId, name.trim());
+      res.json(updated);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to rename team" });
+    }
   });
 
   app.get("/api/team/:id/players", async (req, res) => {

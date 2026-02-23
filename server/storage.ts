@@ -17,7 +17,9 @@ export interface IStorage {
   updateUserTeam(userId: number, teamId: number): Promise<void>;
 
   getTeams(division?: string): Promise<Team[]>;
+  getTeamsByLeagueSeries(league: string, series: string): Promise<Team[]>;
   getTeam(id: number): Promise<Team | undefined>;
+  renameTeam(teamId: number, newName: string): Promise<Team>;
   assignTeamOwner(teamId: number, wallet: string): Promise<Team>;
   getUnownedTeam(): Promise<Team | undefined>;
 
@@ -79,9 +81,18 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(teams);
   }
 
+  async getTeamsByLeagueSeries(league: string, series: string): Promise<Team[]> {
+    return db.select().from(teams).where(and(eq(teams.league, league), eq(teams.series, series)));
+  }
+
   async getTeam(id: number): Promise<Team | undefined> {
     const [team] = await db.select().from(teams).where(eq(teams.id, id));
     return team;
+  }
+
+  async renameTeam(teamId: number, newName: string): Promise<Team> {
+    const [updated] = await db.update(teams).set({ name: newName }).where(eq(teams.id, teamId)).returning();
+    return updated;
   }
 
   async assignTeamOwner(teamId: number, wallet: string): Promise<Team> {

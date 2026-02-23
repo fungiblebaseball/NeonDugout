@@ -2,8 +2,8 @@ import { useGameStore } from "@/lib/store";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
-import { Terminal, ShieldAlert, Calendar, Swords, Shield, ListOrdered, RotateCcw, Zap, Trophy, Play } from "lucide-react";
-import { useState } from "react";
+import { Terminal, ShieldAlert, Calendar, Swords, Shield, ListOrdered, RotateCcw, Zap, Trophy, Play, Pencil, Check, X } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
 import type { SimPlayer } from "@/lib/calculations";
 
 interface MatchData {
@@ -23,14 +23,62 @@ interface TeamInfo {
   id: number;
   name: string;
   division: string;
+  league: string;
+  series: string;
+}
+
+interface PlayerInfo {
+  id: number;
+  name: string;
+  pow: number;
+  con: number;
+  spd: number;
+  eye: number;
+  vel: number;
+  ctl: number;
+  mov: number;
+  sta: number;
+  def: number;
+}
+
+function SectorBar({ label, myVal, oppVal, color }: { label: string; myVal: number; oppVal: number; color: string }) {
+  const max = Math.max(myVal, oppVal, 1);
+  const myPct = (myVal / max) * 100;
+  const oppPct = (oppVal / max) * 100;
+  return (
+    <div className="space-y-1">
+      <div className="flex justify-between items-center">
+        <span className="text-[10px] font-mono text-gray-500 uppercase w-8">{label}</span>
+        <span className="text-[10px] font-mono text-cyan-400 w-8 text-right">{myVal}</span>
+      </div>
+      <div className="relative h-3 bg-gray-900 rounded-full overflow-hidden">
+        <div className="absolute inset-y-0 left-0 rounded-full transition-all" style={{ width: `${myPct}%`, background: `linear-gradient(90deg, ${color}, ${color}88)` }} />
+        <div className="absolute inset-y-0 right-0 rounded-full transition-all opacity-40 border border-pink-500/50" style={{ width: `${oppPct}%`, background: 'linear-gradient(270deg, #ec4899, #ec489988)' }} />
+      </div>
+      <div className="flex justify-end">
+        <span className="text-[10px] font-mono text-pink-400 w-8 text-right">{oppVal}</span>
+      </div>
+    </div>
+  );
 }
 
 export default function Home() {
   const { walletAddress, disconnectWallet, team, players, loading } = useGameStore();
   const [simulating, setSimulating] = useState(false);
   const [lastResult, setLastResult] = useState<{ home: string; away: string; hs: number; as: number; matchId: number } | null>(null);
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+  const [savingName, setSavingName] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
+
+  useEffect(() => {
+    if (editingName && nameInputRef.current) {
+      nameInputRef.current.focus();
+      nameInputRef.current.select();
+    }
+  }, [editingName]);
 
   const { data: allMatchesRaw = [] } = useQuery<MatchData[]>({
     queryKey: ['matches-all'],
@@ -68,9 +116,34 @@ export default function Home() {
     ? userMatches.find(m => m.day === nextUnplayedDay && !m.played)
     : undefined;
 
+  const opponentId = nextLeagueMatch
+    ? (nextLeagueMatch.homeTeamId === team?.id ? nextLeagueMatch.awayTeamId : nextLeagueMatch.homeTeamId)
+    : undefined;
+
+  const { data: opponentPlayers } = useQuery<PlayerInfo[]>({
+    queryKey: ['opponent-players', opponentId],
+    queryFn: async () => {
+      const res = await fetch(`/api/team/${opponentId}/players`);
+      return res.json();
+    },
+    enabled: !!opponentId && opponentId !== 0,
+  });
+
   const realMatches = allMatchesRaw.filter(m => m.homeTeamId !== 0 && m.awayTeamId !== 0);
   const unfilledPlayoffs = allMatchesRaw.filter(m => (m.homeTeamId === 0 || m.awayTeamId === 0) && !m.played);
   const seasonFinished = realMatches.length > 0 && realMatches.every(m => m.played) && unfilledPlayoffs.length === 0;
+
+  const calcSectors = (pls: PlayerInfo[] | SimPlayer[] | undefined) => {
+    if (!pls || pls.length === 0) return { atk: 0, def: 0, pit: 0 };
+    const n = pls.length;
+    const atk = Math.round(pls.reduce((s, p) => s + (p.pow + p.con + p.spd + p.eye), 0) / n);
+    const def_ = Math.round(pls.reduce((s, p) => s + p.def, 0) / n);
+    const pit = Math.round(pls.reduce((s, p) => s + (p.vel + p.ctl + p.mov + p.sta), 0) / n);
+    return { atk, def: def_, pit };
+  };
+
+  const mySectors = calcSectors(players as PlayerInfo[]);
+  const oppSectors = calcSectors(opponentPlayers);
 
   const playNextMatchDay = async () => {
     if (!nextUnplayedDay || !team) return;
@@ -127,6 +200,30 @@ export default function Home() {
     setSimulating(false);
   };
 
+  const saveTeamName = async () => {
+    if (!team || !nameInput.trim() || nameInput.trim() === team.name) {
+      setEditingName(false);
+      return;
+    }
+    setSavingName(true);
+    try {
+      const res = await fetch(`/api/teams/${team.id}/name`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: nameInput.trim() }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        useGameStore.setState({ team: { ...team, name: updated.name } });
+        queryClient.invalidateQueries({ queryKey: ['teams-all'] });
+      }
+    } catch (err) {
+      console.error('Rename failed:', err);
+    }
+    setSavingName(false);
+    setEditingName(false);
+  };
+
   if (!walletAddress) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-black text-cyan-50">
@@ -160,16 +257,54 @@ export default function Home() {
     );
   }
 
+  const recentResults = userMatches
+    .filter(m => m.played)
+    .sort((a, b) => b.day - a.day);
+
   return (
     <div className="min-h-screen pb-20 bg-black text-cyan-50 p-6">
       <header className="mb-8 flex justify-between items-start">
         <div>
           <h2 className="text-sm font-mono text-cyan-500 uppercase tracking-widest">Sys.Status: Online</h2>
-          <h1 data-testid="text-team-name" className="text-3xl font-black uppercase text-pink-500 drop-shadow-[0_0_8px_rgba(236,72,153,0.6)]" style={{fontFamily: "'Orbitron', sans-serif"}}>
-            {team?.name || "Loading..."}
-          </h1>
+          {editingName ? (
+            <div className="flex items-center gap-2 mt-1">
+              <input
+                ref={nameInputRef}
+                data-testid="input-team-name"
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') saveTeamName();
+                  if (e.key === 'Escape') setEditingName(false);
+                }}
+                maxLength={30}
+                className="bg-black/80 border border-pink-500/50 text-pink-500 font-black uppercase text-2xl px-2 py-1 rounded-lg outline-none focus:border-pink-400 w-48"
+                style={{fontFamily: "'Orbitron', sans-serif"}}
+                disabled={savingName}
+              />
+              <button data-testid="button-save-name" onClick={saveTeamName} disabled={savingName} className="text-cyan-400 hover:text-cyan-300">
+                <Check className="w-5 h-5" />
+              </button>
+              <button data-testid="button-cancel-name" onClick={() => setEditingName(false)} className="text-gray-500 hover:text-pink-400">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 mt-1">
+              <h1 data-testid="text-team-name" className="text-3xl font-black uppercase text-pink-500 drop-shadow-[0_0_8px_rgba(236,72,153,0.6)]" style={{fontFamily: "'Orbitron', sans-serif"}}>
+                {team?.name || "Loading..."}
+              </h1>
+              <button
+                data-testid="button-edit-name"
+                onClick={() => { setNameInput(team?.name || ""); setEditingName(true); }}
+                className="text-gray-600 hover:text-pink-400 transition-colors"
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
+            </div>
+          )}
           <p className="text-xs font-mono text-pink-300 mt-1 uppercase">
-            Division {team?.division}
+            {team?.league} — Serie {team?.series} — Div {team?.division}
           </p>
         </div>
         <Button data-testid="button-disconnect" variant="ghost" size="sm" onClick={disconnectWallet} className="text-gray-500 hover:text-pink-500">
@@ -216,7 +351,7 @@ export default function Home() {
               <div>
                 <Zap className="w-6 h-6 text-cyan-400 mb-2 group-hover:animate-pulse" />
                 <h3 className="font-black text-lg text-cyan-400 group-hover:drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]" style={{fontFamily: "'Orbitron', sans-serif"}}>TEST MATCH</h3>
-                <p className="text-[10px] font-mono text-gray-500">Simulate exhibition game vs division rival</p>
+                <p className="text-[10px] font-mono text-gray-500">Exhibition vs {team?.league} Serie {team?.series} rival</p>
               </div>
               <span className="text-3xl">⚾</span>
             </div>
@@ -255,12 +390,26 @@ export default function Home() {
                   </h3>
                   <p className="text-[10px] font-mono text-gray-500">
                     {nextLeagueMatch
-                      ? `Day ${nextLeagueMatch.day} — vs ${teamMap.get(nextLeagueMatch.homeTeamId === team?.id ? nextLeagueMatch.awayTeamId : nextLeagueMatch.homeTeamId)?.name || 'TBD'}`
+                      ? `Day ${nextLeagueMatch.day} — vs ${teamMap.get(opponentId!)?.name || 'TBD'}`
                       : `Day ${nextUnplayedDay} — Your team is not playing`}
                   </p>
                 </div>
                 <span className="text-3xl">🏟️</span>
               </div>
+
+              {nextLeagueMatch && opponentPlayers && opponentId !== 0 && (
+                <div className="p-3 rounded-lg border border-cyan-500/20 bg-black/30 space-y-2">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-[10px] font-mono text-cyan-400 uppercase">{team?.name}</span>
+                    <span className="text-[9px] font-mono text-gray-600 uppercase">Sector Preview</span>
+                    <span className="text-[10px] font-mono text-pink-400 uppercase">{teamMap.get(opponentId!)?.name}</span>
+                  </div>
+                  <SectorBar label="ATK" myVal={mySectors.atk} oppVal={oppSectors.atk} color="#22d3ee" />
+                  <SectorBar label="DEF" myVal={mySectors.def} oppVal={oppSectors.def} color="#22d3ee" />
+                  <SectorBar label="PIT" myVal={mySectors.pit} oppVal={oppSectors.pit} color="#22d3ee" />
+                </div>
+              )}
+
               <button
                 data-testid="button-play-league"
                 onClick={playNextMatchDay}
@@ -289,23 +438,19 @@ export default function Home() {
             </div>
           ) : null}
 
-          {(() => {
-            const recentResults = userMatches
-              .filter(m => m.played)
-              .sort((a, b) => b.day - a.day)
-              .slice(0, 3);
-            if (recentResults.length === 0) return null;
-            return (
-              <div className="col-span-2 rounded-xl border border-gray-800 bg-black/30 p-3 space-y-2">
-                <p className="text-[10px] font-mono text-gray-500 uppercase">Recent Results</p>
+          {recentResults.length > 0 && (
+            <div className="col-span-2 rounded-xl border border-gray-800 bg-black/30 p-3 space-y-1">
+              <p className="text-[10px] font-mono text-gray-500 uppercase mb-2">Recent Results</p>
+              <div className="max-h-40 overflow-y-auto space-y-1 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
                 {recentResults.map(m => {
                   const isHome = m.homeTeamId === team?.id;
                   const won = isHome ? (m.homeScore ?? 0) > (m.awayScore ?? 0) : (m.awayScore ?? 0) > (m.homeScore ?? 0);
                   const oppName = teamMap.get(isHome ? m.awayTeamId : m.homeTeamId)?.name || '???';
                   return (
                     <Link key={m.id} href={`/match/${m.id}`}>
-                      <div className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-gray-900/40 transition-colors cursor-pointer">
+                      <div data-testid={`result-match-${m.id}`} className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-gray-900/40 transition-colors cursor-pointer">
                         <div className="flex items-center gap-2">
+                          <span className="text-[9px] font-mono text-gray-600">D{m.day}</span>
                           <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${won ? 'bg-cyan-500/20 text-cyan-400' : 'bg-pink-500/20 text-pink-400'}`}>
                             {won ? 'W' : 'L'}
                           </span>
@@ -319,8 +464,8 @@ export default function Home() {
                   );
                 })}
               </div>
-            );
-          })()}
+            </div>
+          )}
 
           <Link href="/schedule" data-testid="link-schedule" className="block p-5 rounded-2xl border border-pink-500/30 bg-black/40 hover:bg-pink-900/20 transition-colors group">
             <Calendar className="w-6 h-6 text-pink-500 mb-2 group-hover:animate-pulse" />

@@ -39,10 +39,19 @@ function interpolateBrackets(matchupRating: number): OutcomeProbabilities {
   return { ...PROBABILITY_TABLE[bracket] };
 }
 
+export type BatterApproach = 'power' | 'contact' | 'patient';
+export type PitcherStyle = 'velocity' | 'movement' | 'command';
+export type OffensiveAttack = 'aggressive' | 'balanced' | 'conservative';
+export type DefenseSetup = 'aggressive' | 'balanced' | 'protective';
+
 export interface TacticsModifiers {
   attackStyle: AttackStyle;
   infieldPosition: InfieldPosition;
   outfieldPosition: OutfieldPosition;
+  batterApproach?: BatterApproach;
+  pitcherStyle?: PitcherStyle;
+  offensiveAttack?: OffensiveAttack;
+  defenseSetup?: DefenseSetup;
 }
 
 const ATTACK_MODIFIERS: Record<AttackStyle, Partial<OutcomeProbabilities>> = {
@@ -88,6 +97,50 @@ function getDefenseCounterBonus(atk: AttackStyle, infieldPos: InfieldPosition, o
   return mods;
 }
 
+type RpsOutcome = 'win' | 'tie' | 'lose';
+
+const BATTER_VS_PITCHER: Record<BatterApproach, Record<PitcherStyle, RpsOutcome>> = {
+  power:   { velocity: 'tie',  movement: 'win',  command: 'lose' },
+  contact: { velocity: 'lose', movement: 'tie',  command: 'win'  },
+  patient: { velocity: 'win',  movement: 'lose', command: 'tie'  },
+};
+
+const OFFENSE_VS_DEFENSE: Record<OffensiveAttack, Record<DefenseSetup, RpsOutcome>> = {
+  aggressive:   { aggressive: 'lose', balanced: 'tie',  protective: 'win'  },
+  balanced:     { aggressive: 'win',  balanced: 'tie',  protective: 'lose' },
+  conservative: { aggressive: 'lose', balanced: 'tie',  protective: 'tie'  },
+};
+
+const RPS_BATTER_MODS: Record<RpsOutcome, Partial<OutcomeProbabilities>> = {
+  win:  { HR: 0.12, XBH: 0.10, '1B': 0.05, SO: -0.08 },
+  tie:  {},
+  lose: { HR: -0.10, XBH: -0.08, SO: 0.12, GO: 0.05 },
+};
+
+const RPS_OFFENSE_MODS: Record<RpsOutcome, Partial<OutcomeProbabilities>> = {
+  win:  { '1B': 0.08, XBH: 0.06, BB: 0.05, GO: -0.06 },
+  tie:  {},
+  lose: { '1B': -0.06, GO: 0.08, FO: 0.04, BB: -0.05 },
+};
+
+function getRpsBatterModifiers(
+  batterApproach?: BatterApproach,
+  opponentPitcherStyle?: PitcherStyle,
+): Partial<OutcomeProbabilities> {
+  if (!batterApproach || !opponentPitcherStyle) return {};
+  const outcome = BATTER_VS_PITCHER[batterApproach][opponentPitcherStyle];
+  return RPS_BATTER_MODS[outcome];
+}
+
+function getRpsOffenseModifiers(
+  offensiveAttack?: OffensiveAttack,
+  opponentDefenseSetup?: DefenseSetup,
+): Partial<OutcomeProbabilities> {
+  if (!offensiveAttack || !opponentDefenseSetup) return {};
+  const outcome = OFFENSE_VS_DEFENSE[offensiveAttack][opponentDefenseSetup];
+  return RPS_OFFENSE_MODS[outcome];
+}
+
 function applyModifiers(base: OutcomeProbabilities, mods: Partial<OutcomeProbabilities>): OutcomeProbabilities {
   const result = { ...base };
   for (const [key, mod] of Object.entries(mods)) {
@@ -111,7 +164,7 @@ function applyModifiers(base: OutcomeProbabilities, mods: Partial<OutcomeProbabi
   return result;
 }
 
-export function getOutcomeProbabilities(matchupRating: number, tactics?: TacticsModifiers): OutcomeProbabilities {
+export function getOutcomeProbabilities(matchupRating: number, tactics?: TacticsModifiers, opponentTactics?: TacticsModifiers): OutcomeProbabilities {
   let probs = interpolateBrackets(matchupRating);
 
   if (tactics) {
@@ -122,11 +175,17 @@ export function getOutcomeProbabilities(matchupRating: number, tactics?: Tactics
     probs = applyModifiers(probs, defMods);
   }
 
+  const rpsBatterMods = getRpsBatterModifiers(tactics?.batterApproach, opponentTactics?.pitcherStyle);
+  probs = applyModifiers(probs, rpsBatterMods);
+
+  const rpsOffenseMods = getRpsOffenseModifiers(tactics?.offensiveAttack, opponentTactics?.defenseSetup);
+  probs = applyModifiers(probs, rpsOffenseMods);
+
   return probs;
 }
 
-export function rollOutcome(matchupRating: number, roll: number, tactics?: TacticsModifiers): AtBatOutcome {
-  const probs = getOutcomeProbabilities(matchupRating, tactics);
+export function rollOutcome(matchupRating: number, roll: number, tactics?: TacticsModifiers, opponentTactics?: TacticsModifiers): AtBatOutcome {
+  const probs = getOutcomeProbabilities(matchupRating, tactics, opponentTactics);
 
   let cumulative = 0;
   const entries: [AtBatOutcome, number][] = [

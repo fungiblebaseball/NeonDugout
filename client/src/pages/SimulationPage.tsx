@@ -70,7 +70,15 @@ export default function SimulationPage() {
 
     const buildTac = (tac: any): TacticsModifiers | undefined => {
       if (!tac) return undefined;
-      return { attackStyle: tac.attackStyle || 'neutral', infieldPosition: tac.infieldPosition || 'neutral', outfieldPosition: tac.outfieldPosition || 'neutral' };
+      return {
+        attackStyle: tac.attackStyle || 'neutral',
+        infieldPosition: tac.infieldPosition || 'neutral',
+        outfieldPosition: tac.outfieldPosition || 'neutral',
+        batterApproach: tac.batterApproach || 'contact',
+        pitcherStyle: tac.pitcherStyle || 'command',
+        offensiveAttack: tac.offensiveAttack || 'balanced',
+        defenseSetup: tac.defenseSetup || 'balanced',
+      };
     };
 
     const simConfig: SimConfig = {

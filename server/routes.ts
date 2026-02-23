@@ -216,7 +216,7 @@ export async function registerRoutes(
   });
 
   app.post("/api/tactics", async (req, res) => {
-    const { teamId, attackStyle, infieldPosition, outfieldPosition } = req.body;
+    const { teamId, attackStyle, infieldPosition, outfieldPosition, batterApproach, pitcherStyle, offensiveAttack, defenseSetup } = req.body;
     if (!teamId) return res.status(400).json({ message: "teamId required" });
 
     const tac = await storage.upsertTactics({
@@ -224,6 +224,10 @@ export async function registerRoutes(
       attackStyle: attackStyle || "neutral",
       infieldPosition: infieldPosition || "neutral",
       outfieldPosition: outfieldPosition || "neutral",
+      batterApproach: batterApproach || "contact",
+      pitcherStyle: pitcherStyle || "command",
+      offensiveAttack: offensiveAttack || "balanced",
+      defenseSetup: defenseSetup || "balanced",
     });
     res.json(tac);
   });

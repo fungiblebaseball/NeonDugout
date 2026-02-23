@@ -1,7 +1,7 @@
 import { useGameStore } from "@/lib/store";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
-import type { InfieldPosition, OutfieldPosition } from "@/lib/types";
+import type { InfieldPosition, OutfieldPosition, DefenseSetup } from "@/lib/types";
 
 const INFIELD_OPTIONS: { value: InfieldPosition; label: string; desc: string; counters: string; effects: string }[] = [
   { value: 'short', label: 'SHORT (IN)', desc: 'Infielders play shallow. Best against bunt strategy and slow grounders.', counters: 'Counters: BUNT PRIORITY', effects: 'vs Bunt: -12% singles, +10% ground outs' },
@@ -13,6 +13,33 @@ const OUTFIELD_OPTIONS: { value: OutfieldPosition; label: string; desc: string; 
   { value: 'short', label: 'SHORT (IN)', desc: 'Outfielders play shallow. Better for bloops, singles and bunt hits.', counters: 'Counters: BUNT singles', effects: 'vs Bunt: -5% singles, +4% fly outs' },
   { value: 'neutral', label: 'NEUTRAL', desc: 'Standard depth. Balanced coverage for all fly balls.', counters: 'Counters: HIT & RUN', effects: 'vs H&R: -4% singles' },
   { value: 'deep', label: 'DEEP (BACK)', desc: 'Outfielders play deep. Better for deep fly balls and power hits.', counters: 'Counters: SWING ON SIGHT', effects: 'vs SoS: -8% HR, -6% XBH, +8% fly outs' },
+];
+
+const DEFENSE_SETUP_OPTIONS: { value: DefenseSetup; label: string; desc: string; icon: string; beats: string; losesTo: string }[] = [
+  {
+    value: 'aggressive',
+    label: 'AGGRESSIVE',
+    desc: 'Infield in, quick to plate, pickoff heavy. Strong vs bunt/weak contact/aggressive runners.',
+    icon: '⚔️',
+    beats: 'Aggressive & Conservative offense',
+    losesTo: 'Balanced offense',
+  },
+  {
+    value: 'balanced',
+    label: 'BALANCED',
+    desc: 'Standard positioning, medium delivery. Neutral baseline for all situations.',
+    icon: '⚖️',
+    beats: '—',
+    losesTo: '—',
+  },
+  {
+    value: 'protective',
+    label: 'PROTECTIVE',
+    desc: 'Deep gaps, slow/deceptive holds. Strong vs fly/line drive and extra base situations.',
+    icon: '🏰',
+    beats: 'Balanced offense',
+    losesTo: 'Aggressive offense',
+  },
 ];
 
 export default function DefensePage() {
@@ -30,11 +57,13 @@ export default function DefensePage() {
 
   const [infieldPosition, setInfieldPosition] = useState<InfieldPosition>('neutral');
   const [outfieldPosition, setOutfieldPosition] = useState<OutfieldPosition>('neutral');
+  const [defenseSetup, setDefenseSetup] = useState<DefenseSetup>('balanced');
 
   useEffect(() => {
     if (saved) {
       setInfieldPosition((saved.infieldPosition as InfieldPosition) || 'neutral');
       setOutfieldPosition((saved.outfieldPosition as OutfieldPosition) || 'neutral');
+      if (saved.defenseSetup) setDefenseSetup(saved.defenseSetup as DefenseSetup);
     }
   }, [saved]);
 
@@ -48,6 +77,10 @@ export default function DefensePage() {
           attackStyle: saved?.attackStyle || 'neutral',
           infieldPosition,
           outfieldPosition,
+          defenseSetup,
+          batterApproach: saved?.batterApproach || 'contact',
+          pitcherStyle: saved?.pitcherStyle || 'command',
+          offensiveAttack: saved?.offensiveAttack || 'balanced',
         }),
       });
       return res.json();
@@ -123,6 +156,39 @@ export default function DefensePage() {
               <p className="text-xs font-mono text-gray-500 leading-relaxed">{opt.desc}</p>
               <p className="text-[10px] font-mono text-pink-500/70 mt-2">{opt.counters}</p>
               <p className="text-[10px] font-mono text-yellow-500/60 mt-1">{opt.effects}</p>
+            </button>
+          ))}
+        </div>
+
+        <div className="space-y-4">
+          <h2 className="text-sm font-mono text-purple-400 border-b border-purple-500/30 pb-2">DEFENSE SETUP</h2>
+          <p className="text-[10px] font-mono text-gray-500">RPS matchup vs opponent's Offensive Attack — buffs/debuffs on fielding and base prevention</p>
+
+          {DEFENSE_SETUP_OPTIONS.map(opt => (
+            <button
+              key={opt.value}
+              data-testid={`button-defense-setup-${opt.value}`}
+              onClick={() => setDefenseSetup(opt.value)}
+              className={`w-full text-left p-4 rounded-xl border transition-all ${
+                defenseSetup === opt.value
+                  ? 'border-purple-400 bg-purple-950/30 shadow-[0_0_15px_rgba(168,85,247,0.2)]'
+                  : 'border-gray-800 bg-gray-950/30 hover:border-gray-600'
+              }`}
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <span className="text-2xl">{opt.icon}</span>
+                <span className={`font-black text-lg ${defenseSetup === opt.value ? 'text-purple-400' : 'text-gray-400'}`} style={{fontFamily: "'Orbitron', sans-serif"}}>
+                  {opt.label}
+                </span>
+                {defenseSetup === opt.value && (
+                  <span className="ml-auto text-xs font-mono text-purple-400 bg-purple-400/10 px-2 py-1 rounded">ACTIVE</span>
+                )}
+              </div>
+              <p className="text-xs font-mono text-gray-500 leading-relaxed mb-2">{opt.desc}</p>
+              <div className="flex gap-4">
+                <span className="text-[10px] font-mono text-green-400">▲ Beats: {opt.beats}</span>
+                <span className="text-[10px] font-mono text-red-400">▼ Weak vs: {opt.losesTo}</span>
+              </div>
             </button>
           ))}
         </div>

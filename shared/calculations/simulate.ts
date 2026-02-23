@@ -76,6 +76,7 @@ function simulateAtBat(
   inning: number,
   isHome: boolean,
   tactics?: TacticsModifiers,
+  opponentTactics?: TacticsModifiers,
 ): AtBatResult {
   const mr = matchupRating(batter, pitcher, inning) + (isHome ? HOME_ADVANTAGE : 0);
   const r = rng();
@@ -103,7 +104,7 @@ function simulateAtBat(
     };
   }
 
-  const outcome = rollOutcome(mr, r.next(), tactics);
+  const outcome = rollOutcome(mr, r.next(), tactics, opponentTactics);
 
   return {
     outcome,
@@ -276,7 +277,7 @@ function simulateHalfInning(
     }
 
     const batter = battingLineup[currentBatter % battingLineup.length];
-    const result = simulateAtBat(batter, activePitcher.player, inning, isHome, battingTactics);
+    const result = simulateAtBat(batter, activePitcher.player, inning, isHome, battingTactics, defenseTactics);
     pitchesUsed += result.pitchCount;
     activePitcher.pitchCount += result.pitchCount;
 

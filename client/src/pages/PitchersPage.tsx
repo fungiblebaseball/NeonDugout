@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { PitcherStyle } from "@/lib/types";
 
 type PitcherRoles = { sp: number | null; r1: number | null; closer: number | null; nextSp: number | null };
 
@@ -11,6 +12,33 @@ const ROLE_CONFIG = [
   { key: 'r1' as const, label: 'R1', fullLabel: 'RELIEF 1', color: 'cyan', desc: 'Primo rilievo' },
   { key: 'closer' as const, label: 'C', fullLabel: 'CLOSER', color: 'pink', desc: 'Chiusura / salvataggio' },
   { key: 'nextSp' as const, label: '2P', fullLabel: 'NEXT STARTER', color: 'cyan', desc: 'Partente prossima gara (auto-rotato)' },
+];
+
+const PITCHER_STYLE_OPTIONS: { value: PitcherStyle; label: string; desc: string; icon: string; beats: string; losesTo: string }[] = [
+  {
+    value: 'velocity',
+    label: 'VELOCITY',
+    desc: 'Pure heat. Overpower batters with fastballs and hard stuff.',
+    icon: '🔥',
+    beats: 'Contact approach',
+    losesTo: 'Patient approach',
+  },
+  {
+    value: 'movement',
+    label: 'MOVEMENT',
+    desc: 'Spin and deception. Break and change-up to fool timing.',
+    icon: '🌀',
+    beats: 'Patient approach',
+    losesTo: 'Power approach',
+  },
+  {
+    value: 'command',
+    label: 'COMMAND',
+    desc: 'Surgical precision. Paint corners and exploit weaknesses.',
+    icon: '🎯',
+    beats: 'Power approach',
+    losesTo: 'Contact approach',
+  },
 ];
 
 export default function PitchersPage() {
@@ -27,7 +55,17 @@ export default function PitchersPage() {
     enabled: !!team,
   });
 
+  const { data: savedTactics } = useQuery({
+    queryKey: ['tactics', team?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/tactics/${team!.id}`);
+      return res.json();
+    },
+    enabled: !!team,
+  });
+
   const [roles, setRoles] = useState<PitcherRoles>({ sp: null, r1: null, closer: null, nextSp: null });
+  const [pitcherStyle, setPitcherStyle] = useState<PitcherStyle>('command');
   const [maxPitches, setMaxPitches] = useState(100);
   const [maxInnings, setMaxInnings] = useState(7);
   const [maxBb, setMaxBb] = useState(4);
@@ -66,19 +104,42 @@ export default function PitchersPage() {
     }
   }, [saved, pitchers.length]);
 
+  useEffect(() => {
+    if (savedTactics?.pitcherStyle) {
+      setPitcherStyle(savedTactics.pitcherStyle as PitcherStyle);
+    }
+  }, [savedTactics]);
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       const rotationOrder = [roles.sp, roles.r1, roles.closer, roles.nextSp].filter((id): id is number => id !== null);
-      const res = await fetch('/api/pitcher-rotation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamId: team!.id, rotationOrder, roles, maxPitches, maxInnings, maxBb, maxEr, r1MaxPitches, r1MaxEr, closerMaxPitches, closerMaxEr }),
-      });
-      return res.json();
+      const [rotRes, tacRes] = await Promise.all([
+        fetch('/api/pitcher-rotation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ teamId: team!.id, rotationOrder, roles, maxPitches, maxInnings, maxBb, maxEr, r1MaxPitches, r1MaxEr, closerMaxPitches, closerMaxEr }),
+        }),
+        fetch('/api/tactics', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            teamId: team!.id,
+            pitcherStyle,
+            attackStyle: savedTactics?.attackStyle || 'neutral',
+            infieldPosition: savedTactics?.infieldPosition || 'neutral',
+            outfieldPosition: savedTactics?.outfieldPosition || 'neutral',
+            batterApproach: savedTactics?.batterApproach || 'contact',
+            offensiveAttack: savedTactics?.offensiveAttack || 'balanced',
+            defenseSetup: savedTactics?.defenseSetup || 'balanced',
+          }),
+        }),
+      ]);
+      return rotRes.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pitcher-rotation'] });
       queryClient.invalidateQueries({ queryKey: ['lineup'] });
+      queryClient.invalidateQueries({ queryKey: ['tactics'] });
     },
   });
 
@@ -183,6 +244,39 @@ export default function PitchersPage() {
             </div>
           </div>
         )}
+
+        <div className="space-y-4">
+          <h2 className="text-sm font-mono text-purple-400 border-b border-purple-500/30 pb-2">PITCHER STYLE</h2>
+          <p className="text-[10px] font-mono text-gray-500">RPS matchup vs opponent's Batter Approach — buffs/debuffs on pitch outcomes</p>
+
+          {PITCHER_STYLE_OPTIONS.map(opt => (
+            <button
+              key={opt.value}
+              data-testid={`button-pitcher-style-${opt.value}`}
+              onClick={() => setPitcherStyle(opt.value)}
+              className={`w-full text-left p-4 rounded-xl border transition-all ${
+                pitcherStyle === opt.value
+                  ? 'border-purple-400 bg-purple-950/30 shadow-[0_0_15px_rgba(168,85,247,0.2)]'
+                  : 'border-gray-800 bg-gray-950/30 hover:border-gray-600'
+              }`}
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <span className="text-2xl">{opt.icon}</span>
+                <span className={`font-black text-lg ${pitcherStyle === opt.value ? 'text-purple-400' : 'text-gray-400'}`} style={{fontFamily: "'Orbitron', sans-serif"}}>
+                  {opt.label}
+                </span>
+                {pitcherStyle === opt.value && (
+                  <span className="ml-auto text-xs font-mono text-purple-400 bg-purple-400/10 px-2 py-1 rounded">ACTIVE</span>
+                )}
+              </div>
+              <p className="text-xs font-mono text-gray-500 leading-relaxed mb-2">{opt.desc}</p>
+              <div className="flex gap-4">
+                <span className="text-[10px] font-mono text-green-400">▲ Beats: {opt.beats}</span>
+                <span className="text-[10px] font-mono text-red-400">▼ Weak vs: {opt.losesTo}</span>
+              </div>
+            </button>
+          ))}
+        </div>
 
         <div className="space-y-5">
           <h2 className="text-sm font-mono text-pink-500 border-b border-pink-500/30 pb-2">SP SWITCH CONDITIONS</h2>

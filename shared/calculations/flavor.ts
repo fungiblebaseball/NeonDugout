@@ -1,5 +1,5 @@
 import { rng } from './rng';
-import type { GameResult, SimPlayer } from './types';
+import type { GameResult, SimPlayer, BatterStats, PitcherStats } from './types';
 
 const HR_FLAVORS = [
   "💥 {batter} cranks one into the neon-lit stratosphere! The chrome bleachers ERUPT!",
@@ -32,24 +32,6 @@ const ERROR_FLAVORS = [
   "💾 CORRUPTED PLAY! The fielder's firmware crashes. Safe at first!",
 ];
 
-const CLOSE_GAME_FLAVORS = [
-  "🏟️ The neon lights pulse faster as this one goes down to the wire!",
-  "⚡ ELECTRIC atmosphere in the dome! Every pitch counts!",
-  "🎮 This game has more tension than a final boss fight on hard mode!",
-];
-
-const BLOWOUT_FLAVORS = [
-  "🗑️ This game got ugly faster than a dial-up connection.",
-  "📡 Mercy rule? In THIS league? Nah. Keep the pain flowing.",
-  "💤 Even the holographic fans are checking their DMs at this point.",
-];
-
-const MVP_FLAVORS = [
-  "🏆 Tonight's MVP: {name} — {reason}. Certified GOAT.exe running smoothly.",
-  "⭐ Player of the Game: {name}. {reason}. The crowd throws virtual roses.",
-  "👑 {name} takes MVP honors. {reason}. Legend status: CONFIRMED.",
-];
-
 function pickFlavor(arr: string[], replacements: Record<string, string>): string {
   const template = rng().pick(arr);
   let result = template;
@@ -59,38 +41,111 @@ function pickFlavor(arr: string[], replacements: Record<string, string>): string
   return result;
 }
 
+function findLeaders(batters: BatterStats[]): string[] {
+  const texts: string[] = [];
+
+  const hrLeaders = batters.filter(b => b.hr > 0).sort((a, b) => b.hr - a.hr);
+  if (hrLeaders.length > 0) {
+    const top = hrLeaders[0];
+    texts.push(`⚡ ${top.name} led the power surge with ${top.hr} HR${top.hr > 1 ? 's' : ''}.`);
+    if (top.hr >= 2) {
+      texts.push(`💥 ${top.name} went multi-HR! ${top.hr} dingers in one game — neon legend status.`);
+    }
+  }
+
+  const hitLeaders = batters.filter(b => b.hits >= 3).sort((a, b) => b.hits - a.hits);
+  if (hitLeaders.length > 0) {
+    const top = hitLeaders[0];
+    texts.push(`🎯 ${top.name} racked up ${top.hits}-for-${top.ab} — the laser show of the night.`);
+  }
+
+  const rbiLeaders = batters.filter(b => b.rbi >= 3).sort((a, b) => b.rbi - a.rbi);
+  if (rbiLeaders.length > 0 && !hrLeaders.find(h => h.playerId === rbiLeaders[0].playerId && rbiLeaders[0].rbi <= 3)) {
+    const top = rbiLeaders[0];
+    texts.push(`🔋 ${top.name} drove in ${top.rbi} runs — the clutch processor of the game.`);
+  }
+
+  const bbLeaders = batters.filter(b => b.bb >= 3).sort((a, b) => b.bb - a.bb);
+  if (bbLeaders.length > 0) {
+    const top = bbLeaders[0];
+    texts.push(`👁️ ${top.name} drew ${top.bb} walks — patient circuits pay off.`);
+  }
+
+  const soVictims = batters.filter(b => b.so >= 3).sort((a, b) => b.so - a.so);
+  if (soVictims.length > 0) {
+    const top = soVictims[0];
+    texts.push(`💀 ${top.name} fanned ${top.so} times — a rough night at the plate.`);
+  }
+
+  return texts;
+}
+
+function findPitcherHighlights(homePitcher: PitcherStats, awayPitcher: PitcherStats, homeTeamName: string, awayTeamName: string): string[] {
+  const texts: string[] = [];
+
+  const pitchers = [
+    { ...homePitcher, team: homeTeamName },
+    { ...awayPitcher, team: awayTeamName },
+  ];
+
+  const soKing = pitchers.sort((a, b) => b.so - a.so)[0];
+  if (soKing.so >= 6) {
+    texts.push(`🌀 ${soKing.team} starter: ${soKing.so} K — dominant from the mound.`);
+  }
+
+  const efficient = pitchers.find(p => p.ip >= 7 && p.er <= 1);
+  if (efficient) {
+    texts.push(`🎮 ${efficient.team} starter went ${efficient.ip} IP, ${efficient.er} ER — quality start on lock.`);
+  }
+
+  const rough = pitchers.find(p => p.ip <= 3 && p.er >= 5);
+  if (rough) {
+    texts.push(`🗑️ ${rough.team} starter: ${rough.ip} IP, ${rough.er} ER — early exit, system overheated.`);
+  }
+
+  return texts;
+}
+
 export function generateFlavorTexts(result: GameResult, homePitcher: SimPlayer, awayPitcher: SimPlayer): string[] {
   const texts: string[] = [];
   const diff = Math.abs(result.homeScore - result.awayScore);
 
-  if (diff <= 2) {
-    texts.push(rng().pick(CLOSE_GAME_FLAVORS));
-  } else if (diff >= 7) {
-    texts.push(rng().pick(BLOWOUT_FLAVORS));
+  if (diff <= 1) {
+    texts.push(`🏟️ A ${result.homeScore}-${result.awayScore} nail-biter — every at-bat mattered.`);
+  } else if (diff >= 8) {
+    texts.push(`📡 A ${Math.max(result.homeScore, result.awayScore)}-${Math.min(result.homeScore, result.awayScore)} blowout. The neon lights dimmed early.`);
   }
 
-  const topHR = result.boxScore.homeBatters.find(b => b.hr > 0) || result.boxScore.awayBatters.find(b => b.hr > 0);
-  if (topHR && topHR.hr > 0) {
-    texts.push(pickFlavor(HR_FLAVORS, { batter: topHR.name }));
+  const allBatters = [...result.boxScore.homeBatters, ...result.boxScore.awayBatters];
+  const batterTexts = findLeaders(allBatters);
+  texts.push(...batterTexts);
+
+  const pitcherTexts = findPitcherHighlights(
+    result.boxScore.homePitcher,
+    result.boxScore.awayPitcher,
+    result.homeTeam.name,
+    result.awayTeam.name,
+  );
+  texts.push(...pitcherTexts);
+
+  const totalHR = allBatters.reduce((s, b) => s + b.hr, 0);
+  if (totalHR >= 5) {
+    texts.push(`💣 ${totalHR} home runs total — the ball was jumping tonight.`);
   }
 
-  const topSO = result.boxScore.homePitcher.so > result.boxScore.awayPitcher.so
-    ? result.boxScore.homePitcher
-    : result.boxScore.awayPitcher;
-  if (topSO.so >= 5) {
-    const pitcherName = topSO.playerId === homePitcher.id ? homePitcher.name : awayPitcher.name;
-    const victim = result.boxScore.homeBatters[0]?.name || result.boxScore.awayBatters[0]?.name || 'someone';
-    texts.push(pickFlavor(SO_FLAVORS, { pitcher: pitcherName, batter: victim }));
+  const totalSO = result.boxScore.homePitcher.so + result.boxScore.awayPitcher.so;
+  if (totalSO >= 15) {
+    texts.push(`🌀 ${totalSO} total strikeouts — pitchers dominated this one.`);
   }
 
-  const mvpText = pickFlavor(MVP_FLAVORS, { name: result.mvp.name, reason: result.mvp.reason });
-  texts.push(mvpText);
+  const mvpReason = result.mvp.reason;
+  texts.push(`🏆 MVP: ${result.mvp.name} — ${mvpReason}.`);
 
-  while (texts.length < 3) {
-    texts.push(`🎙️ Another day in the neon leagues. ${result.homeTeam.name} ${result.homeScore} - ${result.awayScore} ${result.awayTeam.name}.`);
+  if (texts.length < 3) {
+    texts.push(`🎙️ Final: ${result.homeTeam.name} ${result.homeScore} - ${result.awayScore} ${result.awayTeam.name}.`);
   }
 
-  return texts.slice(0, 5);
+  return texts.slice(0, 6);
 }
 
 export function generateAtBatDescription(

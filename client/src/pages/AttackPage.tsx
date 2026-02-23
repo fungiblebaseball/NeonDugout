@@ -1,7 +1,7 @@
 import { useGameStore } from "@/lib/store";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
-import type { AttackStyle } from "@/lib/types";
+import type { AttackStyle, BatterApproach, OffensiveAttack } from "@/lib/types";
 
 const ATTACK_OPTIONS: { value: AttackStyle; label: string; desc: string; icon: string; effects: { label: string; value: string; color: string }[] }[] = [
   {
@@ -51,6 +51,60 @@ const ATTACK_OPTIONS: { value: AttackStyle; label: string; desc: string; icon: s
   },
 ];
 
+const BATTER_APPROACH_OPTIONS: { value: BatterApproach; label: string; desc: string; icon: string; beats: string; losesTo: string }[] = [
+  {
+    value: 'power',
+    label: 'POWER',
+    desc: 'Swing for the fences. Best barrel contact on breaking balls.',
+    icon: '🔥',
+    beats: 'Movement',
+    losesTo: 'Command',
+  },
+  {
+    value: 'contact',
+    label: 'CONTACT',
+    desc: 'Put the ball in play consistently. Precise bat control.',
+    icon: '🎯',
+    beats: 'Command',
+    losesTo: 'Velocity',
+  },
+  {
+    value: 'patient',
+    label: 'PATIENT',
+    desc: 'Work the count, draw walks, wait for mistakes.',
+    icon: '👁️',
+    beats: 'Velocity',
+    losesTo: 'Movement',
+  },
+];
+
+const OFFENSIVE_ATTACK_OPTIONS: { value: OffensiveAttack; label: string; desc: string; icon: string; beats: string; losesTo: string }[] = [
+  {
+    value: 'aggressive',
+    label: 'AGGRESSIVE',
+    desc: 'Big leads, frequent steals, always take the extra base.',
+    icon: '⚡',
+    beats: 'Protective defense',
+    losesTo: 'Aggressive defense',
+  },
+  {
+    value: 'balanced',
+    label: 'BALANCED',
+    desc: 'Standard jumps, situational steals, advance on sure hits.',
+    icon: '⚖️',
+    beats: 'Aggressive defense',
+    losesTo: 'Protective defense',
+  },
+  {
+    value: 'conservative',
+    label: 'CONSERVATIVE',
+    desc: 'Small leads, delayed steals, cautious hit-and-run.',
+    icon: '🛡️',
+    beats: '—',
+    losesTo: 'Aggressive defense',
+  },
+];
+
 export default function AttackPage() {
   const { team, walletAddress } = useGameStore();
   const queryClient = useQueryClient();
@@ -65,10 +119,14 @@ export default function AttackPage() {
   });
 
   const [attackStyle, setAttackStyle] = useState<AttackStyle>('neutral');
+  const [batterApproach, setBatterApproach] = useState<BatterApproach>('contact');
+  const [offensiveAttack, setOffensiveAttack] = useState<OffensiveAttack>('balanced');
 
   useEffect(() => {
-    if (saved?.attackStyle) {
-      setAttackStyle(saved.attackStyle as AttackStyle);
+    if (saved) {
+      if (saved.attackStyle) setAttackStyle(saved.attackStyle as AttackStyle);
+      if (saved.batterApproach) setBatterApproach(saved.batterApproach as BatterApproach);
+      if (saved.offensiveAttack) setOffensiveAttack(saved.offensiveAttack as OffensiveAttack);
     }
   }, [saved]);
 
@@ -80,8 +138,12 @@ export default function AttackPage() {
         body: JSON.stringify({
           teamId: team!.id,
           attackStyle,
+          batterApproach,
+          offensiveAttack,
           infieldPosition: saved?.infieldPosition || 'neutral',
           outfieldPosition: saved?.outfieldPosition || 'neutral',
+          pitcherStyle: saved?.pitcherStyle || 'command',
+          defenseSetup: saved?.defenseSetup || 'balanced',
         }),
       });
       return res.json();
@@ -135,6 +197,72 @@ export default function AttackPage() {
                     <span className={`text-[10px] font-mono font-bold ${eff.color}`}>{eff.value}</span>
                   </div>
                 ))}
+              </div>
+            </button>
+          ))}
+        </div>
+
+        <div className="space-y-4">
+          <h2 className="text-sm font-mono text-purple-400 border-b border-purple-500/30 pb-2">BATTER APPROACH</h2>
+          <p className="text-[10px] font-mono text-gray-500">RPS matchup vs opponent's Pitcher Style — buffs/debuffs on top of base probabilities</p>
+
+          {BATTER_APPROACH_OPTIONS.map(opt => (
+            <button
+              key={opt.value}
+              data-testid={`button-batter-${opt.value}`}
+              onClick={() => setBatterApproach(opt.value)}
+              className={`w-full text-left p-4 rounded-xl border transition-all ${
+                batterApproach === opt.value
+                  ? 'border-purple-400 bg-purple-950/30 shadow-[0_0_15px_rgba(168,85,247,0.2)]'
+                  : 'border-gray-800 bg-gray-950/30 hover:border-gray-600'
+              }`}
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <span className="text-2xl">{opt.icon}</span>
+                <span className={`font-black text-lg ${batterApproach === opt.value ? 'text-purple-400' : 'text-gray-400'}`} style={{fontFamily: "'Orbitron', sans-serif"}}>
+                  {opt.label}
+                </span>
+                {batterApproach === opt.value && (
+                  <span className="ml-auto text-xs font-mono text-purple-400 bg-purple-400/10 px-2 py-1 rounded">ACTIVE</span>
+                )}
+              </div>
+              <p className="text-xs font-mono text-gray-500 leading-relaxed mb-2">{opt.desc}</p>
+              <div className="flex gap-4">
+                <span className="text-[10px] font-mono text-green-400">▲ Beats: {opt.beats}</span>
+                <span className="text-[10px] font-mono text-red-400">▼ Weak vs: {opt.losesTo}</span>
+              </div>
+            </button>
+          ))}
+        </div>
+
+        <div className="space-y-4">
+          <h2 className="text-sm font-mono text-orange-400 border-b border-orange-500/30 pb-2">OFFENSIVE ATTACK</h2>
+          <p className="text-[10px] font-mono text-gray-500">RPS matchup vs opponent's Defense Setup — buffs/debuffs on base running and extra bases</p>
+
+          {OFFENSIVE_ATTACK_OPTIONS.map(opt => (
+            <button
+              key={opt.value}
+              data-testid={`button-offensive-${opt.value}`}
+              onClick={() => setOffensiveAttack(opt.value)}
+              className={`w-full text-left p-4 rounded-xl border transition-all ${
+                offensiveAttack === opt.value
+                  ? 'border-orange-400 bg-orange-950/30 shadow-[0_0_15px_rgba(251,146,60,0.2)]'
+                  : 'border-gray-800 bg-gray-950/30 hover:border-gray-600'
+              }`}
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <span className="text-2xl">{opt.icon}</span>
+                <span className={`font-black text-lg ${offensiveAttack === opt.value ? 'text-orange-400' : 'text-gray-400'}`} style={{fontFamily: "'Orbitron', sans-serif"}}>
+                  {opt.label}
+                </span>
+                {offensiveAttack === opt.value && (
+                  <span className="ml-auto text-xs font-mono text-orange-400 bg-orange-400/10 px-2 py-1 rounded">ACTIVE</span>
+                )}
+              </div>
+              <p className="text-xs font-mono text-gray-500 leading-relaxed mb-2">{opt.desc}</p>
+              <div className="flex gap-4">
+                <span className="text-[10px] font-mono text-green-400">▲ Beats: {opt.beats}</span>
+                <span className="text-[10px] font-mono text-red-400">▼ Weak vs: {opt.losesTo}</span>
               </div>
             </button>
           ))}

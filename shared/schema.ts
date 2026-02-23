@@ -79,6 +79,10 @@ export const tactics = pgTable("tactics", {
   attackStyle: text("attack_style").notNull().default("neutral"),
   infieldPosition: text("infield_position").notNull().default("neutral"),
   outfieldPosition: text("outfield_position").notNull().default("neutral"),
+  batterApproach: text("batter_approach").notNull().default("contact"),
+  pitcherStyle: text("pitcher_style").notNull().default("command"),
+  offensiveAttack: text("offensive_attack").notNull().default("balanced"),
+  defenseSetup: text("defense_setup").notNull().default("balanced"),
 });
 
 export const matchDetails = pgTable("match_details", {

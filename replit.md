@@ -37,6 +37,7 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 - `lineups` - field positions + batting order (JSON columns)
 - `pitcher_rotations` - roles JSONB {sp, r1, closer, nextSp} + rotation_order + SP switch conditions (maxPitches/maxInnings/maxBb/maxEr) + R1 conditions (r1MaxPitches/r1MaxEr) + Closer conditions (closerMaxPitches/closerMaxEr)
 - `tactics` - attack style + infield/outfield positioning
+- `team_snapshots` - historical team state per season (team_id, season_id, name, division, league, series, primary_color, owner_wallet)
 
 ## Pages
 0. **Login** (/login) - Solana wallet authentication: select wallet (Phantom/Solflare/Backpack/Seeker), sign challenge message, verify signature
@@ -47,7 +48,7 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 5. **Defense** (/defense) - Set infield/outfield positioning with counter-strategy effects (short counters bunt, neutral counters H&R, deep counters swing-on-sight)
 6. **Simulate** (/simulate) - Exhibition test match using saved lineup/tactics/rotation with box score, batter/pitcher stats, flavor text
 7. **Schedule** (/schedule) - Division calendar (18 match days), next match highlight, W-L record, played matches clickable → Match Report
-8. **Standings** (/standings) - Division standings with W/L/PCT/RF/RA, switch divisions, match preview with saved lineups (positions + batting order) + separate pitcher roster grid
+8. **Standings** (/standings) - Division standings with W/L/PCT/RF/RA, switch divisions, season navigator (◀ ▶) for past seasons with match results, match preview for current season
 9. **Player Detail** (/player/:id) - Player card with photo slot, 9 attribute bars, career averages
 10. **Match Detail** (/match/:id) - Full match report: box score, linescore, batter/pitcher stats, MVP, flavor text, player links
 

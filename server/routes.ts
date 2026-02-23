@@ -172,6 +172,13 @@ export async function registerRoutes(
     res.json({ seasonId });
   });
 
+  app.get("/api/team-snapshots", async (req, res) => {
+    const seasonId = parseInt(req.query.season as string);
+    if (isNaN(seasonId)) return res.status(400).json({ message: "season query parameter required" });
+    const snapshots = await storage.getTeamSnapshots(seasonId);
+    res.json(snapshots);
+  });
+
   app.post("/api/matches/:id/result", async (req, res) => {
     const matchId = parseInt(req.params.id);
     const { homeScore, awayScore, details } = req.body;

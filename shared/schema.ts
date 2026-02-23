@@ -101,6 +101,18 @@ export const matchDetails = pgTable("match_details", {
   awayPitchers: jsonb("away_pitchers").$type<any[]>(),
 });
 
+export const teamSnapshots = pgTable("team_snapshots", {
+  id: serial("id").primaryKey(),
+  teamId: integer("team_id").notNull(),
+  seasonId: integer("season_id").notNull(),
+  name: text("name").notNull(),
+  division: text("division").notNull(),
+  league: text("league").notNull(),
+  series: text("series").notNull(),
+  primaryColor: text("primary_color").notNull().default("#ec4899"),
+  ownerWallet: text("owner_wallet"),
+});
+
 export const playerSeasonStats = pgTable("player_season_stats", {
   id: serial("id").primaryKey(),
   playerId: integer("player_id").notNull(),
@@ -132,6 +144,7 @@ export const insertLineupSchema = createInsertSchema(lineups).omit({ id: true })
 export const insertPitcherRotationSchema = createInsertSchema(pitcherRotations).omit({ id: true });
 export const insertTacticsSchema = createInsertSchema(tactics).omit({ id: true });
 export const insertMatchDetailsSchema = createInsertSchema(matchDetails).omit({ id: true });
+export const insertTeamSnapshotSchema = createInsertSchema(teamSnapshots).omit({ id: true });
 export const insertPlayerSeasonStatsSchema = createInsertSchema(playerSeasonStats).omit({ id: true });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -150,5 +163,7 @@ export type InsertTactics = z.infer<typeof insertTacticsSchema>;
 export type Tactics = typeof tactics.$inferSelect;
 export type InsertMatchDetails = z.infer<typeof insertMatchDetailsSchema>;
 export type MatchDetails = typeof matchDetails.$inferSelect;
+export type InsertTeamSnapshot = z.infer<typeof insertTeamSnapshotSchema>;
+export type TeamSnapshot = typeof teamSnapshots.$inferSelect;
 export type InsertPlayerSeasonStats = z.infer<typeof insertPlayerSeasonStatsSchema>;
 export type PlayerSeasonStats = typeof playerSeasonStats.$inferSelect;

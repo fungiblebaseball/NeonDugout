@@ -6,6 +6,24 @@ Formato:
   • Dettaglio 2 (file modificati)  
   • Trade-off / note (se rilevanti)
 
+## v1.4.4 – 23 febbraio 2026 – Season History & Team Snapshots
+- **Tabella team_snapshots** (shared/schema.ts, server/storage.ts):
+  * Nuova tabella `team_snapshots` (teamId, seasonId, name, division, league, series, primaryColor, ownerWallet)
+  * Salva lo stato dei team ad ogni fine season prima della promozione/retrocessione
+  * Metodi `createTeamSnapshots(seasonId)` e `getTeamSnapshots(seasonId)` in storage
+- **Snapshot automatico in generateNewSeason** (server/season.ts):
+  * Prima di aggiornare i team alla nuova season, crea snapshot con il seasonId corrente
+  * Preserva la composizione divisioni/serie di ogni season passata
+- **Endpoint /api/team-snapshots** (server/routes.ts):
+  * `GET /api/team-snapshots?season=N` restituisce gli snapshot dei team per la season richiesta
+- **Standings storico** (StandingsPage.tsx):
+  * Per season passate: carica team snapshot dal nuovo endpoint
+  * Bottoni divisione/serie funzionano identicamente alla season corrente
+  * Fallback automatico se la divisione selezionata non esiste nella season visualizzata
+  * Sezione "MATCH RESULTS" con lista partite giocate cliccabili → Match Detail
+  * Match Preview nascosto per season passate
+- Files modificati: `shared/schema.ts`, `server/storage.ts`, `server/season.ts`, `server/routes.ts`, `client/src/pages/StandingsPage.tsx`
+
 ## v1.4.3 – 23 febbraio 2026 – Dynamic Season Labels & History Navigation
 - **Season dinamica in Schedule** (SchedulePage.tsx):
   * Titolo "{division} — Season N" ora usa il seasonId corrente da `/api/season`

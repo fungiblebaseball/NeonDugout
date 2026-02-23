@@ -1,7 +1,7 @@
 import { useGameStore } from "@/lib/store";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Trophy, Eye, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Trophy, Eye, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, X, FileText } from "lucide-react";
 import { Link } from "wouter";
 
 interface MatchData {
@@ -209,12 +209,23 @@ export default function StandingsPage() {
   const currentSeason = seasonData?.seasonId ?? 1;
   const displaySeason = viewingSeason ?? currentSeason;
 
+  const isPastSeason = displaySeason < currentSeason;
+
   const { data: allTeams = [] } = useQuery<TeamData[]>({
     queryKey: ['teams-all'],
     queryFn: async () => {
       const res = await fetch('/api/teams');
       return res.json();
     },
+  });
+
+  const { data: teamSnapshotsRaw = [] } = useQuery<TeamData[]>({
+    queryKey: ['team-snapshots', displaySeason],
+    queryFn: async () => {
+      const res = await fetch(`/api/team-snapshots?season=${displaySeason}`);
+      return res.json();
+    },
+    enabled: isPastSeason,
   });
 
   const { data: allMatches = [] } = useQuery<MatchData[]>({
@@ -230,14 +241,23 @@ export default function StandingsPage() {
   }
 
   const seasonMatches = allMatches.filter(m => m.seasonId === displaySeason);
-  const seasonTeams = allTeams.filter(t => t.seasonId === displaySeason);
+
+  const snapshotTeams: TeamData[] = isPastSeason
+    ? teamSnapshotsRaw.map((s: any) => ({ id: s.teamId, name: s.name, division: s.division, primaryColor: s.primaryColor, ownerWallet: s.ownerWallet, seasonId: s.seasonId }))
+    : allTeams.filter(t => t.seasonId === displaySeason);
+  const seasonTeams = snapshotTeams;
+
   const divisions = Array.from(new Set(seasonTeams.map(t => t.division))).sort();
-  const divTeams = seasonTeams.filter(t => t.division === selectedDiv);
-  const divMatches = seasonMatches.filter(m => m.division === selectedDiv);
+  const validDiv = divisions.includes(selectedDiv) ? selectedDiv : divisions[0] || selectedDiv;
+  const divTeams = seasonTeams.filter(t => t.division === validDiv);
+  const divMatches = seasonMatches.filter(m => m.division === validDiv);
   const standings = computeStandings(divTeams, divMatches);
 
-  const isUserDiv = selectedDiv === team.division;
-  const divName = selectedDiv;
+  const isUserDiv = !isPastSeason && validDiv === team.division;
+  const divName = validDiv;
+
+  const playedDivMatches = divMatches.filter(m => m.played).sort((a, b) => b.day - a.day);
+  const teamMap = new Map(seasonTeams.map(t => [t.id, t]));
 
   const userMatches = divMatches.filter(m =>
     (m.homeTeamId === team.id || m.awayTeamId === team.id) && !m.played
@@ -284,8 +304,8 @@ export default function StandingsPage() {
               data-testid={`button-div-${div}`}
               onClick={() => setSelectedDiv(div)}
               className={`flex-1 py-3 rounded-xl border font-black uppercase text-sm tracking-wider transition-all ${
-                selectedDiv === div
-                  ? div === team.division
+                validDiv === div
+                  ? (!isPastSeason && div === team.division)
                     ? 'border-cyan-400 bg-cyan-500/20 text-cyan-300 shadow-[0_0_12px_rgba(34,211,238,0.3)]'
                     : 'border-pink-400 bg-pink-500/20 text-pink-300 shadow-[0_0_12px_rgba(236,72,153,0.3)]'
                   : 'border-gray-700 bg-black/40 text-gray-500 hover:border-gray-500'
@@ -293,10 +313,16 @@ export default function StandingsPage() {
               style={{fontFamily: "'Orbitron', sans-serif"}}
             >
               {div}
-              {div === team.division && <span className="ml-1 text-[9px]">★</span>}
+              {!isPastSeason && div === team.division && <span className="ml-1 text-[9px]">★</span>}
             </button>
           ))}
         </div>
+
+        {isPastSeason && seasonTeams.length === 0 && (
+          <div className="p-6 rounded-xl border border-gray-700 bg-gray-950/30 text-center">
+            <p className="text-sm font-mono text-gray-500">No snapshot data available for Season {displaySeason}</p>
+          </div>
+        )}
 
         <div className={`rounded-xl border ${isUserDiv ? 'border-cyan-500/40' : 'border-pink-500/30'} overflow-hidden`}>
           <div className={`px-4 py-2 ${isUserDiv ? 'bg-cyan-950/30' : 'bg-pink-950/30'} flex items-center gap-2`}>
@@ -373,6 +399,35 @@ export default function StandingsPage() {
             {previewMatchId === nextMatch.id && (
               <MatchPreview match={nextMatch} userTeamId={team.id} allTeams={allTeams} />
             )}
+          </div>
+        )}
+
+        {isPastSeason && playedDivMatches.length > 0 && (
+          <div className="space-y-2">
+            <h3 className="text-sm font-mono text-pink-500 border-b border-pink-500/30 pb-2">MATCH RESULTS</h3>
+            <div className="rounded-xl border border-gray-800 overflow-hidden divide-y divide-gray-800/30">
+              {playedDivMatches.map(m => (
+                <Link key={m.id} href={`/match/${m.id}`}>
+                  <div data-testid={`past-match-${m.id}`} className="px-3 py-2 flex items-center gap-2 hover:bg-gray-900/40 transition-colors cursor-pointer">
+                    <span className="text-[9px] font-mono text-gray-600 w-10 shrink-0">Day {m.day}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-mono truncate text-gray-300">{teamMap.get(m.awayTeamId)?.name ?? `#${m.awayTeamId}`}</span>
+                        <span className={`font-black px-1 ${(m.awayScore ?? 0) > (m.homeScore ?? 0) ? 'text-cyan-400' : 'text-gray-500'}`}>{m.awayScore}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs mt-0.5">
+                        <span className="font-mono truncate text-gray-300">{teamMap.get(m.homeTeamId)?.name ?? `#${m.homeTeamId}`}</span>
+                        <span className={`font-black px-1 ${(m.homeScore ?? 0) > (m.awayScore ?? 0) ? 'text-cyan-400' : 'text-gray-500'}`}>{m.homeScore}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <FileText className="w-3 h-3 text-cyan-500" />
+                      <span className="text-[9px] font-mono text-cyan-500">VIEW</span>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
           </div>
         )}
       </main>

@@ -240,6 +240,8 @@ export async function generateNewSeason(): Promise<{ seasonId: number; matchCoun
   const currentSeasonId = Math.max(...allTeams.map(t => t.seasonId));
   const newSeasonId = currentSeasonId + 1;
 
+  await storage.createTeamSnapshots(currentSeasonId);
+
   await db.update(teams).set({ seasonId: newSeasonId });
 
   const freshTeams = await storage.getTeams();

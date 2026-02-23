@@ -1,13 +1,13 @@
 import { db } from "./db";
 import { eq, and, sql } from "drizzle-orm";
 import {
-  users, teams, players, matches, lineups, pitcherRotations, tactics, matchDetails, playerSeasonStats,
+  users, teams, players, matches, lineups, pitcherRotations, tactics, matchDetails, playerSeasonStats, teamSnapshots,
   type User, type InsertUser, type Team, type InsertTeam,
   type Player, type Match, type Lineup, type InsertLineup,
   type PitcherRotation, type InsertPitcherRotation,
   type Tactics, type InsertTactics,
   type MatchDetails, type InsertMatchDetails,
-  type PlayerSeasonStats,
+  type PlayerSeasonStats, type TeamSnapshot,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -52,6 +52,9 @@ export interface IStorage {
   getPlayerSeasonStats(playerId: number, seasonId?: number): Promise<PlayerSeasonStats[]>;
   getTeamSeasonStats(teamId: number, seasonId?: number): Promise<PlayerSeasonStats[]>;
   getCurrentSeasonId(): Promise<number>;
+
+  createTeamSnapshots(seasonId: number): Promise<void>;
+  getTeamSnapshots(seasonId: number): Promise<TeamSnapshot[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -321,6 +324,29 @@ export class DatabaseStorage implements IStorage {
         .where(and(eq(playerSeasonStats.teamId, teamId), eq(playerSeasonStats.seasonId, seasonId)));
     }
     return db.select().from(playerSeasonStats).where(eq(playerSeasonStats.teamId, teamId));
+  }
+
+  async createTeamSnapshots(seasonId: number): Promise<void> {
+    const existing = await db.select().from(teamSnapshots).where(eq(teamSnapshots.seasonId, seasonId));
+    if (existing.length > 0) return;
+    const allTeams = await db.select().from(teams).where(eq(teams.seasonId, seasonId));
+    const snapshots = allTeams.map(t => ({
+      teamId: t.id,
+      seasonId,
+      name: t.name,
+      division: t.division,
+      league: t.league,
+      series: t.series,
+      primaryColor: t.primaryColor,
+      ownerWallet: t.ownerWallet,
+    }));
+    for (let i = 0; i < snapshots.length; i += 50) {
+      await db.insert(teamSnapshots).values(snapshots.slice(i, i + 50));
+    }
+  }
+
+  async getTeamSnapshots(seasonId: number): Promise<TeamSnapshot[]> {
+    return db.select().from(teamSnapshots).where(eq(teamSnapshots.seasonId, seasonId));
   }
 }
 

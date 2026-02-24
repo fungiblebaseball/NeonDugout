@@ -4,7 +4,7 @@
 Text-based fantasy baseball manager game with retro 80s/90s cyberpunk aesthetic. Target platform: Solana Seeker mobile (Web3 integration planned). Zero MLB licenses - all fictional teams and players.
 
 ## Current State
-Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.6.0 — Play Log feature (play-by-play record per match with fielder details, pitcher change reasons, accordion in Match Detail, dedicated Play Log page).
+Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.7.0 — Defense Attribute Rework: 4-section player card (Offense/Defense/Pitching/Crossing), dual-context labels for defense stats, crossing attributes (SPD + STA) visible across all categories.
 
 ## Branding
 - **Logo**: `client/src/assets/images/logo-neon-dugout.png` — Stylized baseball diamond (neon glow, transparent bg)
@@ -55,7 +55,7 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 6. **Simulate** (/simulate) - Exhibition test match using saved lineup/tactics/rotation with box score, batter/pitcher stats, flavor text
 7. **Schedule** (/schedule) - Division calendar (18 match days), next match highlight, W-L record, played matches clickable → Match Report
 8. **Standings** (/standings) - Division standings with W/L/PCT/RF/RA, switch divisions, season navigator (◀ ▶) for past seasons with match results, match preview for current season
-9. **Player Detail** (/player/:id) - Player card with photo slot, 9 attribute bars, career averages
+9. **Player Detail** (/player/:id) - Player card with photo slot, 4-section attributes (Offense/Defense/Pitching/Crossing), dual-context defense labels, career averages
 10. **Match Detail** (/match/:id) - Full match report: box score, linescore, batter/pitcher stats, MVP, flavor text, player links, collapsible play log accordion
 11. **Play Log** (/play-log) - Dedicated play-by-play records page, match day selector, per-match accordion with inning-by-inning log, fielder and direction info
 

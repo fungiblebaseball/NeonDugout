@@ -6,6 +6,21 @@ Formato:
   • Dettaglio 2 (file modificati)  
   • Trade-off / note (se rilevanti)
 
+## v1.7.0 – 24 febbraio 2026 – Defense Attribute Rework + Crossing Attributes
+- **Player Card ristrutturata** (PlayerDetailPage.tsx):
+  * 4 sezioni attributi: OFFENSE (pink), DEFENSE (green), PITCHING (cyan, solo pitcher), CROSSING (amber, tutti)
+  * OFFENSE: POW, CON, EYE (3 barre)
+  * DEFENSE: GLOVE 🧤 (def), RANGE 🏃‍♂️ (spd), REACTION 👁️ (eye), ARM 💪 (vel) — 4 barre con label contestuali
+  * PITCHING: VEL, CTL, MOV — visibile solo per giocatori con posizione P
+  * CROSSING: SPEED ⚡ (spd), STAMINA 🔋 (sta) — attributi trasversali a tutte e 3 le categorie
+- **Medie aggiornate**:
+  * BAT AVG = (POW + CON + EYE) / 3
+  * DEF AVG = (DEF + SPD + EYE + VEL) / 4 (nuova, sostituisce PITCH AVG per position player)
+  * PITCH AVG = (VEL + CTL + MOV) / 3 (solo pitcher)
+  * OVERALL invariato (tutti 9 / 9)
+- **Nessuna modifica** a DB, simulazione, matchup o backend — solo display
+- **Docs aggiornati**: Player_SEED.md (Display Groups + dual labels), PLAN_ATTRIBUTES.md, replit.md
+
 ## v1.6.0 – 24 febbraio 2026 – Play Log (Play-by-Play Record)
 - **PlayLogEntry type** (shared/calculations/types.ts):
   * Struttura dati per ogni evento at-bat e cambio lanciatore

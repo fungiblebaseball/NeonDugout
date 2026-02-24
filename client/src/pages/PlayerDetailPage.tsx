@@ -50,13 +50,22 @@ interface SeasonStats {
 const statLabels: Record<string, string> = {
   pow: 'POWER',
   con: 'CONTACT',
-  spd: 'SPEED',
   eye: 'EYE',
   vel: 'VELOCITY',
   ctl: 'CONTROL',
   mov: 'MOVEMENT',
-  sta: 'STAMINA',
-  def: 'DEFENSE',
+};
+
+const defenseLabels: Record<string, string> = {
+  def: 'GLOVE 🧤',
+  spd: 'RANGE 🏃‍♂️',
+  eye: 'REACTION 👁️',
+  vel: 'ARM 💪',
+};
+
+const crossingLabels: Record<string, string> = {
+  spd: 'SPEED ⚡',
+  sta: 'STAMINA 🔋',
 };
 
 const positionLabels: Record<string, string> = {
@@ -153,9 +162,10 @@ export default function PlayerDetailPage() {
   }
 
   const overall = playerOverall(player);
-  const statKeys = ['pow', 'con', 'spd', 'eye', 'vel', 'ctl', 'mov', 'sta', 'def'] as const;
-  const battingAvg = Math.round((player.pow + player.con + player.spd + player.eye) / 4);
-  const pitchingAvg = Math.round((player.vel + player.ctl + player.mov + player.sta) / 4);
+  const isPitcher = player.positions.includes('P');
+  const battingAvg = Math.round((player.pow + player.con + player.eye) / 3);
+  const defenseAvg = Math.round((player.def + player.spd + player.eye + player.vel) / 4);
+  const pitchingAvg = Math.round((player.vel + player.ctl + player.mov) / 3);
 
   return (
     <div className="min-h-screen pb-24 bg-black text-cyan-50">
@@ -192,21 +202,30 @@ export default function PlayerDetailPage() {
               ))}
             </div>
 
-            <div className="mt-4 flex items-center gap-6">
+            <div className="mt-4 flex items-center gap-4 flex-wrap justify-center">
               <div className="text-center">
                 <span className={`text-3xl font-black ${statColor(overall)}`} style={{fontFamily: "'Orbitron', sans-serif"}}>{overall}</span>
                 <p className="text-[9px] font-mono text-gray-500">OVERALL</p>
               </div>
               <div className="h-10 w-px bg-gray-800" />
               <div className="text-center">
-                <span className="text-lg font-bold text-cyan-400" style={{fontFamily: "'Orbitron', sans-serif"}}>{battingAvg}</span>
-                <p className="text-[9px] font-mono text-gray-500">BAT AVG</p>
+                <span className="text-lg font-bold text-pink-400" style={{fontFamily: "'Orbitron', sans-serif"}}>{battingAvg}</span>
+                <p className="text-[9px] font-mono text-gray-500">BAT</p>
               </div>
               <div className="h-10 w-px bg-gray-800" />
               <div className="text-center">
-                <span className="text-lg font-bold text-pink-400" style={{fontFamily: "'Orbitron', sans-serif"}}>{pitchingAvg}</span>
-                <p className="text-[9px] font-mono text-gray-500">PITCH AVG</p>
+                <span className="text-lg font-bold text-green-400" style={{fontFamily: "'Orbitron', sans-serif"}}>{defenseAvg}</span>
+                <p className="text-[9px] font-mono text-gray-500">DEF</p>
               </div>
+              {isPitcher && (
+                <>
+                  <div className="h-10 w-px bg-gray-800" />
+                  <div className="text-center">
+                    <span className="text-lg font-bold text-cyan-400" style={{fontFamily: "'Orbitron', sans-serif"}}>{pitchingAvg}</span>
+                    <p className="text-[9px] font-mono text-gray-500">PITCH</p>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -217,29 +236,13 @@ export default function PlayerDetailPage() {
             </div>
 
             <div className="mb-2 px-2">
-              <span className="text-[10px] font-mono text-pink-400 uppercase tracking-wider">Batting</span>
+              <span className="text-[10px] font-mono text-pink-400 uppercase tracking-wider">Offense</span>
             </div>
-            {(['pow', 'con', 'spd', 'eye'] as const).map(key => {
+            {(['pow', 'con', 'eye'] as const).map(key => {
               const val = player[key];
               return (
                 <div key={key} className="flex items-center gap-2 px-2">
-                  <span className="text-[10px] font-mono text-gray-400 w-16 uppercase">{statLabels[key]}</span>
-                  <div className="flex-1 h-3 bg-gray-900 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full transition-all ${statBarColor(val)}`} style={{ width: `${val}%` }} />
-                  </div>
-                  <span className={`text-sm font-black w-8 text-right ${statColor(val)}`} style={{fontFamily: "'Orbitron', sans-serif"}}>{val}</span>
-                </div>
-              );
-            })}
-
-            <div className="mb-2 mt-4 px-2">
-              <span className="text-[10px] font-mono text-cyan-400 uppercase tracking-wider">Pitching</span>
-            </div>
-            {(['vel', 'ctl', 'mov', 'sta'] as const).map(key => {
-              const val = player[key];
-              return (
-                <div key={key} className="flex items-center gap-2 px-2">
-                  <span className="text-[10px] font-mono text-gray-400 w-16 uppercase">{statLabels[key]}</span>
+                  <span className="text-[10px] font-mono text-gray-400 w-20 uppercase">{statLabels[key]}</span>
                   <div className="flex-1 h-3 bg-gray-900 rounded-full overflow-hidden">
                     <div className={`h-full rounded-full transition-all ${statBarColor(val)}`} style={{ width: `${val}%` }} />
                   </div>
@@ -251,11 +254,47 @@ export default function PlayerDetailPage() {
             <div className="mb-2 mt-4 px-2">
               <span className="text-[10px] font-mono text-green-400 uppercase tracking-wider">Defense</span>
             </div>
-            {(['def'] as const).map(key => {
+            {(['def', 'spd', 'eye', 'vel'] as const).map(key => {
               const val = player[key];
               return (
-                <div key={key} className="flex items-center gap-2 px-2">
-                  <span className="text-[10px] font-mono text-gray-400 w-16 uppercase">{statLabels[key]}</span>
+                <div key={`def-${key}`} className="flex items-center gap-2 px-2">
+                  <span className="text-[10px] font-mono text-gray-400 w-20 uppercase">{defenseLabels[key]}</span>
+                  <div className="flex-1 h-3 bg-gray-900 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full transition-all ${statBarColor(val)}`} style={{ width: `${val}%` }} />
+                  </div>
+                  <span className={`text-sm font-black w-8 text-right ${statColor(val)}`} style={{fontFamily: "'Orbitron', sans-serif"}}>{val}</span>
+                </div>
+              );
+            })}
+
+            {isPitcher && (
+              <>
+                <div className="mb-2 mt-4 px-2">
+                  <span className="text-[10px] font-mono text-cyan-400 uppercase tracking-wider">Pitching</span>
+                </div>
+                {(['vel', 'ctl', 'mov'] as const).map(key => {
+                  const val = player[key];
+                  return (
+                    <div key={`pit-${key}`} className="flex items-center gap-2 px-2">
+                      <span className="text-[10px] font-mono text-gray-400 w-20 uppercase">{statLabels[key]}</span>
+                      <div className="flex-1 h-3 bg-gray-900 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full transition-all ${statBarColor(val)}`} style={{ width: `${val}%` }} />
+                      </div>
+                      <span className={`text-sm font-black w-8 text-right ${statColor(val)}`} style={{fontFamily: "'Orbitron', sans-serif"}}>{val}</span>
+                    </div>
+                  );
+                })}
+              </>
+            )}
+
+            <div className="mb-2 mt-4 px-2">
+              <span className="text-[10px] font-mono text-amber-400 uppercase tracking-wider">Crossing</span>
+            </div>
+            {(['spd', 'sta'] as const).map(key => {
+              const val = player[key];
+              return (
+                <div key={`cross-${key}`} className="flex items-center gap-2 px-2">
+                  <span className="text-[10px] font-mono text-gray-400 w-20 uppercase">{crossingLabels[key]}</span>
                   <div className="flex-1 h-3 bg-gray-900 rounded-full overflow-hidden">
                     <div className={`h-full rounded-full transition-all ${statBarColor(val)}`} style={{ width: `${val}%` }} />
                   </div>
@@ -368,12 +407,12 @@ export default function PlayerDetailPage() {
                 <p className="text-[9px] font-mono text-gray-500">OVR</p>
               </div>
               <div className="text-center p-2 rounded-lg bg-black/40 border border-gray-800">
-                <span className="text-lg font-black text-cyan-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{battingAvg}</span>
+                <span className="text-lg font-black text-pink-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{battingAvg}</span>
                 <p className="text-[9px] font-mono text-gray-500">BAT</p>
               </div>
               <div className="text-center p-2 rounded-lg bg-black/40 border border-gray-800">
-                <span className="text-lg font-black text-pink-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{pitchingAvg}</span>
-                <p className="text-[9px] font-mono text-gray-500">PITCH</p>
+                <span className="text-lg font-black text-green-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{defenseAvg}</span>
+                <p className="text-[9px] font-mono text-gray-500">DEF</p>
               </div>
             </div>
           )}

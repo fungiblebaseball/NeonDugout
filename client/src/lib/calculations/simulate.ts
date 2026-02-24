@@ -1,5 +1,5 @@
 import { rng } from './rng';
-import { matchupRating, teamDefenseAvg, gidpChance, errorChance } from './matchup';
+import { matchupRating, errorChance, findFielderByPosition, pickRandomInfielder, pickRandomOutfielder } from './matchup';
 import { rollOutcome, type TacticsModifiers } from './probability';
 import { generateAtBatDescription, generateFlavorTexts } from './flavor';
 import type {
@@ -132,18 +132,19 @@ function advanceRunners(
   bases: BaseState,
   outcome: AtBatOutcome,
   batter: SimPlayer,
-): { newBases: BaseState; runsScored: number } {
+  outs: number = 0,
+): { newBases: BaseState; runsScored: number; outsAdded: number } {
   let runs = 0;
   const r = rng();
 
   switch (outcome) {
     case 'HR':
       runs = (bases.first ? 1 : 0) + (bases.second ? 1 : 0) + (bases.third ? 1 : 0) + 1;
-      return { newBases: { first: null, second: null, third: null }, runsScored: runs };
+      return { newBases: { first: null, second: null, third: null }, runsScored: runs, outsAdded: 0 };
 
     case '3B':
       runs = (bases.first ? 1 : 0) + (bases.second ? 1 : 0) + (bases.third ? 1 : 0);
-      return { newBases: { first: null, second: null, third: batter }, runsScored: runs };
+      return { newBases: { first: null, second: null, third: batter }, runsScored: runs, outsAdded: 0 };
 
     case '2B':
       if (bases.third) runs++;
@@ -157,6 +158,7 @@ function advanceRunners(
           third: bases.first && !fromFirst2B ? bases.first : null,
         },
         runsScored: runs,
+        outsAdded: 0,
       };
 
     case '1B':
@@ -170,6 +172,7 @@ function advanceRunners(
           third: bases.second && !fromSecond ? bases.second : null,
         },
         runsScored: runs,
+        outsAdded: 0,
       };
 
     case 'BB':
@@ -181,10 +184,11 @@ function advanceRunners(
           third: bases.second && bases.first ? (bases.third || bases.second) : bases.third || null,
         },
         runsScored: runs,
+        outsAdded: 0,
       };
 
     case 'ERR':
-      if (bases.third) { runs++; }
+      if (bases.third) runs++;
       return {
         newBases: {
           first: batter,
@@ -192,10 +196,41 @@ function advanceRunners(
           third: bases.second || null,
         },
         runsScored: runs,
+        outsAdded: 0,
       };
 
+    case 'GO': {
+      const newBases: BaseState = {
+        first: null,
+        second: bases.first || null,
+        third: bases.second || null,
+      };
+      if (bases.third && outs < 2) runs++;
+      return { newBases, runsScored: runs, outsAdded: 1 };
+    }
+
+    case 'FO': {
+      if (bases.third && outs < 2) {
+        runs++;
+        return {
+          newBases: { first: bases.first, second: bases.second, third: null },
+          runsScored: runs,
+          outsAdded: 1,
+        };
+      }
+      return { newBases: { ...bases }, runsScored: 0, outsAdded: 1 };
+    }
+
+    case 'GIDP': {
+      return {
+        newBases: { first: null, second: bases.second, third: bases.third },
+        runsScored: 0,
+        outsAdded: 2,
+      };
+    }
+
     default:
-      return { newBases: bases, runsScored: 0 };
+      return { newBases: bases, runsScored: 0, outsAdded: 0 };
   }
 }
 
@@ -276,9 +311,6 @@ function simulateHalfInning(
   const substitutions: ActivePitcher[] = [];
   const batterIds: number[] = [];
 
-  const infieldDef = teamDefenseAvg(defenseLineup, 'infield');
-  const outfieldDef = teamDefenseAvg(defenseLineup, 'outfield');
-
   while (outs < 3) {
     if (pitchingConfig && shouldSubstitutePitcher(activePitcher, pitchingConfig, inning)) {
       const next = getNextPitcher(activePitcher, pitchingConfig);
@@ -289,45 +321,60 @@ function simulateHalfInning(
     }
 
     const batter = battingLineup[currentBatter % battingLineup.length];
+    const mr = matchupRating(batter, activePitcher.player, inning) + (isHome ? HOME_ADVANTAGE : 0);
     const result = simulateAtBat(batter, activePitcher.player, inning, isHome, battingTactics, defenseTactics);
     pitchesUsed += result.pitchCount;
     activePitcher.pitchCount += result.pitchCount;
 
     let outcome = result.outcome;
 
-    if ((outcome === 'GO') && bases.first && outs < 2) {
-      const gdpRoll = rng().next();
-      const gdpProb = gidpChance(batter.spd, bases.first.spd, infieldDef);
-      if (gdpRoll < gdpProb) {
+    if (outcome === 'GO' || outcome === 'FO') {
+      const r = rng();
+      const playIProb = 0.65 - mr / 100;
+      const isPlayI = r.next() < Math.max(0.25, Math.min(0.85, playIProb));
+
+      let defRating: number;
+      if (isPlayI) {
+        const firstBaseman = findFielderByPosition(defenseLineup, '1B');
+        const otherInfielder = pickRandomInfielder(defenseLineup, r.next());
+        const fb = firstBaseman ? firstBaseman.def : 50;
+        defRating = (fb + otherInfielder.def) / 2;
+      } else {
+        const outfielder = pickRandomOutfielder(defenseLineup, r.next());
+        defRating = outfielder.def;
+      }
+
+      const errRoll = r.next();
+      if (errRoll < errorChance(defRating)) {
+        outcome = 'ERR';
+        result.outcome = 'ERR';
+        result.description = generateAtBatDescription('ERR', batter.name, activePitcher.player.name);
+      } else {
+        const finalPlay = isPlayI ? 'GO' : 'FO';
+        if (finalPlay !== outcome) {
+          result.description = generateAtBatDescription(finalPlay, batter.name, activePitcher.player.name);
+        }
+        outcome = finalPlay;
+        result.outcome = finalPlay;
+      }
+
+      if (outcome === 'GO' && bases.first && bases.second && bases.third) {
         outcome = 'GIDP';
         result.outcome = 'GIDP';
         result.description = generateAtBatDescription('GIDP', batter.name, activePitcher.player.name);
       }
     }
 
-    if (outcome === 'GO' || outcome === 'FO') {
-      const defRating = outcome === 'GO' ? infieldDef : outfieldDef;
-      const errRoll = rng().next();
-      if (errRoll < errorChance(defRating)) {
-        outcome = 'ERR';
-        result.outcome = 'ERR';
-        result.description = generateAtBatDescription('ERR', batter.name, activePitcher.player.name);
-      }
-    }
-
-    if (outcome === 'GIDP') {
-      outs += 2;
-      bases.first = null;
-    } else if (['GO', 'FO', 'SO'].includes(outcome)) {
+    if (outcome === 'SO') {
       outs++;
-      if (outcome === 'SO') activePitcher.soCount++;
-    } else {
-      const { newBases, runsScored } = advanceRunners(bases, outcome, batter);
+      activePitcher.soCount++;
+    } else if (['GO', 'FO', 'GIDP', 'ERR', 'HR', '3B', '2B', '1B', 'BB'].includes(outcome)) {
+      const { newBases, runsScored, outsAdded } = advanceRunners(bases, outcome, batter, outs);
       bases = newBases;
-      const scored = runsScored;
-      runs += scored;
-      result.rbiCount = scored;
-      activePitcher.erAllowed += scored;
+      outs += outsAdded;
+      runs += runsScored;
+      result.rbiCount = runsScored;
+      activePitcher.erAllowed += runsScored;
 
       if (['HR', '3B', '2B', '1B'].includes(outcome)) {
         hits++;

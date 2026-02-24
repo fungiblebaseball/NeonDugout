@@ -46,3 +46,21 @@ export function teamDefenseAvg(lineup: SimPlayer[], zone: 'infield' | 'outfield'
   if (fielders.length === 0) return 50;
   return fielders.reduce((sum, p) => sum + p.def, 0) / fielders.length;
 }
+
+export function findFielderByPosition(lineup: SimPlayer[], position: string): SimPlayer | null {
+  return lineup.find(p => p.positions.includes(position)) || null;
+}
+
+export function pickRandomInfielder(lineup: SimPlayer[], roll: number): SimPlayer {
+  const positions = ['SS', '2B', '3B'];
+  const fielders = lineup.filter(p => p.positions.some(pos => positions.includes(pos)));
+  if (fielders.length === 0) return lineup[0];
+  return fielders[Math.floor(roll * fielders.length) % fielders.length];
+}
+
+export function pickRandomOutfielder(lineup: SimPlayer[], roll: number): SimPlayer {
+  const positions = ['LF', 'CF', 'RF'];
+  const fielders = lineup.filter(p => p.positions.some(pos => positions.includes(pos)));
+  if (fielders.length === 0) return lineup[0];
+  return fielders[Math.floor(roll * fielders.length) % fielders.length];
+}

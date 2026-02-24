@@ -6,6 +6,25 @@ Formato:
   • Dettaglio 2 (file modificati)  
   • Trade-off / note (se rilevanti)
 
+## v1.5.0 – 24 febbraio 2026 – PlayI/PlayO Simulation Refactor
+- **Direzione battuta basata su matchup rating** (simulate.ts, matchup.ts):
+  * Quando la palla è "in play", il matchup rating determina se va agli interni (PlayI) o agli esterni (PlayO)
+  * MR a favore del lanciatore → alta probabilità PlayI; MR a favore del battitore → alta probabilità PlayO
+  * Probabilità PlayI = clamp(0.65 - mr/100, 0.25, 0.85)
+- **Errore valutato sui difensori specifici**:
+  * PlayI: errore calcolato sulla media difensiva di 1B + un interno random (SS/2B/3B)
+  * PlayO: errore calcolato sulla difesa del singolo esterno random (LF/CF/RF)
+  * Helper functions: `findFielderByPosition()`, `pickRandomInfielder()`, `pickRandomOutfielder()` in matchup.ts
+- **Nuove regole GO (Ground Out)**:
+  * Battitore eliminato, corridori avanzano 1 base
+  * Basi piene → GIDP automatico (battitore + corridore 1B eliminati, nessun punto)
+  * Corridore in 3B segna solo se non è il 3° out
+- **Nuove regole FO (Fly Out)**:
+  * Battitore eliminato, corridori NON avanzano
+  * Eccezione: corridore in 3B segna punto (sacrifice fly) se non è il 3° out
+- **advanceRunners() unificata**: tutti gli esiti (HR/3B/2B/1B/BB/ERR/GO/FO/GIDP) gestiti in un unico switch con `outsAdded` nel return
+- Files modificati: `shared/calculations/simulate.ts`, `shared/calculations/matchup.ts`, copie client sincronizzate
+
 ## v1.4.6 – 24 febbraio 2026 – Standings Snapshot con Classifiche Finali
 - **Campi classifica in team_snapshots** (shared/schema.ts):
   * Aggiunti `wins`, `losses`, `runsFor`, `runsAgainst` alla tabella `team_snapshots`

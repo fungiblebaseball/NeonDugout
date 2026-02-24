@@ -6,6 +6,32 @@ Formato:
   • Dettaglio 2 (file modificati)  
   • Trade-off / note (se rilevanti)
 
+## v1.4.6 – 24 febbraio 2026 – Standings Snapshot con Classifiche Finali
+- **Campi classifica in team_snapshots** (shared/schema.ts):
+  * Aggiunti `wins`, `losses`, `runsFor`, `runsAgainst` alla tabella `team_snapshots`
+  * I risultati finali vengono fotografati una sola volta a fine season, zero ricalcoli futuri
+- **Calcolo W/L/RF/RA in createTeamSnapshots** (server/storage.ts):
+  * Una singola query sulle partite giocate della season calcola W/L/RF/RA per ogni team
+  * I dati vengono salvati direttamente nello snapshot — archiviazione pura, costo minimo
+- **StandingsPage storico funzionale** (StandingsPage.tsx):
+  * Per season passate: classifica letta direttamente dallo snapshot (nessun ricalcolo)
+  * W/L/PCT/RF/RA visibili correttamente nella navigazione storica
+- Files modificati: `shared/schema.ts`, `server/storage.ts`, `client/src/pages/StandingsPage.tsx`
+
+## v1.4.5 – 24 febbraio 2026 – DH Rule Fix nella Simulazione
+- **Regola DH nel motore di simulazione** (shared/calculations/simulate.ts):
+  * Con DH attivo: 8 posizioni + DH = 9 battitori, pitcher mai in battuta
+  * Senza DH: 8 posizioni + SP = 9 battitori, SP batte fino alla sostituzione
+  * Sostituzioni pitcher (SP→R1→Closer): il rilievo prende lo slot di battuta del predecessore (solo senza DH)
+  * Nuovo sistema `batterIds[]` per tracciare chi batte ad ogni evento → statistiche corrette anche dopo sostituzioni
+- **buildLineupFromSaved() aggiornata** (server/simulation.ts):
+  * Rileva DH dal fieldPositions, costruisce lineup di 9 battitori nel modo corretto
+  * Passa `homeHasDH`/`awayHasDH` al SimConfig
+- **SimulationPage aggiornata** (SimulationPage.tsx):
+  * Filtra i pitcher dal batting order quando DH attivo
+  * Passa i flag DH alla simulazione exhibition
+- Files modificati: `shared/calculations/simulate.ts`, `client/src/lib/calculations/simulate.ts`, `server/simulation.ts`, `client/src/pages/SimulationPage.tsx`
+
 ## v1.4.4 – 23 febbraio 2026 – Season History & Team Snapshots
 - **Tabella team_snapshots** (shared/schema.ts, server/storage.ts):
   * Nuova tabella `team_snapshots` (teamId, seasonId, name, division, league, series, primaryColor, ownerWallet)

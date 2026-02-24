@@ -330,16 +330,47 @@ export class DatabaseStorage implements IStorage {
     const existing = await db.select().from(teamSnapshots).where(eq(teamSnapshots.seasonId, seasonId));
     if (existing.length > 0) return;
     const allTeams = await db.select().from(teams).where(eq(teams.seasonId, seasonId));
-    const snapshots = allTeams.map(t => ({
-      teamId: t.id,
-      seasonId,
-      name: t.name,
-      division: t.division,
-      league: t.league,
-      series: t.series,
-      primaryColor: t.primaryColor,
-      ownerWallet: t.ownerWallet,
-    }));
+
+    const seasonMatches = await db.select().from(matches).where(
+      and(eq(matches.seasonId, seasonId), eq(matches.played, true))
+    );
+
+    const standings = new Map<number, { w: number; l: number; rf: number; ra: number }>();
+    for (const t of allTeams) {
+      standings.set(t.id, { w: 0, l: 0, rf: 0, ra: 0 });
+    }
+    for (const m of seasonMatches) {
+      const hs = standings.get(m.homeTeamId);
+      const as_ = standings.get(m.awayTeamId);
+      if (hs) {
+        hs.rf += m.homeScore ?? 0;
+        hs.ra += m.awayScore ?? 0;
+        if ((m.homeScore ?? 0) > (m.awayScore ?? 0)) hs.w++; else hs.l++;
+      }
+      if (as_) {
+        as_.rf += m.awayScore ?? 0;
+        as_.ra += m.homeScore ?? 0;
+        if ((m.awayScore ?? 0) > (m.homeScore ?? 0)) as_.w++; else as_.l++;
+      }
+    }
+
+    const snapshots = allTeams.map(t => {
+      const s = standings.get(t.id) || { w: 0, l: 0, rf: 0, ra: 0 };
+      return {
+        teamId: t.id,
+        seasonId,
+        name: t.name,
+        division: t.division,
+        league: t.league,
+        series: t.series,
+        primaryColor: t.primaryColor,
+        ownerWallet: t.ownerWallet,
+        wins: s.w,
+        losses: s.l,
+        runsFor: s.rf,
+        runsAgainst: s.ra,
+      };
+    });
     for (let i = 0; i < snapshots.length; i += 50) {
       await db.insert(teamSnapshots).values(snapshots.slice(i, i + 50));
     }

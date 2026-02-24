@@ -111,6 +111,10 @@ export const teamSnapshots = pgTable("team_snapshots", {
   series: text("series").notNull(),
   primaryColor: text("primary_color").notNull().default("#ec4899"),
   ownerWallet: text("owner_wallet"),
+  wins: integer("wins").notNull().default(0),
+  losses: integer("losses").notNull().default(0),
+  runsFor: integer("runs_for").notNull().default(0),
+  runsAgainst: integer("runs_against").notNull().default(0),
 });
 
 export const playerSeasonStats = pgTable("player_season_stats", {

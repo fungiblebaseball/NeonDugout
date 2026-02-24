@@ -4,7 +4,7 @@
 Text-based fantasy baseball manager game with retro 80s/90s cyberpunk aesthetic. Target platform: Solana Seeker mobile (Web3 integration planned). Zero MLB licenses - all fictional teams and players.
 
 ## Current State
-Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.4.0 — New Season & Dynamic Leagues (multi-season history preservation, dynamic N-league expansion, cross-league promotion/relegation playoffs, user placement in highest available league/series).
+Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.4.6 — Standings Snapshot (season-ending W/L/RF/RA archived in team_snapshots, DH rule fix in simulation engine).
 
 ## Architecture
 - **Frontend**: React + Vite, Tailwind CSS, Zustand (state), wouter (routing), TanStack Query (API), @solana/wallet-adapter-react (wallet connection)
@@ -37,7 +37,7 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 - `lineups` - field positions + batting order (JSON columns)
 - `pitcher_rotations` - roles JSONB {sp, r1, closer, nextSp} + rotation_order + SP switch conditions (maxPitches/maxInnings/maxBb/maxEr) + R1 conditions (r1MaxPitches/r1MaxEr) + Closer conditions (closerMaxPitches/closerMaxEr)
 - `tactics` - attack style + infield/outfield positioning
-- `team_snapshots` - historical team state per season (team_id, season_id, name, division, league, series, primary_color, owner_wallet)
+- `team_snapshots` - historical team state per season (team_id, season_id, name, division, league, series, primary_color, owner_wallet, wins, losses, runs_for, runs_against)
 
 ## Pages
 0. **Login** (/login) - Solana wallet authentication: select wallet (Phantom/Solflare/Backpack/Seeker), sign challenge message, verify signature

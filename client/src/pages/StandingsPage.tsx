@@ -24,6 +24,10 @@ interface TeamData {
   primaryColor: string;
   ownerWallet: string | null;
   seasonId: number;
+  wins?: number;
+  losses?: number;
+  runsFor?: number;
+  runsAgainst?: number;
 }
 
 interface PlayerData {
@@ -243,7 +247,7 @@ export default function StandingsPage() {
   const seasonMatches = allMatches.filter(m => m.seasonId === displaySeason);
 
   const snapshotTeams: TeamData[] = isPastSeason
-    ? teamSnapshotsRaw.map((s: any) => ({ id: s.teamId, name: s.name, division: s.division, primaryColor: s.primaryColor, ownerWallet: s.ownerWallet, seasonId: s.seasonId }))
+    ? teamSnapshotsRaw.map((s: any) => ({ id: s.teamId, name: s.name, division: s.division, primaryColor: s.primaryColor, ownerWallet: s.ownerWallet, seasonId: s.seasonId, wins: s.wins ?? 0, losses: s.losses ?? 0, runsFor: s.runsFor ?? 0, runsAgainst: s.runsAgainst ?? 0 }))
     : allTeams.filter(t => t.seasonId === displaySeason);
   const seasonTeams = snapshotTeams;
 
@@ -251,7 +255,27 @@ export default function StandingsPage() {
   const validDiv = divisions.includes(selectedDiv) ? selectedDiv : divisions[0] || selectedDiv;
   const divTeams = seasonTeams.filter(t => t.division === validDiv);
   const divMatches = seasonMatches.filter(m => m.division === validDiv);
-  const standings = computeStandings(divTeams, divMatches);
+
+  const standings = isPastSeason
+    ? divTeams.map(t => {
+        const w = t.wins ?? 0;
+        const l = t.losses ?? 0;
+        const total = w + l;
+        return {
+          team: t,
+          wins: w,
+          losses: l,
+          ties: 0,
+          runsFor: t.runsFor ?? 0,
+          runsAgainst: t.runsAgainst ?? 0,
+          pct: total > 0 ? (w / total).toFixed(3).replace(/^0/, '') : '.000',
+        } as StandingRow;
+      }).sort((a, b) => {
+        const pctDiff = parseFloat(b.pct) - parseFloat(a.pct);
+        if (pctDiff !== 0) return pctDiff;
+        return (b.runsFor - b.runsAgainst) - (a.runsFor - a.runsAgainst);
+      })
+    : computeStandings(divTeams, divMatches);
 
   const isUserDiv = !isPastSeason && validDiv === team.division;
   const divName = validDiv;

@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { teams, matches, matchDetails } from "@shared/schema";
 import { storage } from "./storage";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 function generateRegularSchedule(teamIds: number[], division: string, seasonId: number, startDate: Date): { matches: any[], nextDate: Date } {
   const n = teamIds.length;
@@ -241,6 +241,20 @@ export async function generateNewSeason(): Promise<{ seasonId: number; matchCoun
   const newSeasonId = currentSeasonId + 1;
 
   await storage.createTeamSnapshots(currentSeasonId);
+
+  const oldSeasonMatches = await db.select({ id: matches.id })
+    .from(matches)
+    .where(eq(matches.seasonId, currentSeasonId));
+  const oldMatchIds = oldSeasonMatches.map(m => m.id);
+  if (oldMatchIds.length > 0) {
+    for (let i = 0; i < oldMatchIds.length; i += 100) {
+      const batch = oldMatchIds.slice(i, i + 100);
+      await db.update(matchDetails)
+        .set({ playLog: null })
+        .where(sql`${matchDetails.matchId} IN (${sql.join(batch.map(id => sql`${id}`), sql`, `)})`);
+    }
+    console.log(`Cleared play_log from ${oldMatchIds.length} matches of season ${currentSeasonId}`);
+  }
 
   await db.update(teams).set({ seasonId: newSeasonId });
 

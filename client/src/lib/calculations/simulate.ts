@@ -4,7 +4,7 @@ import { rollOutcome, type TacticsModifiers } from './probability';
 import { generateAtBatDescription, generateFlavorTexts } from './flavor';
 import type {
   SimPlayer, SimTeam, AtBatResult, AtBatOutcome,
-  InningHalf, BatterStats, PitcherStats, BoxScore, GameResult,
+  InningHalf, BatterStats, PitcherStats, BoxScore, GameResult, PlayLogEntry,
 } from './types';
 
 const HOME_ADVANTAGE = 8;
@@ -287,6 +287,25 @@ interface HalfInningResult {
   pitcher: ActivePitcher;
   substitutions: ActivePitcher[];
   batterIds: number[];
+  logEntries: PlayLogEntry[];
+}
+
+function getSubstitutionReason(active: ActivePitcher, config: PitchingConfig): string {
+  if (active.role === 'sp') {
+    if (active.pitchCount >= config.maxPitches) return `${active.pitchCount} lanci`;
+    if (active.inningsPitched >= config.maxInnings) return `${active.inningsPitched} inning`;
+    if (active.bbAllowed >= config.maxBb) return `${active.bbAllowed} BB`;
+    if (active.erAllowed >= config.maxEr) return `${active.erAllowed} ER`;
+  }
+  if (active.role === 'r1') {
+    if (active.pitchCount >= config.r1MaxPitches) return `${active.pitchCount} lanci`;
+    if (active.erAllowed >= config.r1MaxEr) return `${active.erAllowed} ER`;
+  }
+  if (active.role === 'closer') {
+    if (active.pitchCount >= config.closerMaxPitches) return `${active.pitchCount} lanci`;
+    if (active.erAllowed >= config.closerMaxEr) return `${active.erAllowed} ER`;
+  }
+  return '';
 }
 
 function simulateHalfInning(
@@ -310,11 +329,24 @@ function simulateHalfInning(
   const events: AtBatResult[] = [];
   const substitutions: ActivePitcher[] = [];
   const batterIds: number[] = [];
+  const logEntries: PlayLogEntry[] = [];
+  const halfLabel: 'top' | 'bottom' = isHome ? 'bottom' : 'top';
 
   while (outs < 3) {
     if (pitchingConfig && shouldSubstitutePitcher(activePitcher, pitchingConfig, inning)) {
       const next = getNextPitcher(activePitcher, pitchingConfig);
       if (next) {
+        const reason = getSubstitutionReason(activePitcher, pitchingConfig);
+        logEntries.push({
+          type: 'pitcher_change',
+          inning,
+          half: halfLabel,
+          outs,
+          oldPitcherName: activePitcher.player.name,
+          newPitcherName: next.player.name,
+          newPitcherRole: next.role === 'r1' ? 'Relief' : next.role === 'closer' ? 'Closer' : 'SP',
+          changeReason: reason,
+        });
         substitutions.push({ ...activePitcher });
         activePitcher = next;
       }
@@ -327,6 +359,15 @@ function simulateHalfInning(
     activePitcher.pitchCount += result.pitchCount;
 
     let outcome = result.outcome;
+    let fielderName: string | undefined;
+    let fielderPosition: string | undefined;
+    let playDirection: 'infield' | 'outfield' | undefined;
+
+    const basesBefore = {
+      first: !!bases.first,
+      second: !!bases.second,
+      third: !!bases.third,
+    };
 
     if (outcome === 'GO' || outcome === 'FO') {
       const r = rng();
@@ -335,13 +376,19 @@ function simulateHalfInning(
 
       let defRating: number;
       if (isPlayI) {
+        playDirection = 'infield';
         const firstBaseman = findFielderByPosition(defenseLineup, '1B');
         const otherInfielder = pickRandomInfielder(defenseLineup, r.next());
         const fb = firstBaseman ? firstBaseman.def : 50;
         defRating = (fb + otherInfielder.def) / 2;
+        fielderName = otherInfielder.name;
+        fielderPosition = otherInfielder.positions[0] || 'IF';
       } else {
+        playDirection = 'outfield';
         const outfielder = pickRandomOutfielder(defenseLineup, r.next());
         defRating = outfielder.def;
+        fielderName = outfielder.name;
+        fielderPosition = outfielder.positions[0] || 'OF';
       }
 
       const errRoll = r.next();
@@ -365,14 +412,20 @@ function simulateHalfInning(
       }
     }
 
+    let runsThisPlay = 0;
+    let outsThisPlay = 0;
+
     if (outcome === 'SO') {
       outs++;
+      outsThisPlay = 1;
       activePitcher.soCount++;
     } else if (['GO', 'FO', 'GIDP', 'ERR', 'HR', '3B', '2B', '1B', 'BB'].includes(outcome)) {
       const { newBases, runsScored, outsAdded } = advanceRunners(bases, outcome, batter, outs);
       bases = newBases;
       outs += outsAdded;
       runs += runsScored;
+      runsThisPlay = runsScored;
+      outsThisPlay = outsAdded;
       result.rbiCount = runsScored;
       activePitcher.erAllowed += runsScored;
 
@@ -383,6 +436,32 @@ function simulateHalfInning(
       if (outcome === 'BB') activePitcher.bbAllowed++;
       if (outcome === 'ERR') errors++;
     }
+
+    const basesAfter = {
+      first: !!bases.first,
+      second: !!bases.second,
+      third: !!bases.third,
+    };
+
+    logEntries.push({
+      type: 'at_bat',
+      inning,
+      half: halfLabel,
+      outs,
+      batterId: batter.id,
+      batterName: batter.name,
+      pitcherId: activePitcher.player.id,
+      pitcherName: activePitcher.player.name,
+      count: { balls: result.balls, strikes: result.strikes, pitches: result.pitchCount },
+      outcome,
+      fielderName,
+      fielderPosition,
+      playDirection,
+      basesBefore,
+      basesAfter,
+      runsScored: runsThisPlay,
+      outsAdded: outsThisPlay,
+    });
 
     events.push(result);
     batterIds.push(batter.id);
@@ -400,6 +479,7 @@ function simulateHalfInning(
     pitcher: activePitcher,
     substitutions,
     batterIds,
+    logEntries,
   };
 }
 
@@ -560,6 +640,7 @@ export function simulateGame(
 
   const allHomePitchers: ActivePitcher[] = [];
   const allAwayPitchers: ActivePitcher[] = [];
+  const allPlayLog: PlayLogEntry[] = [];
 
   let totalInnings = 9;
 
@@ -576,6 +657,7 @@ export function simulateGame(
     allAwayEvents.push(...topHalf.half.events);
     allAwayBatterIds.push(...topHalf.batterIds);
     allHomePitchers.push(...topHalf.substitutions);
+    allPlayLog.push(...topHalf.logEntries);
 
     if (topHalf.substitutions.length > 0 && !homeHasDH) {
       const prevPitcherId = homePitcherIdInLineup;
@@ -600,6 +682,7 @@ export function simulateGame(
     allHomeEvents.push(...bottomHalf.half.events);
     allHomeBatterIds.push(...bottomHalf.batterIds);
     allAwayPitchers.push(...bottomHalf.substitutions);
+    allPlayLog.push(...bottomHalf.logEntries);
 
     if (bottomHalf.substitutions.length > 0 && !awayHasDH) {
       const prevPitcherId = awayPitcherIdInLineup;
@@ -676,6 +759,7 @@ export function simulateGame(
     boxScore,
     flavorTexts: [],
     mvp,
+    playLog: allPlayLog,
   };
 
   result.flavorTexts = generateFlavorTexts(result, homeActivePitcher.player, awayActivePitcher.player);

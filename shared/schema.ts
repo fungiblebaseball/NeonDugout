@@ -99,6 +99,7 @@ export const matchDetails = pgTable("match_details", {
   awayPitcher: jsonb("away_pitcher").notNull(),
   homePitchers: jsonb("home_pitchers").$type<any[]>(),
   awayPitchers: jsonb("away_pitchers").$type<any[]>(),
+  playLog: jsonb("play_log").$type<any[]>(),
 });
 
 export const teamSnapshots = pgTable("team_snapshots", {

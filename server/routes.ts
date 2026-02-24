@@ -208,6 +208,7 @@ export async function registerRoutes(
           awayPitcher: details.awayPitcher || {},
           homePitchers: details.homePitchers || (details.homePitcher ? [details.homePitcher] : []),
           awayPitchers: details.awayPitchers || (details.awayPitcher ? [details.awayPitcher] : []),
+          playLog: details.playLog || [],
         });
       } catch (err) {
         console.error('Failed to save match details:', err);

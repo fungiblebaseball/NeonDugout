@@ -80,6 +80,32 @@ export interface BoxScore {
   homePitchers?: PitcherStats[];
 }
 
+export interface PlayLogEntry {
+  type: 'at_bat' | 'pitcher_change';
+  inning: number;
+  half: 'top' | 'bottom';
+  outs: number;
+
+  batterId?: number;
+  batterName?: string;
+  pitcherId?: number;
+  pitcherName?: string;
+  count?: { balls: number; strikes: number; pitches: number };
+  outcome?: AtBatOutcome;
+  fielderName?: string;
+  fielderPosition?: string;
+  playDirection?: 'infield' | 'outfield';
+  basesBefore?: { first: boolean; second: boolean; third: boolean };
+  basesAfter?: { first: boolean; second: boolean; third: boolean };
+  runsScored?: number;
+  outsAdded?: number;
+
+  oldPitcherName?: string;
+  newPitcherName?: string;
+  newPitcherRole?: string;
+  changeReason?: string;
+}
+
 export interface GameResult {
   homeTeam: SimTeam;
   awayTeam: SimTeam;
@@ -88,4 +114,5 @@ export interface GameResult {
   boxScore: BoxScore;
   flavorTexts: string[];
   mvp: { name: string; reason: string };
+  playLog?: PlayLogEntry[];
 }

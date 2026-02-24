@@ -4,7 +4,7 @@
 Text-based fantasy baseball manager game with retro 80s/90s cyberpunk aesthetic. Target platform: Solana Seeker mobile (Web3 integration planned). Zero MLB licenses - all fictional teams and players.
 
 ## Current State
-Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.5.0 — PlayI/PlayO simulation refactor (direction-based defensive resolution, specific fielder error checks, unified runner advancement rules).
+Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.6.0 — Play Log feature (play-by-play record per match with fielder details, pitcher change reasons, accordion in Match Detail, dedicated Play Log page).
 
 ## Architecture
 - **Frontend**: React + Vite, Tailwind CSS, Zustand (state), wouter (routing), TanStack Query (API), @solana/wallet-adapter-react (wallet connection)
@@ -50,10 +50,12 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 7. **Schedule** (/schedule) - Division calendar (18 match days), next match highlight, W-L record, played matches clickable → Match Report
 8. **Standings** (/standings) - Division standings with W/L/PCT/RF/RA, switch divisions, season navigator (◀ ▶) for past seasons with match results, match preview for current season
 9. **Player Detail** (/player/:id) - Player card with photo slot, 9 attribute bars, career averages
-10. **Match Detail** (/match/:id) - Full match report: box score, linescore, batter/pitcher stats, MVP, flavor text, player links
+10. **Match Detail** (/match/:id) - Full match report: box score, linescore, batter/pitcher stats, MVP, flavor text, player links, collapsible play log accordion
+11. **Play Log** (/play-log) - Dedicated play-by-play records page, match day selector, per-match accordion with inning-by-inning log, fielder and direction info
 
 ## Deep Navigation Flow
 - Home → Play Match → View Match Report → Player Detail
+- Home → Play Log → Day selector → Match accordion → Full Match Report
 - Schedule → Click played match → Match Report → Player Detail
 - Standings → Match Preview → Player Detail
 - Match Report → Schedule / Standings (bottom nav)

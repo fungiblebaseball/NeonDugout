@@ -6,6 +6,30 @@ Formato:
   • Dettaglio 2 (file modificati)  
   • Trade-off / note (se rilevanti)
 
+## v1.6.0 – 24 febbraio 2026 – Play Log (Play-by-Play Record)
+- **PlayLogEntry type** (shared/calculations/types.ts):
+  * Struttura dati per ogni evento at-bat e cambio lanciatore
+  * Campi: battitore, lanciatore, conteggio lanci (B-S-P), esito, difensore coinvolto, direzione (IF/OF), stato basi prima/dopo, punti, out
+  * Cambio lanciatore: nome vecchio/nuovo, ruolo, motivazione (lanci, ER, BB, inning)
+- **Cattura log in simulazione** (shared/calculations/simulate.ts):
+  * Ogni at-bat genera un PlayLogEntry con tutti i dati già prodotti
+  * Cambio lanciatore registrato con `getSubstitutionReason()` che identifica la soglia superata
+  * Difensore specifico (PlayI/PlayO) incluso nel log con nome e posizione
+- **Campo play_log JSONB** (shared/schema.ts, server/simulation.ts, server/routes.ts):
+  * Aggiunto `play_log` a match_details, salvato sia da simulazione batch che da API result
+- **Pulizia a fine season** (server/season.ts):
+  * A generazione nuova season, play_log impostato a null su tutti i match_details della season precedente
+  * Box score, stats, MVP e flavor text restano intatti
+- **Bottone accordion in MatchDetailPage** (MatchDetailPage.tsx):
+  * Sezione "PLAY LOG" collassabile sotto il MVP, mostra log per inning/half
+  * Ogni evento: batter vs pitcher, conteggio, esito colorato, difensore, direzione, punti
+  * Cambio lanciatore in stile separato (viola) con motivazione
+- **PlayLogPage dedicata** (PlayLogPage.tsx):
+  * Pagina raggiungibile da Hub con selettore giornata
+  * Mostra log delle partite del proprio team con accordion per match
+  * Link diretto al Match Report completo
+- Files modificati: `shared/calculations/types.ts`, `shared/calculations/simulate.ts`, `shared/schema.ts`, `server/simulation.ts`, `server/routes.ts`, `server/season.ts`, `client/src/pages/MatchDetailPage.tsx`, `client/src/pages/PlayLogPage.tsx`, `client/src/pages/Home.tsx`, `client/src/App.tsx`
+
 ## v1.5.0 – 24 febbraio 2026 – PlayI/PlayO Simulation Refactor
 - **Direzione battuta basata su matchup rating** (simulate.ts, matchup.ts):
   * Quando la palla è "in play", il matchup rating determina se va agli interni (PlayI) o agli esterni (PlayO)

@@ -382,6 +382,7 @@ export async function simulateMatchDay(day: number): Promise<SimulationResult[]>
         awayPitcher: gameResult.boxScore.awayPitcher,
         homePitchers: gameResult.boxScore.homePitchers || [gameResult.boxScore.homePitcher],
         awayPitchers: gameResult.boxScore.awayPitchers || [gameResult.boxScore.awayPitcher],
+        playLog: gameResult.playLog || [],
       };
 
       try {

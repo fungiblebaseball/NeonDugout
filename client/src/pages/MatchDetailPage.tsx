@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "wouter";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp } from "lucide-react";
 import { Link } from "wouter";
+import { useState } from "react";
 
 interface BatterStats {
   playerId: number;
@@ -48,6 +49,31 @@ interface MatchDetailData {
   awayPitcher: PitcherStats;
   homePitchers?: PitcherStats[];
   awayPitchers?: PitcherStats[];
+  playLog?: PlayLogEntry[];
+}
+
+interface PlayLogEntry {
+  type: 'at_bat' | 'pitcher_change';
+  inning: number;
+  half: 'top' | 'bottom';
+  outs: number;
+  batterId?: number;
+  batterName?: string;
+  pitcherId?: number;
+  pitcherName?: string;
+  count?: { balls: number; strikes: number; pitches: number };
+  outcome?: string;
+  fielderName?: string;
+  fielderPosition?: string;
+  playDirection?: 'infield' | 'outfield';
+  basesBefore?: { first: boolean; second: boolean; third: boolean };
+  basesAfter?: { first: boolean; second: boolean; third: boolean };
+  runsScored?: number;
+  outsAdded?: number;
+  oldPitcherName?: string;
+  newPitcherName?: string;
+  newPitcherRole?: string;
+  changeReason?: string;
 }
 
 interface MatchData {
@@ -68,9 +94,89 @@ interface TeamData {
   division: string;
 }
 
+function outcomeLabel(outcome: string): string {
+  const labels: Record<string, string> = {
+    'HR': 'HOME RUN', '3B': 'TRIPLE', '2B': 'DOUBLE', '1B': 'SINGLE',
+    'BB': 'WALK', 'SO': 'STRIKEOUT', 'GO': 'GROUND OUT', 'FO': 'FLY OUT',
+    'ERR': 'ERROR', 'GIDP': 'DOUBLE PLAY',
+  };
+  return labels[outcome] || outcome;
+}
+
+function outcomeColor(outcome: string): string {
+  if (['HR', '3B', '2B', '1B'].includes(outcome)) return 'text-green-400';
+  if (['BB'].includes(outcome)) return 'text-yellow-400';
+  if (['SO', 'GO', 'FO', 'GIDP'].includes(outcome)) return 'text-red-400';
+  if (['ERR'].includes(outcome)) return 'text-orange-400';
+  return 'text-gray-400';
+}
+
+function basesDisplay(b?: { first: boolean; second: boolean; third: boolean }): string {
+  if (!b) return '';
+  const parts: string[] = [];
+  if (b.first) parts.push('1B');
+  if (b.second) parts.push('2B');
+  if (b.third) parts.push('3B');
+  return parts.length > 0 ? parts.join(' ') : '—';
+}
+
+function PlayLogViewer({ entries }: { entries: PlayLogEntry[] }) {
+  const innings = Array.from(new Set(entries.map(e => e.inning))).sort((a, b) => a - b);
+
+  return (
+    <div className="space-y-3 font-mono text-[10px]">
+      {innings.map(inn => (
+        <div key={inn}>
+          {['top', 'bottom'].map(half => {
+            const halfEntries = entries.filter(e => e.inning === inn && e.half === half);
+            if (halfEntries.length === 0) return null;
+            return (
+              <div key={`${inn}-${half}`} className="mb-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${half === 'top' ? 'bg-pink-500/20 text-pink-400 border border-pink-500/30' : 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'}`}>
+                    {half === 'top' ? '▲' : '▼'} {inn}
+                  </span>
+                </div>
+                <div className="space-y-0.5 ml-2 border-l border-gray-800 pl-2">
+                  {halfEntries.map((entry, idx) => {
+                    if (entry.type === 'pitcher_change') {
+                      return (
+                        <div key={idx} data-testid={`log-pitcherchange-${inn}-${half}-${idx}`} className="py-1 px-2 bg-purple-950/30 border border-purple-500/20 rounded text-purple-300">
+                          ⟳ {entry.oldPitcherName} → <span className="text-purple-200 font-bold">{entry.newPitcherName}</span>
+                          <span className="text-gray-500 ml-1">({entry.newPitcherRole})</span>
+                          {entry.changeReason && <span className="text-gray-600 ml-1">• {entry.changeReason}</span>}
+                        </div>
+                      );
+                    }
+                    return (
+                      <div key={idx} data-testid={`log-atbat-${inn}-${half}-${idx}`} className="py-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0">
+                        <span className="text-gray-600 w-4 text-right">{entry.outs}o</span>
+                        <span className="text-cyan-300">{entry.batterName}</span>
+                        <span className="text-gray-600">vs</span>
+                        <span className="text-pink-300">{entry.pitcherName}</span>
+                        {entry.count && <span className="text-gray-500">({entry.count.balls}-{entry.count.strikes}, {entry.count.pitches}p)</span>}
+                        {entry.outcome && <span className={`font-bold ${outcomeColor(entry.outcome)}`}>{outcomeLabel(entry.outcome)}</span>}
+                        {entry.fielderName && <span className="text-gray-500">→ {entry.fielderPosition} {entry.fielderName}</span>}
+                        {entry.playDirection && <span className="text-gray-600">[{entry.playDirection === 'infield' ? 'IF' : 'OF'}]</span>}
+                        {(entry.runsScored ?? 0) > 0 && <span className="text-yellow-400 font-bold">+{entry.runsScored}R</span>}
+                        {(entry.outsAdded ?? 0) > 1 && <span className="text-red-500 font-bold">+{entry.outsAdded}OUT</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function MatchDetailPage() {
   const params = useParams<{ id: string }>();
   const matchId = parseInt(params.id || '0');
+  const [showPlayLog, setShowPlayLog] = useState(false);
 
   const { data: detail, isLoading: detailLoading } = useQuery<MatchDetailData>({
     queryKey: ['match-details', matchId],
@@ -243,6 +349,29 @@ export default function MatchDetailPage() {
           <p data-testid="text-mvp" className="text-lg font-black text-pink-400" style={{fontFamily: "'Orbitron', sans-serif"}}>{detail.mvp.name}</p>
           <p className="text-xs font-mono text-gray-400 mt-1">{detail.mvp.reason}</p>
         </div>
+
+        {detail.playLog && detail.playLog.length > 0 && (
+          <div className="rounded-xl border border-green-500/20 bg-green-950/10 overflow-hidden">
+            <button
+              data-testid="button-toggle-playlog"
+              onClick={() => setShowPlayLog(!showPlayLog)}
+              className="w-full flex items-center justify-between p-4 hover:bg-green-500/5 transition-colors"
+            >
+              <span className="text-sm font-mono text-green-400 uppercase tracking-wider font-bold" style={{fontFamily: "'Orbitron', sans-serif"}}>
+                PLAY LOG
+              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono text-gray-500">{detail.playLog.length} events</span>
+                {showPlayLog ? <ChevronUp className="w-4 h-4 text-green-400" /> : <ChevronDown className="w-4 h-4 text-green-400" />}
+              </div>
+            </button>
+            {showPlayLog && (
+              <div className="p-4 pt-0 border-t border-green-500/10">
+                <PlayLogViewer entries={detail.playLog} />
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-3">
           <Link href="/schedule">

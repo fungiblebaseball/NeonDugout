@@ -2,7 +2,7 @@ import { useGameStore } from "@/lib/store";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
-import { Terminal, ShieldAlert, Calendar, Swords, Shield, ListOrdered, RotateCcw, Zap, Trophy, Play, Pencil, Check, X } from "lucide-react";
+import { Terminal, ShieldAlert, Calendar, Swords, Shield, ListOrdered, RotateCcw, Zap, Trophy, Play, Pencil, Check, X, ScrollText } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import type { SimPlayer } from "@/lib/calculations";
 
@@ -356,15 +356,21 @@ export default function Home() {
             <p className="text-[10px] font-mono text-gray-500">Field positioning</p>
           </Link>
 
-          <Link href="/simulate" data-testid="link-simulate" className="col-span-2 block p-5 rounded-2xl border border-cyan-400/50 bg-gradient-to-r from-cyan-950/30 to-pink-950/30 hover:from-cyan-900/30 hover:to-pink-900/30 transition-colors group">
+          <Link href="/simulate" data-testid="link-simulate" className="block p-5 rounded-2xl border border-cyan-400/50 bg-gradient-to-r from-cyan-950/30 to-pink-950/30 hover:from-cyan-900/30 hover:to-pink-900/30 transition-colors group">
             <div className="flex items-center justify-between">
               <div>
                 <Zap className="w-6 h-6 text-cyan-400 mb-2 group-hover:animate-pulse" />
                 <h3 className="font-black text-lg text-cyan-400 group-hover:drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]" style={{fontFamily: "'Orbitron', sans-serif"}}>TEST MATCH</h3>
-                <p className="text-[10px] font-mono text-gray-500">Exhibition vs {team?.league} Serie {team?.series} rival</p>
+                <p className="text-[10px] font-mono text-gray-500">Exhibition vs rival</p>
               </div>
               <span className="text-3xl">⚾</span>
             </div>
+          </Link>
+
+          <Link href="/play-log" data-testid="link-play-log" className="block p-5 rounded-2xl border border-green-500/30 bg-black/40 hover:bg-green-900/20 transition-colors group">
+            <ScrollText className="w-6 h-6 text-green-500 mb-2 group-hover:animate-pulse" />
+            <h3 className="font-black text-lg text-green-400 mb-1" style={{fontFamily: "'Orbitron', sans-serif"}}>PLAY LOG</h3>
+            <p className="text-[10px] font-mono text-gray-500">Play-by-play records</p>
           </Link>
 
           {seasonFinished ? (

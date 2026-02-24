@@ -16,6 +16,7 @@ import SchedulePage from "@/pages/SchedulePage";
 import StandingsPage from "@/pages/StandingsPage";
 import PlayerDetailPage from "@/pages/PlayerDetailPage";
 import MatchDetailPage from "@/pages/MatchDetailPage";
+import PlayLogPage from "@/pages/PlayLogPage";
 import NotFound from "@/pages/not-found";
 import { useGameStore } from "@/lib/store";
 import { useEffect } from "react";
@@ -43,6 +44,7 @@ function Router() {
         <Route path="/standings" component={StandingsPage} />
         <Route path="/player/:id" component={PlayerDetailPage} />
         <Route path="/match/:id" component={MatchDetailPage} />
+        <Route path="/play-log" component={PlayLogPage} />
         <Route component={NotFound} />
       </Switch>
       {walletAddress && <Navigation />}

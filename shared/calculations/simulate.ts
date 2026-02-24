@@ -30,6 +30,8 @@ export interface SimConfig {
   awayPitching?: PitchingConfig;
   homeTactics?: TacticsModifiers;
   awayTactics?: TacticsModifiers;
+  homeHasDH?: boolean;
+  awayHasDH?: boolean;
 }
 
 interface ActivePitcher {
@@ -243,6 +245,15 @@ function getNextPitcher(current: ActivePitcher, config: PitchingConfig): ActiveP
   return null;
 }
 
+interface HalfInningResult {
+  half: InningHalf;
+  nextBatterIndex: number;
+  pitchesUsed: number;
+  pitcher: ActivePitcher;
+  substitutions: ActivePitcher[];
+  batterIds: number[];
+}
+
 function simulateHalfInning(
   battingLineup: SimPlayer[],
   activePitcher: ActivePitcher,
@@ -253,7 +264,7 @@ function simulateHalfInning(
   defenseLineup: SimPlayer[],
   battingTactics?: TacticsModifiers,
   defenseTactics?: TacticsModifiers,
-): { half: InningHalf; nextBatterIndex: number; pitchesUsed: number; pitcher: ActivePitcher; substitutions: ActivePitcher[] } {
+): HalfInningResult {
   let outs = 0;
   let runs = 0;
   let hits = 0;
@@ -263,6 +274,7 @@ function simulateHalfInning(
   let bases: BaseState = { first: null, second: null, third: null };
   const events: AtBatResult[] = [];
   const substitutions: ActivePitcher[] = [];
+  const batterIds: number[] = [];
 
   const infieldDef = teamDefenseAvg(defenseLineup, 'infield');
   const outfieldDef = teamDefenseAvg(defenseLineup, 'outfield');
@@ -326,6 +338,7 @@ function simulateHalfInning(
     }
 
     events.push(result);
+    batterIds.push(batter.id);
     currentBatter++;
 
     if (events.length > 30) break;
@@ -339,30 +352,38 @@ function simulateHalfInning(
     pitchesUsed,
     pitcher: activePitcher,
     substitutions,
+    batterIds,
   };
 }
 
-function buildBatterStats(events: AtBatResult[], lineup: SimPlayer[]): BatterStats[] {
+function buildBatterStatsFromIds(
+  events: AtBatResult[],
+  batterIds: number[],
+  allPlayers: SimPlayer[],
+): BatterStats[] {
+  const playerMap = new Map(allPlayers.map(p => [p.id, p]));
   const statsMap = new Map<number, BatterStats>();
-  lineup.forEach(p => {
-    statsMap.set(p.id, {
-      playerId: p.id,
-      name: p.name,
-      ab: 0, hits: 0, hr: 0, rbi: 0, bb: 0, so: 0, avg: '.000',
-    });
-  });
 
-  let batterIdx = 0;
-  for (const event of events) {
-    const batter = lineup[batterIdx % lineup.length];
-    const stats = statsMap.get(batter.id)!;
+  for (let i = 0; i < events.length; i++) {
+    const event = events[i];
+    const batterId = batterIds[i];
+    const player = playerMap.get(batterId);
+    if (!player) continue;
+
+    if (!statsMap.has(batterId)) {
+      statsMap.set(batterId, {
+        playerId: batterId,
+        name: player.name,
+        ab: 0, hits: 0, hr: 0, rbi: 0, bb: 0, so: 0, avg: '.000',
+      });
+    }
+    const stats = statsMap.get(batterId)!;
     if (event.outcome !== 'BB') stats.ab++;
     if (['HR', '3B', '2B', '1B'].includes(event.outcome)) stats.hits++;
     if (event.outcome === 'HR') stats.hr++;
     if (event.outcome === 'BB') stats.bb++;
     if (event.outcome === 'SO') stats.so++;
     stats.rbi += event.rbiCount;
-    batterIdx++;
   }
 
   const allStats = Array.from(statsMap.values());
@@ -373,15 +394,25 @@ function buildBatterStats(events: AtBatResult[], lineup: SimPlayer[]): BatterSta
   return allStats.filter(s => s.ab > 0 || s.bb > 0);
 }
 
-function getStartingLineup(players: SimPlayer[]): SimPlayer[] {
+function getStartingLineup(players: SimPlayer[], hasDH: boolean, sp?: SimPlayer): SimPlayer[] {
+  const pitcherIds = new Set<number>();
   const pitchers = players.filter(p => p.positions.includes('P'));
-  const nonPitchers = players.filter(p => !p.positions.includes('P'));
+  pitchers.forEach(p => pitcherIds.add(p.id));
+  if (sp) pitcherIds.add(sp.id);
 
-  const lineup = nonPitchers.slice(0, 9);
-  while (lineup.length < 9 && pitchers.length > 1) {
-    lineup.push(pitchers.pop()!);
+  const nonPitchers = players.filter(p => !pitcherIds.has(p.id));
+
+  if (hasDH) {
+    return nonPitchers.slice(0, 9);
+  } else {
+    const lineup = nonPitchers.slice(0, 8);
+    if (sp) {
+      lineup.push(sp);
+    } else if (pitchers.length > 0) {
+      lineup.push(pitchers[0]);
+    }
+    return lineup;
   }
-  return lineup;
 }
 
 function getStartingPitcher(players: SimPlayer[]): SimPlayer {
@@ -393,7 +424,7 @@ function getStartingPitcher(players: SimPlayer[]): SimPlayer {
   );
 }
 
-function buildPitchingConfig(players: SimPlayer[], config?: PitchingConfig): { pitcher: ActivePitcher; config: PitchingConfig } {
+function buildPitchingConfigInternal(players: SimPlayer[], config?: PitchingConfig): { pitcher: ActivePitcher; config: PitchingConfig } {
   if (config && config.sp) {
     return {
       pitcher: {
@@ -437,6 +468,13 @@ function activePitcherToStats(ap: ActivePitcher, totalInnings: number): PitcherS
   };
 }
 
+function swapPitcherInLineup(lineup: SimPlayer[], oldPitcherId: number, newPitcher: SimPlayer): void {
+  const idx = lineup.findIndex(p => p.id === oldPitcherId);
+  if (idx >= 0) {
+    lineup[idx] = newPitcher;
+  }
+}
+
 export function simulateGame(
   homeTeam: SimTeam,
   awayTeam: SimTeam,
@@ -444,14 +482,20 @@ export function simulateGame(
   awayPlayers: SimPlayer[],
   config?: SimConfig,
 ): GameResult {
-  const homeLineup = config?.homeLineup || getStartingLineup(homePlayers);
-  const awayLineup = config?.awayLineup || getStartingLineup(awayPlayers);
+  const homeHasDH = config?.homeHasDH ?? true;
+  const awayHasDH = config?.awayHasDH ?? true;
 
-  const homeP = buildPitchingConfig(homePlayers, config?.homePitching);
-  const awayP = buildPitchingConfig(awayPlayers, config?.awayPitching);
+  const homeP = buildPitchingConfigInternal(homePlayers, config?.homePitching);
+  const awayP = buildPitchingConfigInternal(awayPlayers, config?.awayPitching);
+
+  const homeLineup = [...(config?.homeLineup || getStartingLineup(homePlayers, homeHasDH, homeP.pitcher.player))];
+  const awayLineup = [...(config?.awayLineup || getStartingLineup(awayPlayers, awayHasDH, awayP.pitcher.player))];
 
   let homeActivePitcher = homeP.pitcher;
   let awayActivePitcher = awayP.pitcher;
+
+  let homePitcherIdInLineup = homeHasDH ? -1 : homeP.pitcher.player.id;
+  let awayPitcherIdInLineup = awayHasDH ? -1 : awayP.pitcher.player.id;
 
   const innings: number[] = [];
   const awayLine: number[] = [];
@@ -464,6 +508,8 @@ export function simulateGame(
 
   let allAwayEvents: AtBatResult[] = [];
   let allHomeEvents: AtBatResult[] = [];
+  let allAwayBatterIds: number[] = [];
+  let allHomeBatterIds: number[] = [];
 
   const allHomePitchers: ActivePitcher[] = [];
   const allAwayPitchers: ActivePitcher[] = [];
@@ -481,7 +527,15 @@ export function simulateGame(
     awayLine.push(topHalf.half.runs);
     awayBatterIdx = topHalf.nextBatterIndex;
     allAwayEvents.push(...topHalf.half.events);
+    allAwayBatterIds.push(...topHalf.batterIds);
     allHomePitchers.push(...topHalf.substitutions);
+
+    if (topHalf.substitutions.length > 0 && !homeHasDH) {
+      const prevPitcherId = homePitcherIdInLineup;
+      const newPitcher = topHalf.pitcher.player;
+      swapPitcherInLineup(homeLineup, prevPitcherId, newPitcher);
+      homePitcherIdInLineup = newPitcher.id;
+    }
     homeActivePitcher = topHalf.pitcher;
 
     if (inning === totalInnings && homeScore > awayScore) {
@@ -497,7 +551,15 @@ export function simulateGame(
     homeLine.push(bottomHalf.half.runs);
     homeBatterIdx = bottomHalf.nextBatterIndex;
     allHomeEvents.push(...bottomHalf.half.events);
+    allHomeBatterIds.push(...bottomHalf.batterIds);
     allAwayPitchers.push(...bottomHalf.substitutions);
+
+    if (bottomHalf.substitutions.length > 0 && !awayHasDH) {
+      const prevPitcherId = awayPitcherIdInLineup;
+      const newPitcher = bottomHalf.pitcher.player;
+      swapPitcherInLineup(awayLineup, prevPitcherId, newPitcher);
+      awayPitcherIdInLineup = newPitcher.id;
+    }
     awayActivePitcher = bottomHalf.pitcher;
 
     if (inning >= 9 && homeScore !== awayScore) {
@@ -517,8 +579,9 @@ export function simulateGame(
   const awayErrors = allAwayEvents.filter(e => e.outcome === 'ERR').length;
   const homeErrors = allHomeEvents.filter(e => e.outcome === 'ERR').length;
 
-  const awayBatters = buildBatterStats(allAwayEvents, awayLineup);
-  const homeBatters = buildBatterStats(allHomeEvents, homeLineup);
+  const allKnownPlayers = [...homePlayers, ...awayPlayers];
+  const awayBatters = buildBatterStatsFromIds(allAwayEvents, allAwayBatterIds, allKnownPlayers);
+  const homeBatters = buildBatterStatsFromIds(allHomeEvents, allHomeBatterIds, allKnownPlayers);
 
   const homePitcherStats = allHomePitchers.map(ap => activePitcherToStats(ap, innings.length));
   const awayPitcherStats = allAwayPitchers.map(ap => activePitcherToStats(ap, innings.length));

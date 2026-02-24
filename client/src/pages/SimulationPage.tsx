@@ -50,9 +50,34 @@ export default function SimulationPage() {
 
     const playerMap = new Map((players as SimPlayer[]).map(p => [p.id, p]));
 
-    const builtLineup = myLineup?.battingOrder?.length > 0
-      ? myLineup.battingOrder.map((id: number) => playerMap.get(id)).filter(Boolean) as SimPlayer[]
-      : undefined;
+    const fp = myLineup?.fieldPositions as Record<string, number | null> | undefined;
+    const hasDH = !!(fp && fp['DH'] && fp['DH'] > 0);
+
+    const pitcherIds = new Set<number>();
+    if (myRotation?.roles?.sp) pitcherIds.add(myRotation.roles.sp);
+    if (myRotation?.roles?.r1) pitcherIds.add(myRotation.roles.r1);
+    if (myRotation?.roles?.closer) pitcherIds.add(myRotation.roles.closer);
+    if (myRotation?.roles?.nextSp) pitcherIds.add(myRotation.roles.nextSp);
+
+    let builtLineup: SimPlayer[] | undefined;
+    if (myLineup?.battingOrder?.length > 0) {
+      const filtered = (myLineup.battingOrder as number[])
+        .filter((id: number) => {
+          if (hasDH && pitcherIds.has(id)) return false;
+          return true;
+        })
+        .map((id: number) => playerMap.get(id))
+        .filter(Boolean) as SimPlayer[];
+
+      if (!hasDH && myRotation?.roles?.sp) {
+        const spPlayer = playerMap.get(myRotation.roles.sp);
+        if (spPlayer && !filtered.find(p => p.id === spPlayer.id)) {
+          filtered.push(spPlayer);
+        }
+      }
+
+      builtLineup = filtered.length >= 9 ? filtered.slice(0, 9) : undefined;
+    }
 
     const buildPitching = (rot: any, allP: SimPlayer[]): PitchingConfig | undefined => {
       if (!rot?.roles) return undefined;
@@ -82,9 +107,11 @@ export default function SimulationPage() {
     };
 
     const simConfig: SimConfig = {
-      homeLineup: builtLineup && builtLineup.length >= 9 ? builtLineup : undefined,
+      homeLineup: builtLineup,
       homePitching: buildPitching(myRotation, players as SimPlayer[]),
       homeTactics: buildTac(myTactics),
+      homeHasDH: hasDH,
+      awayHasDH: true,
     };
 
     resetRng();

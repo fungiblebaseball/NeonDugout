@@ -12,20 +12,28 @@ interface SimulationResult {
   details: any;
 }
 
-function buildLineupFromSaved(lineup: any, players: SimPlayer[], rotation: any): SimPlayer[] {
-  if (!lineup?.fieldPositions) return [];
+function buildLineupFromSaved(lineup: any, players: SimPlayer[], rotation: any): { lineup: SimPlayer[]; hasDH: boolean } {
+  if (!lineup?.fieldPositions) return { lineup: [], hasDH: true };
   const positions = lineup.fieldPositions as Record<string, number | null>;
   const order = lineup.battingOrder as number[] | undefined;
 
+  const hasDH = !!(positions['DH'] && positions['DH'] > 0);
+
+  const pitcherIds = new Set<number>();
+  if (rotation?.roles?.sp) pitcherIds.add(rotation.roles.sp);
+  if (rotation?.roles?.r1) pitcherIds.add(rotation.roles.r1);
+  if (rotation?.roles?.closer) pitcherIds.add(rotation.roles.closer);
+  if (rotation?.roles?.nextSp) pitcherIds.add(rotation.roles.nextSp);
+
   const positionPlayers: SimPlayer[] = [];
-  for (const [_pos, playerId] of Object.entries(positions)) {
-    if (playerId) {
-      const p = players.find(pl => pl.id === playerId);
-      if (p) positionPlayers.push(p);
-    }
+  for (const [pos, playerId] of Object.entries(positions)) {
+    if (!playerId) continue;
+    if (pos === 'P') continue;
+    const p = players.find(pl => pl.id === playerId);
+    if (p) positionPlayers.push(p);
   }
 
-  if (rotation?.roles?.sp) {
+  if (!hasDH && rotation?.roles?.sp) {
     const sp = players.find(p => p.id === rotation.roles.sp);
     if (sp && !positionPlayers.find(p => p.id === sp.id)) {
       positionPlayers.push(sp);
@@ -33,17 +41,19 @@ function buildLineupFromSaved(lineup: any, players: SimPlayer[], rotation: any):
   }
 
   if (order && order.length > 0) {
+    const validIds = new Set(positionPlayers.map(p => p.id));
     const ordered: SimPlayer[] = [];
     for (const id of order) {
+      if (!validIds.has(id)) continue;
       const p = positionPlayers.find(pl => pl.id === id);
       if (p) ordered.push(p);
     }
     for (const p of positionPlayers) {
       if (!ordered.find(o => o.id === p.id)) ordered.push(p);
     }
-    return ordered;
+    return { lineup: ordered.slice(0, 9), hasDH };
   }
-  return positionPlayers;
+  return { lineup: positionPlayers.slice(0, 9), hasDH };
 }
 
 function buildPitchingConfig(rotation: any, players: SimPlayer[]): PitchingConfig | undefined {
@@ -333,16 +343,18 @@ export async function simulateMatchDay(day: number): Promise<SimulationResult[]>
       const homeSimPlayers = homePlayers as SimPlayer[];
       const awaySimPlayers = awayPlayers as SimPlayer[];
 
-      const homeBuiltLineup = buildLineupFromSaved(homeLineup, homeSimPlayers, homeRotation);
-      const awayBuiltLineup = buildLineupFromSaved(awayLineup, awaySimPlayers, awayRotation);
+      const homeBuilt = buildLineupFromSaved(homeLineup, homeSimPlayers, homeRotation);
+      const awayBuilt = buildLineupFromSaved(awayLineup, awaySimPlayers, awayRotation);
 
       const simConfig: SimConfig = {
-        homeLineup: homeBuiltLineup.length >= 9 ? homeBuiltLineup : undefined,
-        awayLineup: awayBuiltLineup.length >= 9 ? awayBuiltLineup : undefined,
+        homeLineup: homeBuilt.lineup.length >= 9 ? homeBuilt.lineup : undefined,
+        awayLineup: awayBuilt.lineup.length >= 9 ? awayBuilt.lineup : undefined,
         homePitching: buildPitchingConfig(homeRotation, homeSimPlayers),
         awayPitching: buildPitchingConfig(awayRotation, awaySimPlayers),
         homeTactics: buildTactics(homeTactics),
         awayTactics: buildTactics(awayTactics),
+        homeHasDH: homeBuilt.hasDH,
+        awayHasDH: awayBuilt.hasDH,
       };
 
       resetRng();
@@ -362,8 +374,8 @@ export async function simulateMatchDay(day: number): Promise<SimulationResult[]>
         boxScore: gameResult.boxScore,
         flavorTexts: gameResult.flavorTexts,
         mvp: gameResult.mvp,
-        homeLineup: { playerIds: (simConfig.homeLineup || homeSimPlayers.slice(0, 9)).map(p => p.id), pitcherId: gameResult.boxScore.homePitcher.playerId },
-        awayLineup: { playerIds: (simConfig.awayLineup || awaySimPlayers.slice(0, 9)).map(p => p.id), pitcherId: gameResult.boxScore.awayPitcher.playerId },
+        homeLineup: { playerIds: (simConfig.homeLineup || homeSimPlayers.slice(0, 9)).map(p => p.id), pitcherId: gameResult.boxScore.homePitcher.playerId, hasDH: homeBuilt.hasDH },
+        awayLineup: { playerIds: (simConfig.awayLineup || awaySimPlayers.slice(0, 9)).map(p => p.id), pitcherId: gameResult.boxScore.awayPitcher.playerId, hasDH: awayBuilt.hasDH },
         homeBatters: gameResult.boxScore.homeBatters,
         awayBatters: gameResult.boxScore.awayBatters,
         homePitcher: gameResult.boxScore.homePitcher,

@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useGameStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
+import logoImg from "@/assets/images/logo-neon-dugout.png";
+import bgLoginImg from "@/assets/images/bg-login.png";
 
 const WALLET_OPTIONS = [
   { name: "Phantom", icon: "👻", id: "phantom" },
@@ -106,8 +108,12 @@ export default function LoginPage() {
   if (walletAddress) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#0a0a1a] via-[#0f0f2e] to-[#1a0a2e] flex flex-col items-center justify-center p-6 relative overflow-hidden">
-      <div className="absolute inset-0 opacity-10">
+    <div className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden">
+      <div className="absolute inset-0">
+        <img src={bgLoginImg} alt="" className="w-full h-full object-cover" />
+        <div className="absolute inset-0 bg-black/40" />
+      </div>
+      <div className="absolute inset-0 opacity-[0.07]">
         <div
           className="w-full h-full"
           style={{
@@ -119,7 +125,13 @@ export default function LoginPage() {
       </div>
 
       <div className="relative z-10 w-full max-w-sm flex flex-col items-center gap-8">
-        <div className="text-center">
+        <div className="text-center flex flex-col items-center">
+          <img
+            src={logoImg}
+            alt="Neon Dugout"
+            data-testid="img-logo"
+            className="w-28 h-28 mb-4 drop-shadow-[0_0_20px_rgba(6,182,212,0.5)]"
+          />
           <h1
             data-testid="login-title"
             className="font-['Orbitron'] text-3xl font-bold tracking-wider mb-2"
@@ -128,7 +140,7 @@ export default function LoginPage() {
               textShadow: "0 0 20px rgba(6,182,212,0.6), 0 0 40px rgba(6,182,212,0.3)",
             }}
           >
-            GRIDIRON GHOSTS
+            NEON DUGOUT
           </h1>
           <p className="font-['VT323'] text-lg text-gray-400">
             Connect your wallet to enter the league

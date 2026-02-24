@@ -3,7 +3,7 @@ Ultimo aggiornamento: febbraio 2026
 Versione: 1.0 (bozza iniziale)
 
 ## Nome del prodotto
-Gridiron Ghosts
+Neon Dugout
 
 ## Visione in una frase
 Un gioco manager testuale ultra-leggero di baseball fantasy completamente on-chain friendly, progettato per girare nativamente sul Solana Seeker mobile, con zero licenze reali, estetica cartoon anni '80, vibe anni '90 e atmosfera rétro-futuristica anni '60, che premia strategia, personalizzazione e ownership tramite NFT leggeri.

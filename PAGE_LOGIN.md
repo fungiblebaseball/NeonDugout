@@ -24,7 +24,7 @@ Wallets implementing the Solana Wallet Standard are auto-detected by `@solana/wa
 ### 2. Request Challenge
 - Frontend sends `POST /api/auth/challenge` with `{ walletAddress: publicKey.toBase58() }`
 - Backend generates a unique nonce (UUID v4) and stores it temporarily (5-minute TTL)
-- Returns `{ message: "Sign this message to login to Gridiron Ghosts: <nonce>" }`
+- Returns `{ message: "Sign this message to login to Neon Dugout: <nonce>" }`
 
 ### 3. Sign Message
 - Frontend encodes the challenge message as `Uint8Array`
@@ -63,7 +63,7 @@ Wallets implementing the Solana Wallet Standard are auto-detected by `@solana/wa
 ```
 ┌──────────────────────────────┐
 │                              │
-│     ⚾ GRIDIRON GHOSTS      │
+│     ⚾ NEON DUGOUT           │
 │     [glitch effect logo]     │
 │                              │
 │   "Connect your wallet to    │
@@ -91,7 +91,7 @@ Wallets implementing the Solana Wallet Standard are auto-detected by `@solana/wa
 ### Visual Style
 - Background: dark gradient (#0a0a1a → #1a0a2e) with subtle grid lines
 - Wallet buttons: neon-bordered cards with hover glow effects
-- Logo: "GRIDIRON GHOSTS" in Orbitron font with cyan/pink neon glow
+- Logo: "NEON DUGOUT" in Orbitron font with cyan/pink neon glow + diamond logo above
 - Status messages: VT323 font, green for success, red for errors
 - Loading: pulsing neon animation during signature wait
 

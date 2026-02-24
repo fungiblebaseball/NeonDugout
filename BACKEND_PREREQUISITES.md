@@ -3,7 +3,7 @@ Ultimo aggiornamento: 22 febbraio 2026
 Versione: 1.0
 
 ## Scopo del file
-Requisiti e istruzioni per configurare il server Contabo come backend centralizzato per Gridiron Ghosts.  
+Requisiti e istruzioni per configurare il server Contabo come backend centralizzato per Neon Dugout.  
 Questo server gestirà: API REST, database PostgreSQL, batch processor giornaliero, e futuramente il relay per le transazioni Anchor/Solana.
 
 ---

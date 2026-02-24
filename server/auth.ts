@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 
 const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === "production"
   ? (() => { throw new Error("JWT_SECRET must be set in production"); })()
-  : "gridiron-ghosts-dev-secret-change-in-production") as string;
+  : "neon-dugout-dev-secret-change-in-production") as string;
 const TOKEN_EXPIRY = "7d";
 
 const challengeStore = new Map<string, { nonce: string; createdAt: number }>();
@@ -21,7 +21,7 @@ setInterval(() => {
 
 export function generateChallenge(walletAddress: string): { message: string; nonce: string } {
   const nonce = uuidv4();
-  const message = `Sign this message to login to Gridiron Ghosts: ${nonce}`;
+  const message = `Sign this message to login to Neon Dugout: ${nonce}`;
   challengeStore.set(walletAddress, { nonce, createdAt: Date.now() });
   return { message, nonce };
 }

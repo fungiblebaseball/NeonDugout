@@ -1,10 +1,16 @@
-# Gridiron Ghosts
+# Neon Dugout
 
 ## Overview
 Text-based fantasy baseball manager game with retro 80s/90s cyberpunk aesthetic. Target platform: Solana Seeker mobile (Web3 integration planned). Zero MLB licenses - all fictional teams and players.
 
 ## Current State
 Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.6.0 — Play Log feature (play-by-play record per match with fielder details, pitcher change reasons, accordion in Match Detail, dedicated Play Log page).
+
+## Branding
+- **Logo**: `client/src/assets/images/logo-neon-dugout.png` — Stylized baseball diamond (neon glow, transparent bg)
+- **Login Background**: `client/src/assets/images/bg-login.png` — Dark cyberpunk atmosphere (9:16 portrait)
+- **Palette**: Neon pink (#ec4899) + cyan (#06b6d4) on dark backgrounds
+- **Fonts**: Orbitron (headings), VT323 (body/mono), Press Start 2P (accents)
 
 ## Architecture
 - **Frontend**: React + Vite, Tailwind CSS, Zustand (state), wouter (routing), TanStack Query (API), @solana/wallet-adapter-react (wallet connection)

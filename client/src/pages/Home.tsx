@@ -5,6 +5,7 @@ import { Link, useLocation } from "wouter";
 import { Terminal, ShieldAlert, Calendar, Swords, Shield, ListOrdered, RotateCcw, Zap, Trophy, Play, Pencil, Check, X, ScrollText } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import type { SimPlayer } from "@/lib/calculations";
+import logoImg from "@/assets/images/logo-neon-dugout.png";
 
 interface MatchData {
   id: number;
@@ -240,7 +241,7 @@ export default function Home() {
         <div className="max-w-md w-full space-y-8 text-center">
           <div className="space-y-4">
             <h1 data-testid="text-title" className="text-4xl md:text-6xl font-black tracking-tighter uppercase text-transparent bg-clip-text bg-gradient-to-br from-cyan-400 to-pink-500 filter drop-shadow-[0_0_10px_rgba(236,72,153,0.5)]" style={{fontFamily: "'Orbitron', sans-serif"}}>
-              Gridiron<br/>Ghosts
+              Neon<br/>Dugout
             </h1>
             <p className="text-sm tracking-widest text-cyan-200/70 font-mono uppercase">
               Retro Cyber-Baseball Manager
@@ -274,7 +275,9 @@ export default function Home() {
   return (
     <div className="min-h-screen pb-20 bg-black text-cyan-50 p-6">
       <header className="mb-8 flex justify-between items-start">
-        <div>
+        <div className="flex items-start gap-3">
+          <img src={logoImg} alt="Neon Dugout" className="w-12 h-12 drop-shadow-[0_0_10px_rgba(6,182,212,0.4)]" />
+          <div>
           <h2 className="text-sm font-mono text-cyan-500 uppercase tracking-widest">Sys.Status: Online</h2>
           {editingName ? (
             <div className="flex items-center gap-2 mt-1">
@@ -316,6 +319,7 @@ export default function Home() {
           <p className="text-xs font-mono text-pink-300 mt-1 uppercase">
             {team?.league} — Serie {team?.series} — Div {team?.division}
           </p>
+          </div>
         </div>
         <Button data-testid="button-disconnect" variant="ghost" size="sm" onClick={disconnectWallet} className="text-gray-500 hover:text-pink-500">
           <Terminal className="w-4 h-4 mr-2" />

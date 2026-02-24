@@ -1,4 +1,4 @@
-# Simulation Mechanics Specification — Gridiron Ghosts
+# Simulation Mechanics Specification — Neon Dugout
 
 ## At-Bat Flow
 

@@ -1,16 +1,17 @@
 # MECHANICS_SPEC.md
-Ultimo aggiornamento: 21 febbraio 2026  
-Versione: 0.2-beta (estensione per dinamiche difesa/attacco/avanzamenti)
+Ultimo aggiornamento: 24 febbraio 2026  
+Versione: 0.4 (PlayI/PlayO implementato, Play Log, tattiche RPS complete, DH rule)
 
 ### Scopo del file
 Questo documento definisce le specifiche tecniche e le regole di gioco. Serve come riferimento per gli sviluppatori, gli architetti e i designer per garantire la coerenza e la determinazione del gameplay.  **Questo documento è una fonte di verità per il comportamento del gioco e deve essere consultato prima di qualsiasi modifica al codice.**
 
-## Principi generali (invariati da v0.1 + aggiunte beta)
-- Calcoli client-side, deterministici + pseudo-random (Math.random() con seed opzionale per riproducibilità test)
+## Principi generali
+- Calcoli condivisi client+server in `shared/calculations/` — deterministici + pseudo-random (SeededRNG con LCG, seed opzionale)
 - Partita: 9 inning standard (extra innings se tie dopo 9)
-- Simulazione: per at-bat aggregato (non full pitch-by-pitch per beta), ma con conteggio balls/strikes tracciato per stats e total pitches
-- Output: flavor text + box score + stats (incl. inherited runners, GIDP, CS, etc.)
+- Simulazione: per at-bat con conteggio balls/strikes/fouls tracciato, pitch count per lanciatore
+- Output: flavor text + box score + batter/pitcher stats + MVP + play log (play-by-play)
 - Reuse matchup_rating come base per quasi tutte le decisioni "skill vs skill"
+- DH Rule: con DH attivo → 9 battitori (pitcher escluso), senza DH → SP batte (9 posizioni incluso SP)
 
 ### Linee guida per l'implementazione
 *   **Determinismo:** Tutte le simulazioni devono essere deterministiche, dato un set di input identico.
@@ -63,7 +64,29 @@ Quando esito = Out-in-play o Error:
 5. Out chance se no error = 0.95 + (difesa_rating - 50)/200   // clamped 0.80–1.00
    - Se fallisce → reached on error (simile a error sopra)
 
-## Advance on Hit / Error (nuovo beta)
+> **NOTA (v0.4):** Questa sezione descrive il sistema pianificato con hit_quality e spray chart.
+> L'implementazione attuale (v1.5.0+) usa il sistema **PlayI/PlayO** descritto in `mechanic_spec.md`:
+> - PlayI prob = clamp(0.65 - MR/100, 0.25, 0.85) → errore su media DEF di 1B + interno random
+> - PlayO prob = 1 - PlayI → errore su DEF di esterno random
+> - PlayI → GO, PlayO → FO (se nessun errore)
+> Il sistema hit_quality/spray chart resta come reference per futura evoluzione.
+
+## Advance on Hit / Error — IMPLEMENTAZIONE ATTUALE (v1.5.0)
+Regole fisse per esito (vedi `mechanic_spec.md` per dettaglio completo):
+
+- **HR**: tutti i corridori + battitore segnano
+- **3B**: tutti i corridori segnano, battitore in 3B
+- **2B**: corridori in 3B/2B segnano, corridore in 1B segna se velocità sufficiente (prob = 0.6 + spd/200) altrimenti avanza in 3B
+- **1B**: corridore in 3B segna, corridore in 2B segna se velocità sufficiente (prob = 0.55 + spd/200) altrimenti in 3B, corridore in 1B avanza in 2B
+- **BB**: battitore in 1B, corridori spinti avanti, basi piene → punto forzato
+- **ERR**: battitore in 1B, corridori avanzano 1 base, corridore in 3B segna
+- **GO**: battitore eliminato, corridori avanzano 1 base, corridore in 3B segna se non è il 3° out. Basi piene → GIDP automatico
+- **FO**: battitore eliminato, corridori NON avanzano. Eccezione: sacrifice fly da 3B se non è il 3° out
+
+> **NOTA:** La sezione "Advance on Hit / Error (beta)" sotto descrive il sistema pianificato con hit_quality e runner_SPD bonus.
+> Resta come reference per futura evoluzione.
+
+### Advance on Hit / Error (sistema pianificato — NON IMPLEMENTATO)
 Su 1B, 2B, 3B, HR, Error:
 
 - Base advance prob per runner = base 50–80% + bonus da:
@@ -85,7 +108,14 @@ Success prob = 0.50 + (runner_SPD - catcher_DEF * 0.6 - middle_inf_DEF * 0.3)/15
 
 Se fallisce → caught stealing (out, runner removed)
 
-## Double Play / GIDP (nuovo beta – confronto multi-skill)
+## Double Play / GIDP
+
+### Implementazione attuale (v1.5.0)
+- Trigger: GO con basi piene → GIDP automatico
+- Battitore + corridore in 1B eliminati (+2 out), nessun punto segnato
+- Corridori in 2B e 3B NON avanzano durante GIDP
+
+### Sistema pianificato (NON IMPLEMENTATO)
 Solo su grounder con runner su 1B e <2 outs
 
 GIDP prob = base 0.12 + modifiers:
@@ -100,73 +130,117 @@ gidp_prob = 0.08 + (80 - batter_SPD)/400 + (80 - runner_SPD)/300 - (infield_DEF_
 
 Se GIDP → 2 outs, batter out, runner out a 2B
 
-## Altre note per beta
-- Park factor: moltiplicatore su HR/XBH (0.85–1.20)
-- Home advantage: +8 a tutti i matchup_rating offensivi casa
-- Fatigue: pitcher STA penalty dopo inning 5–6
-- Stats aggregate: includi GIDP, CS, ROE, inherited runners scored %, etc.
+## Altre note
+- Park factor: moltiplicatore su HR/XBH (0.85–1.20) — **NON IMPLEMENTATO**, pianificato
+- Home advantage: +8 a tutti i matchup_rating offensivi casa — **IMPLEMENTATO**
+- Fatigue: pitcher STA penalty dopo inning 5–6 — **IMPLEMENTATO** (fatiguePenalty = (inning > 5) ? (inning - 5) × (100 - sta) × 0.04 : 0)
 
-## Prossimi affinamenti post-beta test
-- Probabilità più granulari per advance (matrice da dati storici semplificata)
-- Momentum / hot streak temporaneo?
-- Full pitch-by-pitch opzionale per modalità exhibition?
+## Pitcher Substitution (IMPLEMENTATO v1.0)
+Valutata prima di ogni at-bat. Catena: SP → R1 → Closer.
 
-Fine v0.2-beta
+**SP esce se:**
+- pitchCount ≥ maxPitches (50-150)
+- inningsPitched ≥ maxInnings (1-9)
+- bbAllowed ≥ maxBb (1-10)
+- erAllowed ≥ maxEr (1-10)
 
-=== Tattiche RPS globali pre-partita (v0.3) ===
+**R1 esce se:**
+- pitchCount ≥ r1MaxPitches (15-80)
+- erAllowed ≥ r1MaxEr (1-6)
 
-Prima di ogni simulazione (league o exhibition) valuta 4 tattiche salvate nella configurazione delle 2 squadre (una per categoria).  
-Queste tattiche creano matchup RPS che modificano probabilità base, esiti at-bat, avanzamenti corridori, errori e tentativi di rubata.
+**Closer esce se:**
+- pitchCount ≥ closerMaxPitches (10-60)
+- erAllowed ≥ closerMaxEr (1-5)
 
-Categorie e opzioni:
+Senza DH: il rilievo prende lo slot di battuta del predecessore.
+Con DH: il rilievo non batte mai.
 
-1. Batter Approach
-   - Power
-   - Contact
-   - Patient
+## Tattiche — Sistema completo (IMPLEMENTATO v1.0–v1.3)
 
-2. Pitcher Style
-   - Velocity
-   - Movement
-   - Command
+7 campi tattici salvati per team in tabella `tactics`:
+`attackStyle`, `infieldPosition`, `outfieldPosition`, `batterApproach`, `pitcherStyle`, `offensiveAttack`, `defenseSetup`
 
-3. Defense Setup
-   - Aggressive     (infield in + quick to plate / pickoff heavy)
-   - Balanced       (standard positioning + delivery media)
-   - Protective     (deep/gaps + slow/deceptive holds)
+Configurati nelle pagine Attack (/attack) e Defense (/defense). Tutti i modificatori sono moltiplicativi sulla tabella probabilità in `shared/calculations/probability.ts`.
 
-4. Offensive Attack
-   - Aggressive     (big leads, steal frequente, extra base sempre)
-   - Balanced       (jump standard, steal situazionale)
-   - Conservative   (lead piccolo, delayed steal, hit&run cauto)
+### 1. Attack Style (4 opzioni) — modificatori diretti
+| Stile | Effetto |
+|-------|---------|
+| Bunt | +15% 1B, -20% XBH, -20% HR, +10% GO |
+| Hit & Run | +15% 1B, -15% XBH, -25% HR, +5% SO |
+| Neutral | Nessun modificatore |
+| Swing on Sight | +20% XBH, +15% HR, +20% SO, +10% FO |
 
-Matchup Batter Approach vs Pitcher Style
-Determina bias sull'esito base at-bat (weak contact → barrel / HR trajectory)
+### 2. Infield Position (3 opzioni) — counter Attack Style avversario
+| Posizione | Counter vs | Effetto |
+|-----------|-----------|---------|
+| Short | Bunt | -12% 1B, +10% GO |
+| Neutral | Hit & Run | -8% 1B, +6% GO |
+| Deep | Swing on Sight | -5% 1B, +5% GO |
 
-| Batter Approach \ Pitcher Style | Velocity | Movement | Command  |
-|--------------------------------|----------|----------|----------|
-| Power                          | Tie      | Power    | Movement |
-| Contact                        | Command  | Tie      | Contact  |
-| Patient                        | Patient  | Contact  | Tie      |
+### 3. Outfield Position (3 opzioni) — counter Attack Style avversario
+| Posizione | Counter vs | Effetto |
+|-----------|-----------|---------|
+| Short | Bunt | -5% 1B, +4% FO |
+| Neutral | Hit & Run | -4% 1B |
+| Deep | Swing on Sight | -8% HR, -6% XBH, +8% FO |
 
-"Vince" = bias favorevole all'esito migliore per chi vince  
-"Tie"  = distribuzione neutra
+### 4. Batter Approach vs Pitcher Style (RPS)
 
-Offensive Attack vs Defense Setup
-Determina successo rubate, extra base su hit, esecuzione small ball / bunt / hit&run
+| Batter \ Pitcher | Velocity | Movement | Command |
+|---|---|---|---|
+| **Power** | Tie | Batter wins | Pitcher wins |
+| **Contact** | Pitcher wins | Tie | Batter wins |
+| **Patient** | Batter wins | Pitcher wins | Tie |
 
-| Offensive Attack \ Defense Setup | Aggressive          | Balanced | Protective          |
-|----------------------------------|---------------------|----------|---------------------|
-| Aggressive                       | Defense vince       | Tie      | Attack vince        |
-| Balanced                         | Attack vince lieve  | Tie      | Defense vince       |
-| Conservative                     | Defense vince       | Tie      | Tie                 |
+"Batter wins" = bias favorevole al battitore (più hit/XBH).
+"Pitcher wins" = bias favorevole al lanciatore (più SO/outs).
 
-Defense Setup influenza anche esiti in-play
+### 5. Offensive Attack vs Defense Setup (RPS)
+
+| Offense \ Defense | Aggressive | Balanced | Protective |
+|---|---|---|---|
+| **Aggressive** | Defense wins | Tie | Offense wins |
+| **Balanced** | Offense wins (slight) | Tie | Defense wins |
+| **Conservative** | Defense wins | Tie | Tie |
+
+Defense Setup influenza anche esiti in-play:
 - Aggressive: + out prob su grounder/bunt/weak contact, - extra base prob
 - Protective: + preso prob su fly/line drive, + extra base concesse su hard hit
 - Balanced: baseline
 
-Note per motore:
-- I coefficienti / modificatori esatti (es. +10%, -15%, +20 punti matchup_rating) sono decisi dall'implementazione.
-- I matchup RPS servono solo a determinare direzione e intensità del bias.
-- Salvare le 4 tattiche scelte nel record della partita per report post-gara.
+## Play Log (IMPLEMENTATO v1.6.0)
+
+### Struttura
+Ogni partita genera un array di `PlayLogEntry` salvato nel campo `play_log` JSONB di `match_details`.
+
+### Tipi di evento
+1. **at_bat** — ogni turno di battuta completato
+   - Campi: inning, half (top/bottom), outs, batterId, batterName, pitcherId, pitcherName
+   - Count: balls, strikes, pitches totali
+   - Esito: outcome (HR/3B/2B/1B/BB/SO/GO/FO/ERR/GIDP)
+   - Difesa: fielderName, fielderPosition, playDirection (infield/outfield)
+   - Basi: basesBefore, basesAfter (stato prima e dopo l'azione)
+   - Risultato: runsScored, outsAdded
+
+2. **pitcher_change** — sostituzione lanciatore
+   - Campi: inning, half, outs
+   - Cambio: oldPitcherName → newPitcherName, newPitcherRole (R1/Closer)
+   - Motivazione: changeReason (es. "Pitch count: 102/100", "ER: 4/3")
+
+### Lifecycle
+- Generato durante simulateGame() per ogni at-bat e ogni cambio lanciatore
+- Salvato in DB sia per partite di lega (simulateMatchDay) che per API result (POST /api/matches/:id/result)
+- Exhibition: generato ma non persistito (solo in memoria)
+- Pulizia: a generazione nuova season, play_log impostato a null sui match_details della season precedente
+
+### Visualizzazione
+- **MatchDetailPage**: accordion collassabile "PLAY LOG" sotto il MVP
+- **PlayLogPage** (/play-log): pagina dedicata con selettore giornata, accordion per match del team utente
+
+## Prossimi affinamenti
+- Hit_quality e spray chart per difesa granulare (sostituirebbe PlayI/PlayO semplificato)
+- Stolen Base implementation
+- GIDP probabilistico (non solo basi piene)
+- Park factor
+- Momentum / hot streak temporaneo
+- Full pitch-by-pitch opzionale per modalità exhibition

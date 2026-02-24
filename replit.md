@@ -33,19 +33,19 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 - `teams` - 20 teams in divisions A & B (id, name, division, owner_wallet, season_id)
 - `players` - 20 per team with 9 stats (pow, con, spd, eye, vel, ctl, mov, sta, def)
 - `matches` - round-robin schedule with scores (90 per division, 18 days)
-- `match_details` - full game data per match (box_score, flavor_texts, mvp, home_lineup, away_lineup, home_batters, away_batters, home_pitcher, away_pitcher)
+- `match_details` - full game data per match (box_score, flavor_texts, mvp, home_lineup, away_lineup, home_batters, away_batters, home_pitcher, away_pitcher, home_pitchers, away_pitchers, play_log)
 - `lineups` - field positions + batting order (JSON columns)
 - `pitcher_rotations` - roles JSONB {sp, r1, closer, nextSp} + rotation_order + SP switch conditions (maxPitches/maxInnings/maxBb/maxEr) + R1 conditions (r1MaxPitches/r1MaxEr) + Closer conditions (closerMaxPitches/closerMaxEr)
-- `tactics` - attack style + infield/outfield positioning
+- `tactics` - 7 tactical fields (attackStyle, infieldPosition, outfieldPosition, batterApproach, pitcherStyle, offensiveAttack, defenseSetup)
 - `team_snapshots` - historical team state per season (team_id, season_id, name, division, league, series, primary_color, owner_wallet, wins, losses, runs_for, runs_against)
 
 ## Pages
 0. **Login** (/login) - Solana wallet authentication: select wallet (Phantom/Solflare/Backpack/Seeker), sign challenge message, verify signature
 1. **Home** (/) - Team dashboard, nav grid, play next league match button with "View Match Report" link, redirect to login if not authenticated
 2. **Lineup** (/lineup) - Assign field positions (SP read-only from pitching, C,1B...RF), DH toggle, reorder batting order 1-9 (SP moveable)
-3. **Pitchers** (/pitchers) - Assign pitcher roles: SP, R1, C, 2P. SP/R1/Closer switch conditions via sliders (pitches, innings, BB, ER)
-4. **Attack** (/attack) - Choose offensive strategy with probability modifiers: bunt (+15% contact, -20% XBH), hit-and-run (+15% 1B, -25% HR), neutral (base), swing-on-sight (+20% XBH, +15% HR, +20% SO)
-5. **Defense** (/defense) - Set infield/outfield positioning with counter-strategy effects (short counters bunt, neutral counters H&R, deep counters swing-on-sight)
+3. **Pitchers** (/pitchers) - Assign pitcher roles: SP, R1, C, 2P. SP/R1/Closer switch conditions via sliders (pitches, innings, BB, ER). Pitcher Style RPS (velocity/movement/command vs batter approach)
+4. **Attack** (/attack) - 3 tactical sections: Attack Style (bunt/h&r/neutral/sos with probability modifiers), Batter Approach (power/contact/patient RPS vs pitcher), Offensive Attack (aggressive/balanced/conservative RPS vs defense)
+5. **Defense** (/defense) - 3 tactical sections: Infield Position (short/neutral/deep counter), Outfield Position (short/neutral/deep counter), Defense Setup (aggressive/balanced/protective RPS vs offense)
 6. **Simulate** (/simulate) - Exhibition test match using saved lineup/tactics/rotation with box score, batter/pitcher stats, flavor text
 7. **Schedule** (/schedule) - Division calendar (18 match days), next match highlight, W-L record, played matches clickable → Match Report
 8. **Standings** (/standings) - Division standings with W/L/PCT/RF/RA, switch divisions, season navigator (◀ ▶) for past seasons with match results, match preview for current season
@@ -71,12 +71,23 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 - Closer switch conditions: closerMaxPitches (10-60), closerMaxEr (1-5)
 - Substitution chain: SP → R1 → Closer (automatic during simulation)
 
-## Tactics System
-- Attack styles apply probability modifiers to at-bat outcomes (bunt, hit_and_run, neutral, swing_on_sight)
-- Defense positioning counters specific attack styles (rock-paper-scissors interplay)
-- Infield: short counters bunt, neutral counters hit-and-run, deep counters swing-on-sight
-- Outfield: short counters bunt singles, neutral counters hit-and-run, deep counters power hitting
-- All modifiers are multiplicative percentages applied to base probability table
+## Tactics System (7 campi, 3 layer)
+7 campi tattici per team in tabella `tactics`: attackStyle, infieldPosition, outfieldPosition, batterApproach, pitcherStyle, offensiveAttack, defenseSetup
+
+### Layer 1 — Attack Style + Defense Counter (pagine Attack + Defense)
+- Attack styles (bunt, hit_and_run, neutral, swing_on_sight): modificatori diretti su probabilità at-bat
+- Infield position (short/neutral/deep): counter specifico dell'attack style avversario
+- Outfield position (short/neutral/deep): counter specifico dell'attack style avversario
+
+### Layer 2 — Batter Approach vs Pitcher Style (RPS)
+- Batter Approach (power/contact/patient) vs Pitcher Style (velocity/movement/command)
+- Matrice RPS: Power beats Movement, Contact beats Command, Patient beats Velocity
+
+### Layer 3 — Offensive Attack vs Defense Setup (RPS)
+- Offensive Attack (aggressive/balanced/conservative) vs Defense Setup (aggressive/balanced/protective)
+- Matrice RPS: Aggressive beats Protective, Balanced beats Aggressive, Conservative ties
+
+All modifiers are multiplicative percentages applied to base probability table in `shared/calculations/probability.ts`
 
 ## Design Decisions
 - Meritocratic divisions: all teams generated with same attribute ranges (30-85 gaussian)
@@ -104,7 +115,7 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 - New team from expansion is automatically assigned to the registering user
 
 ## Page Documentation
-Each page has a dedicated .md file in root: PAGE_LOGIN.md, PAGE_HOME.md, PAGE_LINEUP.md, PAGE_PITCHERS.md, PAGE_ATTACK.md, PAGE_DEFENSE.md, PAGE_SIMULATE.md, PAGE_SCHEDULE.md, PAGE_STANDINGS.md, PAGE_PLAYER_DETAIL.md, PAGE_MATCH_DETAIL.md
+Each page has a dedicated .md file in root: PAGE_LOGIN.md, PAGE_HOME.md, PAGE_LINEUP.md, PAGE_PITCHERS.md, PAGE_ATTACK.md, PAGE_DEFENSE.md, PAGE_SIMULATE.md, PAGE_SCHEDULE.md, PAGE_STANDINGS.md, PAGE_PLAYER_DETAIL.md, PAGE_MATCH_DETAIL.md, PAGE_PLAY_LOG.md
 
 ## Deployment
 - Development: Replit (port 5000)

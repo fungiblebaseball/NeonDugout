@@ -2,9 +2,8 @@
 Ultimo aggiornamento: febbraio 2026  
 Versione: 1.0 (bozza iniziale)
 
-## Nome provvisorio del prodotto
-Baseball Odyssey: Gridiron Ghosts  
-(op pure varianti: Neon League Manager, Retro Diamond Tycoon, Solana Sluggers – da decidere entro Fase 1)
+## Nome del prodotto
+Gridiron Ghosts
 
 ## Visione in una frase
 Un gioco manager testuale ultra-leggero di baseball fantasy completamente on-chain friendly, progettato per girare nativamente sul Solana Seeker mobile, con zero licenze reali, estetica cartoon anni '80, vibe anni '90 e atmosfera rétro-futuristica anni '60, che premia strategia, personalizzazione e ownership tramite NFT leggeri.

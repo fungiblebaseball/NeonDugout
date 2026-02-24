@@ -139,3 +139,52 @@ Valutata prima di ogni at-bat. Catena: SP → R1 → Closer.
 | Aggressive | Lose | Tie | Win |
 | Balanced | Win | Tie | Lose |
 | Conservative | Lose | Tie | Tie |
+
+## Pitcher Substitution
+
+Valutata prima di ogni at-bat. Catena: SP → R1 → Closer.
+
+**SP esce se:**
+- pitchCount ≥ maxPitches (50-150)
+- inningsPitched ≥ maxInnings (1-9)
+- bbAllowed ≥ maxBb (1-10)
+- erAllowed ≥ maxEr (1-10)
+
+**R1 esce se:**
+- pitchCount ≥ r1MaxPitches (15-80)
+- erAllowed ≥ r1MaxEr (1-6)
+
+**Closer esce se:**
+- pitchCount ≥ closerMaxPitches (10-60)
+- erAllowed ≥ closerMaxEr (1-5)
+
+## DH Rule
+
+- Con DH attivo: 8 posizioni di campo + DH = 9 battitori, pitcher mai in battuta
+- Senza DH: 8 posizioni + SP = 9 battitori, SP batte fino alla sostituzione
+- Sostituzioni pitcher (SP→R1→Closer): il rilievo prende lo slot di battuta del predecessore (solo senza DH)
+
+## Play Log
+
+### Struttura
+Array di `PlayLogEntry` salvato nel campo `play_log` JSONB di `match_details`.
+
+### Tipi di evento
+1. **at_bat** — ogni turno di battuta completato
+   - inning, half (top/bottom), outs, batterId, batterName, pitcherId, pitcherName
+   - count: balls, strikes, pitches totali
+   - outcome: HR/3B/2B/1B/BB/SO/GO/FO/ERR/GIDP
+   - fielderName, fielderPosition, playDirection (infield/outfield) — dal sistema PlayI/PlayO
+   - basesBefore, basesAfter: stato basi prima e dopo
+   - runsScored, outsAdded
+
+2. **pitcher_change** — sostituzione lanciatore
+   - inning, half, outs
+   - oldPitcherName → newPitcherName, newPitcherRole (R1/Closer)
+   - changeReason: motivo con valore effettivo vs soglia (es. "Pitch count: 102/100")
+
+### Lifecycle
+- Generato durante simulateGame() in `shared/calculations/simulate.ts`
+- Salvato in DB per partite di lega (simulateMatchDay) e via API (POST /api/matches/:id/result)
+- Exhibition: generato ma non persistito
+- Pulizia: a generazione nuova season, play_log → null sui match_details della season precedente

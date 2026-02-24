@@ -1,30 +1,51 @@
 # PAGE_DEFENSE.md (/defense)
 
-File
+## File
 `client/src/pages/DefensePage.tsx`
 
-### Descrizione Scopo del file
-Questo documento definisce il layout e la struttura della pagina di impostazione della difesa. Serve come riferimento per gli sviluppatori e i designer per garantire la coerenza dell'interfaccia utente.
-Sezioni
-Header — Titolo "Defense Setup"
-Defense Setup — 3 opzioni (scelta esclusiva):
-- Aggressive     → infield in + quick to plate / pickoff heavy
-                 (forte vs bunt, weak grounder, aggressive runners)
-- Balanced       → standard positioning + delivery media
-                 (neutro, baseline per tutti gli esiti)
-- Protective     → deep/gaps + slow/deceptive holds
-                 (forte vs fly/line drive/extra base, balanced runners)
+## Descrizione
+Pagina di configurazione tattica difensiva. Contiene 3 sezioni: posizionamento interni, posizionamento esterni e strategia difensiva globale (RPS).
 
-Save Button
+## Sezioni
 
-Dati
-Store: team
-API: `GET/POST /api/tactics`
-Campo: `defenseSetup` (string: "Aggressive" | "Balanced" | "Protective")
+### 1. Infield Position (3 opzioni, scelta esclusiva)
+Posizionamento degli interni. Countera specifici Attack Style avversari.
 
-Note
-La scelta Defense Setup influenza:
-- probabilità errori e outs su grounder/bunt/fly
-- successo/insuccesso tentativi di rubata
-- avanzamenti corridori su extra base hit
-Sostituisce le precedenti impostazioni separate infieldPosition/outfieldPosition.
+| Posizione | Counter vs | Effetto |
+|-----------|-----------|---------|
+| **Short** | Bunt | -12% 1B, +10% GO |
+| **Neutral** | Hit & Run | -8% 1B, +6% GO |
+| **Deep** | Swing on Sight | -5% 1B, +5% GO |
+
+### 2. Outfield Position (3 opzioni, scelta esclusiva)
+Posizionamento degli esterni. Countera specifici Attack Style avversari.
+
+| Posizione | Counter vs | Effetto |
+|-----------|-----------|---------|
+| **Short** | Bunt | -5% 1B, +4% FO |
+| **Neutral** | Hit & Run | -4% 1B |
+| **Deep** | Swing on Sight | -8% HR, -6% XBH, +8% FO |
+
+### 3. Defense Setup (3 opzioni, scelta esclusiva)
+Matchup RPS contro Offensive Attack dell'avversario. Determina successo rubate, extra base, esecuzione small ball.
+
+| Defense \ Offense | Aggressive | Balanced | Conservative |
+|---|---|---|---|
+| **Aggressive** | Defense wins | Offense wins (slight) | Defense wins |
+| **Balanced** | Tie | Tie | Tie |
+| **Protective** | Offense wins | Defense wins | Tie |
+
+### Save Button
+Salva tutte le scelte in un unico POST.
+
+## Dati
+- Store: team
+- API: `GET /api/tactics/:teamId` / `POST /api/tactics`
+- Campi salvati: `infieldPosition` (short | neutral | deep), `outfieldPosition` (short | neutral | deep), `defenseSetup` (aggressive | balanced | protective)
+- Campi preservati nel POST: `attackStyle`, `batterApproach`, `offensiveAttack`, `pitcherStyle`
+
+## Note
+- Infield e Outfield Position sono counter diretti dell'Attack Style avversario (rock-paper-scissors posizionale)
+- Defense Setup è matchup RPS indipendente contro Offensive Attack avversario
+- **Pitcher Style** (velocity/movement/command) è configurato nella pagina **Pitchers** (/pitchers), non qui
+- Tutti i modificatori sono moltiplicativi sulla tabella probabilità in `shared/calculations/probability.ts`

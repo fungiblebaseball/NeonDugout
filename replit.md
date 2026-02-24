@@ -123,6 +123,9 @@ All modifiers are multiplicative percentages applied to base probability table i
 ## Page Documentation
 Each page has a dedicated .md file in root: PAGE_LOGIN.md, PAGE_HOME.md, PAGE_LINEUP.md, PAGE_PITCHERS.md, PAGE_ATTACK.md, PAGE_DEFENSE.md, PAGE_SIMULATE.md, PAGE_SCHEDULE.md, PAGE_STANDINGS.md, PAGE_PLAYER_DETAIL.md, PAGE_MATCH_DETAIL.md, PAGE_PLAY_LOG.md
 
+## Technical Documentation
+- `Player_SEED.md` — Player generation algorithm: roster structure, gaussian distribution, talent tiers, attribute definitions and matchup weights
+
 ## Deployment
 - Development: Replit (port 5000)
 - Production: Contabo VPS (see BACKEND_PREREQUISITES.md)

@@ -63,6 +63,8 @@ app.use((req, res, next) => {
   const { seedDatabase } = await import("./seed");
   await seedDatabase();
   await registerRoutes(httpServer, app);
+  const { startGameDayScheduler } = await import("./scheduler");
+  startGameDayScheduler();
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

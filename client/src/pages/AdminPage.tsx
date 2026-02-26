@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useGameStore } from "@/lib/store";
 import { useLocation } from "wouter";
-import { ArrowLeft, Save, Coins, Trash2 } from "lucide-react";
+import { ArrowLeft, Save, Coins, Trash2, Play, Trophy } from "lucide-react";
 import { useState, useEffect } from "react";
 
 interface TrainingConfig {
@@ -11,6 +11,8 @@ interface TrainingConfig {
   rewardAmount: number;
   minScoreForReward: number;
   maxBoostPerSeason: number;
+  rewardTarget: string;
+  rewardTargetRole: string | null;
 }
 
 interface TokenConfigData {
@@ -18,7 +20,17 @@ interface TokenConfigData {
   claimIntervalHours: number;
 }
 
+interface MatchData {
+  id: number;
+  day: number;
+  played: boolean;
+  homeTeamId: number;
+  awayTeamId: number;
+  matchType: string;
+}
+
 const ALL_ATTRIBUTES = ["pow", "con", "spd", "eye", "vel", "ctl", "mov", "sta", "def"];
+const ALL_POSITIONS = ["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF", "DH"];
 
 const GAME_LABELS: Record<string, string> = {
   eye_drill: "Eye Drill",
@@ -61,6 +73,16 @@ export default function AdminPage() {
     enabled: !!token && !!user?.isAdmin,
   });
 
+  const { data: allMatches } = useQuery<MatchData[]>({
+    queryKey: ["matches-all"],
+    queryFn: async () => {
+      const res = await fetch("/api/matches");
+      if (!res.ok) throw new Error("Failed to load matches");
+      return res.json();
+    },
+    enabled: !!user?.isAdmin,
+  });
+
   if (!user?.isAdmin) return null;
 
   return (
@@ -75,6 +97,12 @@ export default function AdminPage() {
       </div>
 
       <h2 className="text-sm text-gray-400 uppercase tracking-wider mb-4" style={{ fontFamily: "Orbitron, sans-serif" }}>
+        Match Day Control
+      </h2>
+
+      <GameDayCard allMatches={allMatches || []} token={token!} queryClient={queryClient} />
+
+      <h2 className="text-sm text-gray-400 uppercase tracking-wider mb-4 mt-8" style={{ fontFamily: "Orbitron, sans-serif" }}>
         Token Economy Config
       </h2>
 
@@ -93,6 +121,120 @@ export default function AdminPage() {
           <ConfigCard key={config.id} config={config} token={token!} queryClient={queryClient} />
         ))}
       </div>
+    </div>
+  );
+}
+
+function GameDayCard({
+  allMatches,
+  token,
+  queryClient,
+}: {
+  allMatches: MatchData[];
+  token: string;
+  queryClient: any;
+}) {
+  const [simulating, setSimulating] = useState(false);
+  const [simResult, setSimResult] = useState<string | null>(null);
+
+  const unplayedDays = [...new Set(allMatches.filter(m => !m.played).map(m => m.day))].sort((a, b) => a - b);
+  const nextDay = unplayedDays.length > 0 ? unplayedDays[0] : null;
+  const matchesForNextDay = nextDay ? allMatches.filter(m => m.day === nextDay && !m.played).length : 0;
+  const seasonFinished = allMatches.length > 0 && unplayedDays.length === 0;
+
+  const simulateDay = async () => {
+    if (!nextDay) return;
+    setSimulating(true);
+    setSimResult(null);
+    try {
+      if (nextDay >= 13) {
+        await fetch("/api/update-playoff-matchups", { method: "POST" });
+      }
+      const res = await fetch("/api/simulate-day", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ day: nextDay }),
+      });
+      const data = await res.json();
+      setSimResult(`Day ${nextDay}: ${data.matchesSimulated} matches simulated`);
+      queryClient.invalidateQueries({ queryKey: ["matches-all"] });
+      queryClient.invalidateQueries({ queryKey: ["teams-all"] });
+    } catch (err) {
+      setSimResult("Simulation failed");
+    }
+    setSimulating(false);
+  };
+
+  const startNewSeason = async () => {
+    setSimulating(true);
+    setSimResult(null);
+    try {
+      const res = await fetch("/api/new-season", { method: "POST" });
+      const data = await res.json();
+      if (data.seasonId) {
+        setSimResult(`New season ${data.seasonId} started!`);
+        queryClient.invalidateQueries({ queryKey: ["matches-all"] });
+        queryClient.invalidateQueries({ queryKey: ["teams-all"] });
+        queryClient.invalidateQueries({ queryKey: ["current-season"] });
+      }
+    } catch (err) {
+      setSimResult("Failed to start new season");
+    }
+    setSimulating(false);
+  };
+
+  return (
+    <div className="bg-gray-900 border border-pink-500/30 rounded-xl p-4 space-y-4" data-testid="card-game-day">
+      <div className="flex items-center gap-2">
+        <Play className="w-4 h-4 text-pink-400" />
+        <h3 className="text-sm font-bold tracking-wider text-pink-400" style={{ fontFamily: "Orbitron, sans-serif" }}>
+          Match Day Simulation
+        </h3>
+      </div>
+
+      <p className="text-[10px] text-gray-500 font-mono">
+        Auto-runs daily at 00:00 CET. Use buttons below for manual control.
+      </p>
+
+      {seasonFinished ? (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Trophy className="w-4 h-4 text-cyan-400" />
+            <span className="text-sm text-cyan-400 font-bold">Season Complete</span>
+          </div>
+          <button
+            onClick={startNewSeason}
+            disabled={simulating}
+            data-testid="button-admin-new-season"
+            className="w-full py-2 bg-cyan-500 hover:bg-cyan-400 text-black font-black uppercase tracking-widest rounded-lg transition-all shadow-[0_0_10px_rgba(34,211,238,0.3)] disabled:opacity-50 text-xs"
+          >
+            {simulating ? "GENERATING..." : "START NEW SEASON"}
+          </button>
+        </div>
+      ) : nextDay ? (
+        <div className="space-y-3">
+          <div className="flex justify-between text-xs">
+            <span className="text-gray-400 font-mono">Next: Day {nextDay}</span>
+            <span className="text-gray-500 font-mono">{matchesForNextDay} matches</span>
+          </div>
+          <button
+            onClick={simulateDay}
+            disabled={simulating}
+            data-testid="button-admin-simulate"
+            className="w-full py-2 bg-pink-500 hover:bg-pink-400 text-black font-black uppercase tracking-widest rounded-lg transition-all shadow-[0_0_10px_rgba(236,72,153,0.3)] disabled:opacity-50 text-xs"
+          >
+            {simulating ? "SIMULATING..." : `SIMULATE DAY ${nextDay}`}
+          </button>
+        </div>
+      ) : (
+        <p className="text-gray-500 text-xs font-mono">No matches loaded</p>
+      )}
+
+      {simResult && (
+        <p className="text-[10px] font-mono text-green-400 bg-green-900/20 border border-green-500/30 rounded px-2 py-1" data-testid="text-sim-result">
+          {simResult}
+        </p>
+      )}
     </div>
   );
 }
@@ -230,6 +372,8 @@ function ConfigCard({
   const [rewardAmount, setRewardAmount] = useState(config.rewardAmount);
   const [minScore, setMinScore] = useState(config.minScoreForReward);
   const [maxBoost, setMaxBoost] = useState(config.maxBoostPerSeason);
+  const [rewardTarget, setRewardTarget] = useState(config.rewardTarget || "random");
+  const [rewardTargetRole, setRewardTargetRole] = useState(config.rewardTargetRole || "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -240,9 +384,17 @@ function ConfigCard({
       await fetch(`/api/admin/training-config/${config.gameType}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ rewardAttributes, rewardAmount, minScoreForReward: minScore, maxBoostPerSeason: maxBoost }),
+        body: JSON.stringify({
+          rewardAttributes,
+          rewardAmount,
+          minScoreForReward: minScore,
+          maxBoostPerSeason: maxBoost,
+          rewardTarget,
+          rewardTargetRole: rewardTarget === "role" ? rewardTargetRole : null,
+        }),
       });
       queryClient.invalidateQueries({ queryKey: ["admin-training-config"] });
+      queryClient.invalidateQueries({ queryKey: ["training-configs"] });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch {}
@@ -280,6 +432,52 @@ function ConfigCard({
           ))}
         </div>
       </div>
+
+      <div>
+        <label className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">Reward Target</label>
+        <div className="flex gap-1">
+          {[
+            { value: "random", label: "Random Player" },
+            { value: "role", label: "Specific Role" },
+            { value: "team", label: "Entire Team" },
+          ].map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setRewardTarget(opt.value)}
+              data-testid={`toggle-target-${config.gameType}-${opt.value}`}
+              className={`px-2 py-1 text-[10px] rounded font-bold tracking-wider transition-colors ${
+                rewardTarget === opt.value
+                  ? "bg-cyan-500/30 text-cyan-300 border border-cyan-500/50"
+                  : "bg-gray-800 text-gray-500 border border-gray-700"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {rewardTarget === "role" && (
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">Target Position</label>
+          <div className="flex flex-wrap gap-1">
+            {ALL_POSITIONS.map((pos) => (
+              <button
+                key={pos}
+                onClick={() => setRewardTargetRole(pos)}
+                data-testid={`toggle-role-${config.gameType}-${pos}`}
+                className={`px-2 py-1 text-[10px] rounded font-bold tracking-wider transition-colors ${
+                  rewardTargetRole === pos
+                    ? "bg-amber-500/30 text-amber-300 border border-amber-500/50"
+                    : "bg-gray-800 text-gray-500 border border-gray-700"
+                }`}
+              >
+                {pos}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-3 gap-3">
         <div>

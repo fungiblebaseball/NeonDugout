@@ -117,6 +117,55 @@ export function verifyClaimSignature(walletAddress: string, signature: string, m
   }
 }
 
+const trainingChallengeStore = new Map<string, { nonce: string; resultId: number; createdAt: number }>();
+
+setInterval(() => {
+  const now = Date.now();
+  trainingChallengeStore.forEach((val, key) => {
+    if (now - val.createdAt > CHALLENGE_TTL) {
+      trainingChallengeStore.delete(key);
+    }
+  });
+}, 60 * 1000);
+
+export function generateTrainingChallenge(walletAddress: string, resultId: number): { message: string; nonce: string } {
+  const nonce = uuidv4();
+  const message = `Certify training result in Neon Dugout: ${nonce}`;
+  trainingChallengeStore.set(`${walletAddress}:${resultId}`, { nonce, resultId, createdAt: Date.now() });
+  return { message, nonce };
+}
+
+export function verifyTrainingSignature(walletAddress: string, resultId: number, signature: string, message: string): boolean {
+  const key = `${walletAddress}:${resultId}`;
+  const stored = trainingChallengeStore.get(key);
+  if (!stored) return false;
+
+  const now = Date.now();
+  if (now - stored.createdAt > CHALLENGE_TTL) {
+    trainingChallengeStore.delete(key);
+    return false;
+  }
+
+  if (!message.includes(stored.nonce)) return false;
+
+  try {
+    const messageBytes = new TextEncoder().encode(message);
+    const signatureBytes = Buffer.from(signature, "base64");
+    const publicKeyBytes = decodeBase58(walletAddress);
+
+    const valid = nacl.sign.detached.verify(messageBytes, signatureBytes, publicKeyBytes);
+
+    if (valid) {
+      trainingChallengeStore.delete(key);
+    }
+
+    return valid;
+  } catch (err) {
+    console.error("Training signature verification failed:", err);
+    return false;
+  }
+}
+
 function decodeBase58(str: string): Uint8Array {
   const ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
   const bytes: number[] = [0];

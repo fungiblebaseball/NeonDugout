@@ -4,7 +4,7 @@
 Text-based fantasy baseball manager game with retro 80s/90s cyberpunk aesthetic. Target platform: Solana Seeker mobile (Web3 integration planned). Zero MLB licenses - all fictional teams and players.
 
 ## Current State
-Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.9.0 — Token Economy: in-game token system with wallet-signed claims (X tokens every Y hours, admin configurable). Team Page with full roster + bonus attributes. Home page reorganized to highlight training, token balance, and game features. Admin panel with token config and treasury reset.
+Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.10.0 — Training upgrade: always-visible mini cards with dynamic attribute labels, wallet signature required to certify training boosts, admin-configurable reward target (random/role/team). Game day auto-scheduled at 00:00 CET via node-cron, manual controls moved to Admin panel. Token economy with wallet-signed claims.
 
 ## Branding
 - **Logo**: `client/src/assets/images/logo-neon-dugout.png` — Stylized baseball diamond (neon glow, transparent bg)
@@ -21,7 +21,8 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 ## Key Files
 - `shared/schema.ts` - Drizzle schema: users (with isAdmin), teams, players (with _add boost columns), matches, match_details, lineups, pitcher_rotations, tactics, training_results, training_config, user_tokens, token_config
 - `server/routes.ts` - API routes (/api/auth/*, /api/teams, /api/matches, /api/player/:id, /api/training/*, /api/tokens/*, /api/admin/training-config, /api/admin/token-config, /api/admin/reset-tokens, /api/lineup, /api/pitcher-rotation, /api/tactics)
-- `server/auth.ts` - JWT token creation/verification, ed25519 signature validation, challenge nonce management, claim challenge/verify
+- `server/auth.ts` - JWT token creation/verification, ed25519 signature validation, challenge nonce management, claim challenge/verify, training challenge/verify
+- `server/scheduler.ts` - Game day cron scheduler (00:00 CET / 23:00 UTC daily via node-cron)
 - `server/expansion.ts` - Dynamic league expansion: auto-creates new league with 20 teams + 400 players + 228 matches when all teams are owned
 - `server/storage.ts` - DatabaseStorage class implementing IStorage interface
 - `server/seed.ts` - Seeds 40 teams (2 leagues × 2 series × 10 teams), 800 players, 14-day schedule (regular + interleague + playoff)

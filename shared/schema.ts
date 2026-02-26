@@ -161,6 +161,9 @@ export const trainingResults = pgTable("training_results", {
   rewardAttribute: text("reward_attribute").notNull(),
   rewardPlayerId: integer("reward_player_id").notNull(),
   rewardAmount: integer("reward_amount").notNull(),
+  confirmed: boolean("confirmed").notNull().default(false),
+  rewardPlayerIds: jsonb("reward_player_ids").$type<number[]>(),
+  rewardAttributes: text("reward_attributes").array(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -171,6 +174,8 @@ export const trainingConfig = pgTable("training_config", {
   rewardAmount: integer("reward_amount").notNull().default(1),
   minScoreForReward: integer("min_score_for_reward").notNull().default(200),
   maxBoostPerSeason: integer("max_boost_per_season").notNull().default(10),
+  rewardTarget: text("reward_target").notNull().default("random"),
+  rewardTargetRole: text("reward_target_role"),
 });
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
@@ -183,7 +188,7 @@ export const insertTacticsSchema = createInsertSchema(tactics).omit({ id: true }
 export const insertMatchDetailsSchema = createInsertSchema(matchDetails).omit({ id: true });
 export const insertTeamSnapshotSchema = createInsertSchema(teamSnapshots).omit({ id: true });
 export const insertPlayerSeasonStatsSchema = createInsertSchema(playerSeasonStats).omit({ id: true });
-export const insertTrainingResultSchema = createInsertSchema(trainingResults).omit({ id: true, createdAt: true });
+export const insertTrainingResultSchema = createInsertSchema(trainingResults).omit({ id: true, createdAt: true, confirmed: true });
 export const userTokens = pgTable("user_tokens", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull().unique(),

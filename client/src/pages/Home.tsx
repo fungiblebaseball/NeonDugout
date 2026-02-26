@@ -2,7 +2,7 @@ import { useGameStore } from "@/lib/store";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
-import { Terminal, ShieldAlert, Calendar, Swords, Shield, ListOrdered, RotateCcw, Zap, Trophy, Play, Pencil, Check, X, ScrollText, Dumbbell, Users, Coins, Clock, Eye, Target, Crosshair, ChevronDown } from "lucide-react";
+import { Terminal, ShieldAlert, Calendar, Swords, Shield, ListOrdered, RotateCcw, Zap, Trophy, Play, Pencil, Check, X, ScrollText, Dumbbell, Users, Coins, Clock, Eye, Target, Crosshair } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import type { SimPlayer } from "@/lib/calculations";
@@ -67,13 +67,11 @@ function SectorBar({ label, myVal, oppVal, color }: { label: string; myVal: numb
 export default function Home() {
   const { walletAddress, disconnectWallet, team, players, loading, token } = useGameStore();
   const { signMessage } = useWallet();
-  const [simulating, setSimulating] = useState(false);
   const [lastResult, setLastResult] = useState<{ home: string; away: string; hs: number; as: number; matchId: number } | null>(null);
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState("");
   const [savingName, setSavingName] = useState(false);
   const [claiming, setClaiming] = useState(false);
-  const [trainingOpen, setTrainingOpen] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
@@ -84,6 +82,19 @@ export default function Home() {
       nameInputRef.current.select();
     }
   }, [editingName]);
+
+  const { data: trainingConfigs } = useQuery<{ gameType: string; rewardAttributes: string[] }[]>({
+    queryKey: ['training-configs'],
+    queryFn: async () => {
+      const res = await fetch('/api/training-configs');
+      return res.json();
+    },
+  });
+
+  const getConfigAttrs = (gameType: string) => {
+    const cfg = trainingConfigs?.find(c => c.gameType === gameType);
+    return cfg?.rewardAttributes?.map(a => a.toUpperCase()).join("/") || null;
+  };
 
   const { data: seasonData } = useQuery<{ seasonId: number }>({
     queryKey: ['current-season'],
@@ -194,62 +205,6 @@ export default function Home() {
 
   const mySectors = calcSectors(players as PlayerInfo[]);
   const oppSectors = calcSectors(opponentPlayers);
-
-  const playNextMatchDay = async () => {
-    if (!nextUnplayedDay || !team) return;
-    setSimulating(true);
-    setLastResult(null);
-    try {
-      if (nextUnplayedDay >= 13) {
-        await fetch('/api/update-playoff-matchups', { method: 'POST' });
-        await queryClient.invalidateQueries({ queryKey: ['matches-all'] });
-      }
-
-      const res = await fetch('/api/simulate-day', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ day: nextUnplayedDay }),
-      });
-      const data = await res.json();
-
-      if (data.results && nextLeagueMatch) {
-        const userResult = data.results.find((r: any) => r.matchId === nextLeagueMatch.id);
-        if (userResult) {
-          setLastResult({
-            home: teamMap.get(nextLeagueMatch.homeTeamId)?.name || 'Home',
-            away: teamMap.get(nextLeagueMatch.awayTeamId)?.name || 'Away',
-            hs: userResult.homeScore,
-            as: userResult.awayScore,
-            matchId: nextLeagueMatch.id,
-          });
-        }
-      }
-
-      queryClient.invalidateQueries({ queryKey: ['matches-all'] });
-      queryClient.invalidateQueries({ queryKey: ['teams-all'] });
-    } catch (err) {
-      console.error('Match day simulation failed:', err);
-    }
-    setSimulating(false);
-  };
-
-  const startNewSeason = async () => {
-    if (!team) return;
-    setSimulating(true);
-    try {
-      const res = await fetch('/api/new-season', { method: 'POST' });
-      const data = await res.json();
-      if (data.seasonId) {
-        queryClient.invalidateQueries({ queryKey: ['matches-all'] });
-        queryClient.invalidateQueries({ queryKey: ['teams-all'] });
-        queryClient.invalidateQueries({ queryKey: ['current-season'] });
-        setLastResult(null);
-      }
-    } catch (err) {
-      console.error('New season failed:', err);
-    }
-    setSimulating(false);
-  };
 
   const saveTeamName = async () => {
     if (!team || !nameInput.trim() || nameInput.trim() === team.name) {
@@ -400,42 +355,30 @@ export default function Home() {
           );
         })()}
 
-        <div className="rounded-2xl border-2 animate-border-glitter bg-gradient-to-r from-amber-950/30 to-orange-950/30 overflow-hidden">
-          <button
-            data-testid="button-toggle-training"
-            onClick={() => setTrainingOpen(!trainingOpen)}
-            className="w-full p-5 flex items-center justify-between hover:from-amber-900/30 hover:to-orange-900/30 transition-colors group text-left"
-          >
-            <div className="flex items-center gap-3">
-              <Dumbbell className="w-7 h-7 text-amber-400 group-hover:animate-pulse" />
-              <div>
-                <h3 className="font-black text-xl text-amber-400 group-hover:drop-shadow-[0_0_10px_rgba(245,158,11,0.8)]" style={{fontFamily: "'Orbitron', sans-serif"}}>TRAINING CENTER</h3>
-                <p className="text-[10px] font-mono text-gray-500">Play minigames to boost your players' attributes</p>
-              </div>
+        <div className="rounded-2xl border-2 animate-border-glitter bg-gradient-to-r from-amber-950/30 to-orange-950/30 overflow-hidden p-5">
+          <div className="flex items-center gap-3 mb-4">
+            <Dumbbell className="w-7 h-7 text-amber-400" />
+            <div>
+              <h3 className="font-black text-xl text-amber-400" style={{fontFamily: "'Orbitron', sans-serif"}}>TRAINING CENTER</h3>
+              <p className="text-[10px] font-mono text-gray-500">Play minigames to boost your players' attributes</p>
             </div>
-            <ChevronDown className={`w-5 h-5 text-amber-400 transition-transform duration-300 ${trainingOpen ? 'rotate-180' : ''}`} />
-          </button>
-          <div className={`transition-all duration-300 ease-in-out overflow-hidden ${trainingOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}>
-            <div className="px-5 pb-5">
-              <p className="text-[10px] font-mono text-amber-500/70 uppercase tracking-widest mb-3">MINIGAMES</p>
-              <div className="grid grid-cols-3 gap-2">
-                <Link href="/training/eye-drill" data-testid="link-minigame-eye" className="block p-3 rounded-xl border border-amber-500/25 bg-black/50 hover:bg-amber-900/20 transition-colors group/card text-center">
-                  <Eye className="w-5 h-5 text-amber-400 mx-auto mb-1.5 group-hover/card:animate-pulse" />
-                  <h4 className="font-black text-xs text-amber-300 mb-1" style={{fontFamily: "'Orbitron', sans-serif"}}>EYE DRILL</h4>
-                  <p className="text-[9px] font-mono text-gray-500 leading-tight">Reaction · Timing · EYE</p>
-                </Link>
-                <Link href="/training/batting" data-testid="link-minigame-batting" className="block p-3 rounded-xl border border-amber-500/25 bg-black/50 hover:bg-amber-900/20 transition-colors group/card text-center">
-                  <Target className="w-5 h-5 text-amber-400 mx-auto mb-1.5 group-hover/card:animate-pulse" />
-                  <h4 className="font-black text-xs text-amber-300 mb-1" style={{fontFamily: "'Orbitron', sans-serif"}}>BATTING</h4>
-                  <p className="text-[9px] font-mono text-gray-500 leading-tight">Swing · Power · CON/POW</p>
-                </Link>
-                <Link href="/training/pitch-control" data-testid="link-minigame-pitch" className="block p-3 rounded-xl border border-amber-500/25 bg-black/50 hover:bg-amber-900/20 transition-colors group/card text-center">
-                  <Crosshair className="w-5 h-5 text-amber-400 mx-auto mb-1.5 group-hover/card:animate-pulse" />
-                  <h4 className="font-black text-xs text-amber-300 mb-1" style={{fontFamily: "'Orbitron', sans-serif"}}>PITCH CTL</h4>
-                  <p className="text-[9px] font-mono text-gray-500 leading-tight">Accuracy · Zones · CTL</p>
-                </Link>
-              </div>
-            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <Link href="/training/eye-drill" data-testid="link-minigame-eye" className="block p-3 rounded-xl border border-amber-500/25 bg-black/50 hover:bg-amber-900/20 transition-colors group/card text-center">
+              <Eye className="w-5 h-5 text-amber-400 mx-auto mb-1.5 group-hover/card:animate-pulse" />
+              <h4 className="font-black text-xs text-amber-300 mb-1" style={{fontFamily: "'Orbitron', sans-serif"}}>EYE DRILL</h4>
+              <p className="text-[9px] font-mono text-gray-500 leading-tight">Reaction · {getConfigAttrs("eye_drill") || "EYE"}</p>
+            </Link>
+            <Link href="/training/batting" data-testid="link-minigame-batting" className="block p-3 rounded-xl border border-amber-500/25 bg-black/50 hover:bg-amber-900/20 transition-colors group/card text-center">
+              <Target className="w-5 h-5 text-amber-400 mx-auto mb-1.5 group-hover/card:animate-pulse" />
+              <h4 className="font-black text-xs text-amber-300 mb-1" style={{fontFamily: "'Orbitron', sans-serif"}}>BATTING</h4>
+              <p className="text-[9px] font-mono text-gray-500 leading-tight">Swing · {getConfigAttrs("batting_practice") || "CON/POW"}</p>
+            </Link>
+            <Link href="/training/pitch-control" data-testid="link-minigame-pitch" className="block p-3 rounded-xl border border-amber-500/25 bg-black/50 hover:bg-amber-900/20 transition-colors group/card text-center">
+              <Crosshair className="w-5 h-5 text-amber-400 mx-auto mb-1.5 group-hover/card:animate-pulse" />
+              <h4 className="font-black text-xs text-amber-300 mb-1" style={{fontFamily: "'Orbitron', sans-serif"}}>PITCH CTL</h4>
+              <p className="text-[9px] font-mono text-gray-500 leading-tight">Accuracy · {getConfigAttrs("pitch_control") || "CTL"}</p>
+            </Link>
           </div>
         </div>
 
@@ -508,14 +451,7 @@ export default function Home() {
                 </div>
                 <span className="text-3xl">🏆</span>
               </div>
-              <button
-                data-testid="button-new-season"
-                onClick={startNewSeason}
-                disabled={simulating}
-                className="w-full py-3 bg-cyan-500 hover:bg-cyan-400 text-black font-black uppercase tracking-widest rounded-xl transition-all shadow-[0_0_15px_rgba(34,211,238,0.4)] disabled:opacity-50 text-sm"
-              >
-                {simulating ? "GENERATING..." : "START NEW SEASON"}
-              </button>
+              <p className="text-[10px] font-mono text-gray-500 text-center">Admin will start next season</p>
             </div>
           ) : nextUnplayedDay ? (
             <div className="col-span-2 p-5 rounded-2xl border-2 border-pink-400/50 bg-gradient-to-r from-pink-950/30 to-cyan-950/30 space-y-3">
@@ -549,14 +485,7 @@ export default function Home() {
                 </div>
               )}
 
-              <button
-                data-testid="button-play-league"
-                onClick={playNextMatchDay}
-                disabled={simulating}
-                className="w-full py-3 bg-pink-500 hover:bg-pink-400 text-black font-black uppercase tracking-widest rounded-xl transition-all shadow-[0_0_15px_rgba(236,72,153,0.4)] disabled:opacity-50 text-sm"
-              >
-                {simulating ? "SIMULATING ALL GAMES..." : `PLAY DAY ${nextUnplayedDay}`}
-              </button>
+              <p className="text-[10px] font-mono text-gray-500 text-center">Next match auto-simulated at 00:00 CET</p>
             </div>
           ) : null}
 

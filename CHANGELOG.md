@@ -6,6 +6,51 @@ Formato:
   • Dettaglio 2 (file modificati)  
   • Trade-off / note (se rilevanti)
 
+## v1.10.0 – 26 febbraio 2026 – Training Upgrade + Game Day Scheduler + Admin Controls
+
+- **Training Center — Always Visible**:
+  * Mini card dei 3 minigame sempre visibili nella Home (non collapsible)
+  * Struttura pronta per scrollable overflow con futuri minigame aggiuntivi
+  * Etichette attributi dinamiche: caricate dalla configurazione admin (GET /api/training-configs)
+  * Fallback a valori default se config non ancora caricata
+
+- **Training Reward Target (Admin)**:
+  * Nuovi campi in `training_config`: `reward_target` (random/role/team), `reward_target_role` (posizione specifica)
+  * Admin può scegliere target del boost: giocatore casuale, ruolo specifico (P, C, SS, ecc.), o intera squadra
+  * Tutti gli attributi configurati vengono applicati contemporaneamente (non più uno random)
+  * Selettore Reward Target nella card di ogni minigame in Admin Panel
+
+- **Wallet Signature per Training**:
+  * Boost NON applicato immediatamente dopo il minigame — risultato salvato con confirmed=false
+  * Nuovo campo `confirmed` (boolean) in `training_results`, più `reward_player_ids` (jsonb) e `reward_attributes` (text[])
+  * Challenge/verify pattern per training: `generateTrainingChallenge()` + `verifyTrainingSignature()` in server/auth.ts
+  * Nuovo endpoint `POST /api/training/confirm` — verifica firma, applica boost, marca confirmed
+  * Pulsante "CERTIFY TRAINING" nelle schermate risultato di tutti e 3 i minigame
+  * Roster ricaricato automaticamente dopo certificazione (invalidate queries)
+  * Se utente rifiuta firma: boost non applicato, messaggio "Training not certified"
+
+- **Simulazione Automatica Giornata**:
+  * Nuovo file `server/scheduler.ts` con cron job (node-cron) a 00:00 CET (23:00 UTC)
+  * Trova automaticamente prossimo giorno non giocato e simula tutti i match
+  * Gestione playoff automatica (day >= 13)
+  * Se stagione completa: non fa nulla, attende new season manuale da admin
+  * Logging completo delle esecuzioni
+
+- **Game Day Controls spostati in Admin**:
+  * Pulsante "SIMULATE DAY X" rimosso dalla Home → trasferito in Admin Panel
+  * Pulsante "START NEW SEASON" rimosso dalla Home → trasferito in Admin Panel
+  * Home mostra info read-only: giorno, avversario, sector preview
+  * Testo informativo: "Next match auto-simulated at 00:00 CET"
+  * Admin Panel: nuova sezione "Match Day Control" con simulazione manuale e new season
+
+- **API Nuove/Modificate**:
+  * `GET /api/training-configs` — endpoint pubblico per configurazioni training (label dinamiche)
+  * `POST /api/training/confirm` — conferma training con firma wallet
+  * `PUT /api/admin/training-config/:gameType` — aggiornato con rewardTarget, rewardTargetRole
+  * `POST /api/training/result` — aggiornato: non applica boost direttamente, restituisce pendingBoost con challenge
+
+- **File Modificati**: shared/schema.ts, server/auth.ts, server/storage.ts, server/routes.ts, server/scheduler.ts (new), server/index.ts, client/src/pages/Home.tsx, client/src/pages/AdminPage.tsx, client/src/pages/minigames/EyeDrillGame.tsx, client/src/pages/minigames/BattingPracticeGame.tsx, client/src/pages/minigames/PitchControlGame.tsx, PAGE_HOME.md, PAGE_ADMIN.md, replit.md
+
 ## v1.9.0 – 26 febbraio 2026 – Token Economy + Team Page + Home Rework
 
 - **Token Economy System**:

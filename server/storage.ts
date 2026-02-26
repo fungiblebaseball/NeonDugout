@@ -64,10 +64,13 @@ export interface IStorage {
   getTrainingRankings(gameType: string, limit: number): Promise<TrainingResult[]>;
   getUserTrainingResults(userId: number, gameType: string): Promise<TrainingResult[]>;
   boostPlayerAttribute(playerId: number, attribute: string, amount: number): Promise<void>;
+  boostPlayerAttributes(playerId: number, attributes: string[], amount: number): Promise<void>;
   countSeasonBoosts(userId: number, gameType: string): Promise<number>;
   getTrainingConfig(gameType: string): Promise<TrainingConfig | undefined>;
   upsertTrainingConfig(config: InsertTrainingConfig): Promise<TrainingConfig>;
   getAllTrainingConfigs(): Promise<TrainingConfig[]>;
+  getTrainingResult(resultId: number): Promise<TrainingResult | undefined>;
+  confirmTrainingResult(resultId: number): Promise<void>;
 
   getUserTokens(userId: number): Promise<UserTokens | undefined>;
   claimTokens(userId: number, claimAmount: number, intervalHours: number): Promise<UserTokens | null>;
@@ -448,13 +451,29 @@ export class DatabaseStorage implements IStorage {
     } as any).where(eq(players.id, playerId));
   }
 
+  async boostPlayerAttributes(playerId: number, attributes: string[], amount: number): Promise<void> {
+    for (const attribute of attributes) {
+      await this.boostPlayerAttribute(playerId, attribute, amount);
+    }
+  }
+
+  async getTrainingResult(resultId: number): Promise<TrainingResult | undefined> {
+    const [result] = await db.select().from(trainingResults).where(eq(trainingResults.id, resultId));
+    return result;
+  }
+
+  async confirmTrainingResult(resultId: number): Promise<void> {
+    await db.update(trainingResults).set({ confirmed: true }).where(eq(trainingResults.id, resultId));
+  }
+
   async countSeasonBoosts(userId: number, gameType: string): Promise<number> {
     const result = await db.select({ count: sql<number>`count(*)` })
       .from(trainingResults)
       .where(and(
         eq(trainingResults.userId, userId),
         eq(trainingResults.gameType, gameType),
-        sql`reward_amount > 0`
+        sql`reward_amount > 0`,
+        eq(trainingResults.confirmed, true)
       ));
     return Number(result[0]?.count ?? 0);
   }

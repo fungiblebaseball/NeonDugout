@@ -4,7 +4,7 @@
 `client/src/pages/AdminPage.tsx`
 
 ## Descrizione
-Pannello di amministrazione per configurare token economy e regole di reward dei minigame di allenamento. Accessibile solo a utenti con `is_admin = true` nella tabella `users`.
+Pannello di amministrazione per configurare token economy, regole di reward dei minigame e controllo manuale delle giornate di campionato. Accessibile solo a utenti con `is_admin = true` nella tabella `users`.
 
 ## Accesso
 - Nessun link nella navigazione — accesso diretto via URL `/admin`
@@ -14,7 +14,16 @@ Pannello di amministrazione per configurare token economy e regole di reward dei
 
 ## Sezioni
 
-### 1. Token Economy Config
+### 1. Match Day Control
+- **Match Day Simulation** (card con bordo pink):
+  - Info automatismo: "Auto-runs daily at 00:00 CET"
+  - Mostra prossimo giorno non giocato e numero di match
+  - Pulsante "SIMULATE DAY X" per simulazione manuale (POST /api/simulate-day)
+  - Gestione playoff automatica (day >= 13: aggiorna matchup prima di simulare)
+  - SEASON COMPLETE: quando tutti i match sono giocati, mostra "START NEW SEASON" (POST /api/new-season)
+  - Feedback testuale dopo simulazione (numero match simulati o errore)
+
+### 2. Token Economy Config
 - **Token Claim Settings** (card con bordo amber):
   - Tokens per Claim (X): input numerico (1-1000) — quanti token per ogni claim
   - Interval Hours (Y): input numerico (1-168) — ore tra un claim e l'altro
@@ -24,10 +33,15 @@ Pannello di amministrazione per configurare token economy e regole di reward dei
     - Conferma scade dopo 5 secondi
     - Secondo click: esegue reset globale
 
-### 2. Training Reward Config
+### 3. Training Reward Config
 - Una card per ogni minigame con:
   - Nome del minigame
-  - Reward Attributes (checkbox per selezionare quali attributi il gioco può potenziare)
+  - **Reward Attributes** — checkbox per selezionare quali attributi il gioco potenzia (tutti applicati contemporaneamente)
+  - **Reward Target** — selettore a 3 opzioni:
+    - "Random Player" — un giocatore casuale dal roster
+    - "Specific Role" — un giocatore casuale con posizione specifica (mostra dropdown posizioni)
+    - "Entire Team" — tutti i giocatori del roster
+  - **Target Position** (visibile solo con "Specific Role"): P, C, 1B, 2B, 3B, SS, LF, CF, RF, DH
   - Reward Amount (input numerico — boost di default per completamento)
   - Min Score for Reward (input 0-1000 — punteggio minimo per ottenere reward)
   - Max Boosts per Season (input numerico — cap stagionale)
@@ -38,7 +52,11 @@ Pannello di amministrazione per configurare token economy e regole di reward dei
 - API: `PUT /api/admin/token-config` — aggiorna X e Y
 - API: `POST /api/admin/reset-tokens` — reset tesoreria globale
 - API: `GET /api/admin/training-config` — lista tutte le configurazioni training
-- API: `PUT /api/admin/training-config/:gameType` — aggiorna configurazione per tipo di gioco
+- API: `PUT /api/admin/training-config/:gameType` — aggiorna configurazione (include rewardTarget, rewardTargetRole)
+- API: `GET /api/matches` — match per determinare prossimo giorno
+- API: `POST /api/simulate-day` — simula giornata
+- API: `POST /api/update-playoff-matchups` — aggiorna accoppiamenti playoff
+- API: `POST /api/new-season` — avvia nuova stagione
 
 ## Come abilitare un utente admin
 Aggiornamento manuale nel database:
@@ -51,3 +69,5 @@ UPDATE users SET is_admin = true WHERE wallet_address = '<wallet>';
 - Token config default: 10 token ogni 24 ore
 - Le modifiche hanno effetto immediato
 - Il reset tesoreria cancella tutti i record dalla tabella user_tokens
+- Simulazione automatica giornata: cron job a 00:00 CET (23:00 UTC) in server/scheduler.ts
+- Pulsanti manuali in admin consentono override della schedulazione automatica

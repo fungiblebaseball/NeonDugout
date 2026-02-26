@@ -1,6 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useGameStore } from "@/lib/store";
 import { useLocation } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { ArrowLeft } from "lucide-react";
 
 const TOTAL_ROUNDS = 10;
@@ -8,14 +10,24 @@ const AREA_WIDTH = 300;
 const AREA_HEIGHT = 400;
 const TARGET_SIZE = 50;
 
-type Phase = "start" | "playing" | "waiting" | "result";
+type Phase = "start" | "playing" | "waiting" | "result" | "certifying";
 
 interface RoundResult {
   reactionTime: number;
 }
 
+interface PendingBoost {
+  resultId: number;
+  playerIds: number[];
+  attributes: string[];
+  amount: number;
+  challenge: { message: string; nonce: string };
+}
+
 export default function EyeDrillGame() {
   const { token } = useGameStore();
+  const { signMessage } = useWallet();
+  const queryClient = useQueryClient();
   const [, navigate] = useLocation();
   const [phase, setPhase] = useState<Phase>("start");
   const [round, setRound] = useState(0);
@@ -27,8 +39,10 @@ export default function EyeDrillGame() {
 
   const [finalScore, setFinalScore] = useState(0);
   const [rankPosition, setRankPosition] = useState(0);
-  const [rewardInfo, setRewardInfo] = useState<{ playerName: string; attribute: string; amount: number } | null>(null);
+  const [rewardInfo, setRewardInfo] = useState<{ players: { id: number; name: string }[]; attributes: string[]; amount: number } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [pendingBoost, setPendingBoost] = useState<PendingBoost | null>(null);
+  const [certifyStatus, setCertifyStatus] = useState<"idle" | "signing" | "confirmed" | "declined">("idle");
 
   const spawnTarget = useCallback(() => {
     const x = Math.floor(Math.random() * (AREA_WIDTH - TARGET_SIZE));
@@ -47,6 +61,9 @@ export default function EyeDrillGame() {
     setRound(1);
     setResults([]);
     setShowTarget(false);
+    setPendingBoost(null);
+    setCertifyStatus("idle");
+    setRewardInfo(null);
     spawnTarget();
   };
 
@@ -88,15 +105,49 @@ export default function EyeDrillGame() {
         const data = await res.json();
         setRankPosition(data.rankPosition);
         setRewardInfo({
-          playerName: data.rewardPlayer.name,
-          attribute: data.rewardAttribute.toUpperCase(),
+          players: data.rewardPlayers || [data.rewardPlayer],
+          attributes: data.rewardAttributes || [data.rewardAttribute],
           amount: data.rewardAmount,
         });
+        if (data.pendingBoost) {
+          setPendingBoost(data.pendingBoost);
+        }
       }
     } catch (err) {
       console.error("Failed to submit result:", err);
     }
     setSubmitting(false);
+  };
+
+  const certifyTraining = async () => {
+    if (!pendingBoost || !signMessage) return;
+    setCertifyStatus("signing");
+
+    try {
+      const messageBytes = new TextEncoder().encode(pendingBoost.challenge.message);
+      const sig = await signMessage(messageBytes);
+      const signature = Buffer.from(sig).toString("base64");
+
+      const res = await fetch("/api/training/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          resultId: pendingBoost.resultId,
+          signature,
+          message: pendingBoost.challenge.message,
+        }),
+      });
+
+      if (res.ok) {
+        setCertifyStatus("confirmed");
+        queryClient.invalidateQueries({ queryKey: ["teams-all"] });
+      } else {
+        setCertifyStatus("declined");
+      }
+    } catch (err) {
+      console.error("Training certification failed:", err);
+      setCertifyStatus("declined");
+    }
   };
 
   useEffect(() => {
@@ -201,12 +252,40 @@ export default function EyeDrillGame() {
               )}
             </div>
 
-            {rewardInfo && rewardInfo.amount > 0 && (
-              <div className="bg-gradient-to-r from-amber-900/30 to-yellow-900/30 border border-amber-500/30 rounded-xl p-4">
-                <p className="text-amber-400 text-xs uppercase tracking-wider font-bold">Reward Earned</p>
-                <p className="text-white text-sm mt-1" style={{ fontFamily: "VT323, monospace" }} data-testid="text-reward">
-                  {rewardInfo.playerName}: {rewardInfo.attribute} +{rewardInfo.amount}
+            {rewardInfo && rewardInfo.amount > 0 && pendingBoost && certifyStatus === "idle" && (
+              <div className="bg-gradient-to-r from-amber-900/30 to-yellow-900/30 border border-amber-500/30 rounded-xl p-4 space-y-3">
+                <p className="text-amber-400 text-xs uppercase tracking-wider font-bold">Pending Reward</p>
+                <p className="text-white text-sm" style={{ fontFamily: "VT323, monospace" }} data-testid="text-reward">
+                  {rewardInfo.players.map(p => p.name).join(", ")}: {rewardInfo.attributes.map(a => a.toUpperCase()).join("/")} +{rewardInfo.amount}
                 </p>
+                <button
+                  onClick={certifyTraining}
+                  data-testid="button-certify-training"
+                  className="w-full py-2 bg-amber-500 hover:bg-amber-400 text-black font-black uppercase tracking-widest rounded-lg transition-all shadow-[0_0_10px_rgba(245,158,11,0.4)] text-xs"
+                >
+                  CERTIFY TRAINING
+                </button>
+              </div>
+            )}
+
+            {certifyStatus === "signing" && (
+              <div className="bg-amber-900/20 border border-amber-500/30 rounded-xl p-4">
+                <p className="text-amber-400 text-xs uppercase tracking-wider animate-pulse">Awaiting wallet signature...</p>
+              </div>
+            )}
+
+            {certifyStatus === "confirmed" && (
+              <div className="bg-green-900/30 border border-green-500/30 rounded-xl p-4">
+                <p className="text-green-400 text-xs uppercase tracking-wider font-bold">Training Certified ✓</p>
+                <p className="text-white text-sm mt-1" style={{ fontFamily: "VT323, monospace" }}>
+                  {rewardInfo?.players.map(p => p.name).join(", ")}: {rewardInfo?.attributes.map(a => a.toUpperCase()).join("/")} +{rewardInfo?.amount}
+                </p>
+              </div>
+            )}
+
+            {certifyStatus === "declined" && (
+              <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-4">
+                <p className="text-gray-500 text-xs uppercase tracking-wider">Training not certified — boost not applied</p>
               </div>
             )}
 

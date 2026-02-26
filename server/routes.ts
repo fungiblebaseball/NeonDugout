@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { simulateMatchDay, updatePlayoffMatchups } from "./simulation";
 import { generateNewSeason } from "./season";
-import { generateChallenge, verifySignature, createToken, verifyToken, generateClaimChallenge, verifyClaimSignature } from "./auth";
+import { generateChallenge, verifySignature, createToken, verifyToken, generateClaimChallenge, verifyClaimSignature, generateTrainingChallenge, verifyTrainingSignature } from "./auth";
 import { expandLeague, ensureExtraLeague } from "./expansion";
 
 export async function registerRoutes(
@@ -341,6 +341,8 @@ export async function registerRoutes(
   });
 
   app.post("/api/simulate-day", async (req, res) => {
+    const adminData = await requireAdmin(req, res);
+    if (!adminData) return;
     const { day } = req.body;
     if (!day || typeof day !== 'number' || day < 1 || day > 14) {
       return res.status(400).json({ message: "day must be a number between 1 and 14" });
@@ -355,7 +357,9 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/update-playoff-matchups", async (_req, res) => {
+  app.post("/api/update-playoff-matchups", async (req, res) => {
+    const adminData = await requireAdmin(req, res);
+    if (!adminData) return;
     try {
       const result = await updatePlayoffMatchups();
       res.json(result);
@@ -403,17 +407,28 @@ export async function registerRoutes(
     }
 
     const config = await storage.getTrainingConfig(gameType);
-    const rewardAttributes = config?.rewardAttributes || [];
+    const rewardAttrs = config?.rewardAttributes || ["eye"];
     const rewardAmount = config?.rewardAmount || 1;
     const minScore = config?.minScoreForReward || 200;
+    const rewardTarget = (config as any)?.rewardTarget || "random";
+    const rewardTargetRole = (config as any)?.rewardTargetRole || null;
 
     const teamPlayers = await storage.getPlayersByTeam(user.teamId);
     if (teamPlayers.length === 0) return res.status(400).json({ message: "No players on team" });
 
-    const randomPlayer = teamPlayers[Math.floor(Math.random() * teamPlayers.length)];
-    const rewardAttr = rewardAttributes.length > 0
-      ? rewardAttributes[Math.floor(Math.random() * rewardAttributes.length)]
-      : "eye";
+    let targetPlayers: typeof teamPlayers = [];
+    if (rewardTarget === "team") {
+      targetPlayers = teamPlayers;
+    } else if (rewardTarget === "role" && rewardTargetRole) {
+      const rolePlayers = teamPlayers.filter(p => p.positions.includes(rewardTargetRole));
+      if (rolePlayers.length > 0) {
+        targetPlayers = [rolePlayers[Math.floor(Math.random() * rolePlayers.length)]];
+      } else {
+        targetPlayers = [teamPlayers[Math.floor(Math.random() * teamPlayers.length)]];
+      }
+    } else {
+      targetPlayers = [teamPlayers[Math.floor(Math.random() * teamPlayers.length)]];
+    }
 
     let actualReward = 0;
     const maxPerSeason = config?.maxBoostPerSeason || 50;
@@ -421,30 +436,87 @@ export async function registerRoutes(
 
     if (score >= minScore && boostCount < maxPerSeason) {
       actualReward = rewardAmount;
-      await storage.boostPlayerAttribute(randomPlayer.id, rewardAttr, rewardAmount);
     }
 
+    const primaryPlayer = targetPlayers[0];
     const result = await storage.saveTrainingResult({
       userId: user.id,
       teamId: user.teamId,
       gameType,
       score,
       rawData,
-      rewardAttribute: rewardAttr,
-      rewardPlayerId: randomPlayer.id,
+      rewardAttribute: rewardAttrs[0] || "eye",
+      rewardPlayerId: primaryPlayer.id,
       rewardAmount: actualReward,
+      rewardPlayerIds: targetPlayers.map(p => p.id),
+      rewardAttributes: rewardAttrs,
     });
 
     const rankings = await storage.getTrainingRankings(gameType, 100);
     const rankPosition = rankings.findIndex(r => r.userId === user.id) + 1;
 
+    let challenge: { message: string; nonce: string } | null = null;
+    if (actualReward > 0) {
+      challenge = generateTrainingChallenge(tokenData.walletAddress, result.id);
+    }
+
     res.json({
       result,
       rankPosition: rankPosition || rankings.length + 1,
-      rewardPlayer: { id: randomPlayer.id, name: randomPlayer.name },
-      rewardAttribute: rewardAttr,
+      rewardPlayers: targetPlayers.map(p => ({ id: p.id, name: p.name })),
+      rewardPlayer: { id: primaryPlayer.id, name: primaryPlayer.name },
+      rewardAttributes: rewardAttrs,
+      rewardAttribute: rewardAttrs[0] || "eye",
       rewardAmount: actualReward,
+      pendingBoost: actualReward > 0 ? {
+        resultId: result.id,
+        playerIds: targetPlayers.map(p => p.id),
+        attributes: rewardAttrs,
+        amount: actualReward,
+        challenge,
+      } : null,
     });
+  });
+
+  app.post("/api/training/confirm", async (req, res) => {
+    const tokenData = await authenticateUser(req, res);
+    if (!tokenData) return;
+
+    const { resultId, signature, message } = req.body;
+    if (!resultId || !signature || !message) {
+      return res.status(400).json({ message: "resultId, signature, and message required" });
+    }
+
+    const valid = verifyTrainingSignature(tokenData.walletAddress, resultId, signature, message);
+    if (!valid) {
+      return res.status(401).json({ message: "Invalid training signature" });
+    }
+
+    const trainingResult = await storage.getTrainingResult(resultId);
+    if (!trainingResult) {
+      return res.status(404).json({ message: "Training result not found" });
+    }
+    if (trainingResult.userId !== tokenData.userId) {
+      return res.status(403).json({ message: "Not your training result" });
+    }
+    if (trainingResult.confirmed) {
+      return res.status(400).json({ message: "Training already confirmed" });
+    }
+    if (trainingResult.rewardAmount <= 0) {
+      return res.status(400).json({ message: "No reward to confirm" });
+    }
+
+    const playerIds = (trainingResult.rewardPlayerIds as number[]) || [trainingResult.rewardPlayerId];
+    const rawAttrs = trainingResult.rewardAttributes as string[] | null;
+    const attrs = rawAttrs && rawAttrs.length > 0 ? rawAttrs : [trainingResult.rewardAttribute || "eye"];
+
+    for (const playerId of playerIds) {
+      await storage.boostPlayerAttributes(playerId, attrs, trainingResult.rewardAmount);
+    }
+
+    await storage.confirmTrainingResult(resultId);
+
+    res.json({ confirmed: true, playerIds, attributes: attrs, amount: trainingResult.rewardAmount });
   });
 
   app.get("/api/training/rankings/:gameType", async (req, res) => {
@@ -459,6 +531,11 @@ export async function registerRoutes(
     res.json(results);
   });
 
+  app.get("/api/training-configs", async (_req, res) => {
+    const configs = await storage.getAllTrainingConfigs();
+    res.json(configs);
+  });
+
   app.get("/api/admin/training-config", async (req, res) => {
     const tokenData = await requireAdmin(req, res);
     if (!tokenData) return;
@@ -469,13 +546,15 @@ export async function registerRoutes(
   app.put("/api/admin/training-config/:gameType", async (req, res) => {
     const tokenData = await requireAdmin(req, res);
     if (!tokenData) return;
-    const { rewardAttributes, rewardAmount, minScoreForReward, maxBoostPerSeason } = req.body;
+    const { rewardAttributes, rewardAmount, minScoreForReward, maxBoostPerSeason, rewardTarget, rewardTargetRole } = req.body;
     const config = await storage.upsertTrainingConfig({
       gameType: req.params.gameType,
       rewardAttributes: rewardAttributes || [],
       rewardAmount: rewardAmount ?? 1,
       minScoreForReward: minScoreForReward ?? 200,
       maxBoostPerSeason: maxBoostPerSeason ?? 10,
+      rewardTarget: rewardTarget ?? "random",
+      rewardTargetRole: rewardTargetRole ?? null,
     });
     res.json(config);
   });
@@ -571,7 +650,9 @@ export async function registerRoutes(
     res.json({ message: "All token balances have been reset" });
   });
 
-  app.post("/api/new-season", async (_req, res) => {
+  app.post("/api/new-season", async (req, res) => {
+    const adminData = await requireAdmin(req, res);
+    if (!adminData) return;
     try {
       const result = await generateNewSeason();
 

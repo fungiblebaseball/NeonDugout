@@ -9,10 +9,13 @@ Dashboard principale del manager. Punto di ingresso dopo il wallet connect. Esal
 ## Sezioni
 1. **Wallet Connect** — Schermata pre-auth con bottone connessione (mock wallet per dev)
 2. **Header** — Logo, nome team (editabile inline, testo text-2xl), lega/serie/divisione, bottone disconnect
-3. **Owner Registry** — Mostra wallet address
-4. **Token Balance** — Box con saldo token corrente, bottone CLAIM (con firma wallet) o countdown prossimo claim
-5. **Lineup & Pitchers** — Riga compatta con due bottoni link secondari (LINEUP e PITCHERS)
-6. **Training Center** — Card prominente col-span-2, bordo amber, icona grande, link a /training
+3. **Training Center** — Card prominente in cima alla pagina, bordo amber, icona grande, link a /training
+4. **Minigames** — Griglia 3 colonne con mini card per ogni minigame:
+   - Eye Drill (icona Eye) → `/training/eye-drill` — "Reaction · Timing · EYE"
+   - Batting Practice (icona Target) → `/training/batting` — "Swing · Power · CON/POW"
+   - Pitch Control (icona Crosshair) → `/training/pitch-control` — "Accuracy · Zones · CTL"
+5. **Token Balance** — Box con saldo token corrente, bottone CLAIM (con firma wallet) o countdown prossimo claim
+6. **Pitchers & Lineup** — Riga compatta con due bottoni link secondari (PITCHERS primo, LINEUP secondo)
 7. **Attack & Defense** — Due card tattiche affiancate
 8. **Final Score** — Box ultima gara giocata col-span-2, subito dopo tattiche:
    - Nomi squadre, punteggio in stile Press Start 2P
@@ -21,6 +24,7 @@ Dashboard principale del manager. Punto di ingresso dopo il wallet connect. Esal
 9. **League Progression / Match Preview** — Blocco GAME DAY o SEASON COMPLETE con settore preview
 10. **Navigation Cards** — TEST MATCH, PLAY LOG, MY TEAM, SCHEDULE, STANDINGS
 11. **Recent Results** — Lista scrollabile di tutte le gare disputate dall'utente
+12. **Owner Registry** — Mostra wallet address, posizionato in fondo alla pagina
 
 ## Token Claim Flow
 1. Utente clicca "CLAIM X TOKENS"

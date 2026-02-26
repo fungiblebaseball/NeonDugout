@@ -2,7 +2,7 @@ import { useGameStore } from "@/lib/store";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
-import { Terminal, ShieldAlert, Calendar, Swords, Shield, ListOrdered, RotateCcw, Zap, Trophy, Play, Pencil, Check, X, ScrollText, Dumbbell, Users, Coins, Clock } from "lucide-react";
+import { Terminal, ShieldAlert, Calendar, Swords, Shield, ListOrdered, RotateCcw, Zap, Trophy, Play, Pencil, Check, X, ScrollText, Dumbbell, Users, Coins, Clock, Eye, Target, Crosshair } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import type { SimPlayer } from "@/lib/calculations";
@@ -367,11 +367,33 @@ export default function Home() {
       </header>
 
       <main className="space-y-4">
-        <div className="p-4 rounded-2xl border border-pink-500/30 bg-gradient-to-br from-pink-500/10 to-transparent">
-          <h3 className="font-mono text-sm text-pink-300 mb-2">OWNER REGISTRY</h3>
-          <p data-testid="text-wallet" className="text-xs break-all text-gray-400 bg-black/50 p-3 rounded font-mono border border-gray-800">
-            {walletAddress}
-          </p>
+        <Link href="/training" data-testid="link-training" className="block p-5 rounded-2xl border-2 border-amber-500/40 bg-gradient-to-r from-amber-950/30 to-orange-950/30 hover:from-amber-900/30 hover:to-orange-900/30 transition-colors group shadow-[0_0_20px_rgba(245,158,11,0.15)]">
+          <div className="flex items-center justify-between">
+            <div>
+              <Dumbbell className="w-7 h-7 text-amber-400 mb-2 group-hover:animate-pulse" />
+              <h3 className="font-black text-xl text-amber-400 mb-1 group-hover:drop-shadow-[0_0_10px_rgba(245,158,11,0.8)]" style={{fontFamily: "'Orbitron', sans-serif"}}>TRAINING CENTER</h3>
+              <p className="text-[10px] font-mono text-gray-500">Play minigames to boost your players' attributes</p>
+            </div>
+            <span className="text-3xl">🏋️</span>
+          </div>
+        </Link>
+
+        <div className="grid grid-cols-3 gap-2">
+          <Link href="/training/eye-drill" data-testid="link-minigame-eye" className="block p-3 rounded-xl border border-amber-500/20 bg-black/40 hover:bg-amber-900/20 transition-colors group text-center">
+            <Eye className="w-5 h-5 text-amber-400 mx-auto mb-1.5 group-hover:animate-pulse" />
+            <h4 className="font-black text-xs text-amber-300 mb-1" style={{fontFamily: "'Orbitron', sans-serif"}}>EYE DRILL</h4>
+            <p className="text-[9px] font-mono text-gray-500 leading-tight">Reaction · Timing · EYE</p>
+          </Link>
+          <Link href="/training/batting" data-testid="link-minigame-batting" className="block p-3 rounded-xl border border-amber-500/20 bg-black/40 hover:bg-amber-900/20 transition-colors group text-center">
+            <Target className="w-5 h-5 text-amber-400 mx-auto mb-1.5 group-hover:animate-pulse" />
+            <h4 className="font-black text-xs text-amber-300 mb-1" style={{fontFamily: "'Orbitron', sans-serif"}}>BATTING</h4>
+            <p className="text-[9px] font-mono text-gray-500 leading-tight">Swing · Power · CON/POW</p>
+          </Link>
+          <Link href="/training/pitch-control" data-testid="link-minigame-pitch" className="block p-3 rounded-xl border border-amber-500/20 bg-black/40 hover:bg-amber-900/20 transition-colors group text-center">
+            <Crosshair className="w-5 h-5 text-amber-400 mx-auto mb-1.5 group-hover:animate-pulse" />
+            <h4 className="font-black text-xs text-amber-300 mb-1" style={{fontFamily: "'Orbitron', sans-serif"}}>PITCH CTL</h4>
+            <p className="text-[9px] font-mono text-gray-500 leading-tight">Accuracy · Zones · CTL</p>
+          </Link>
         </div>
 
         <div className="p-4 rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 to-transparent">
@@ -408,28 +430,17 @@ export default function Home() {
         </div>
 
         <div className="flex gap-2">
-          <Link href="/lineup" data-testid="link-lineup" className="flex-1 flex items-center gap-2 px-4 py-3 rounded-xl border border-cyan-500/20 bg-black/30 hover:bg-cyan-900/20 transition-colors group">
-            <ListOrdered className="w-4 h-4 text-cyan-500 group-hover:animate-pulse" />
-            <span className="font-bold text-sm text-cyan-400 uppercase" style={{fontFamily: "'Orbitron', sans-serif"}}>LINEUP</span>
-          </Link>
           <Link href="/pitchers" data-testid="link-pitchers" className="flex-1 flex items-center gap-2 px-4 py-3 rounded-xl border border-pink-500/20 bg-black/30 hover:bg-pink-900/20 transition-colors group">
             <RotateCcw className="w-4 h-4 text-pink-500 group-hover:animate-pulse" />
             <span className="font-bold text-sm text-pink-400 uppercase" style={{fontFamily: "'Orbitron', sans-serif"}}>PITCHERS</span>
           </Link>
+          <Link href="/lineup" data-testid="link-lineup" className="flex-1 flex items-center gap-2 px-4 py-3 rounded-xl border border-cyan-500/20 bg-black/30 hover:bg-cyan-900/20 transition-colors group">
+            <ListOrdered className="w-4 h-4 text-cyan-500 group-hover:animate-pulse" />
+            <span className="font-bold text-sm text-cyan-400 uppercase" style={{fontFamily: "'Orbitron', sans-serif"}}>LINEUP</span>
+          </Link>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <Link href="/training" data-testid="link-training" className="block col-span-2 p-5 rounded-2xl border-2 border-amber-500/40 bg-gradient-to-r from-amber-950/30 to-orange-950/30 hover:from-amber-900/30 hover:to-orange-900/30 transition-colors group shadow-[0_0_20px_rgba(245,158,11,0.15)]">
-            <div className="flex items-center justify-between">
-              <div>
-                <Dumbbell className="w-7 h-7 text-amber-400 mb-2 group-hover:animate-pulse" />
-                <h3 className="font-black text-xl text-amber-400 mb-1 group-hover:drop-shadow-[0_0_10px_rgba(245,158,11,0.8)]" style={{fontFamily: "'Orbitron', sans-serif"}}>TRAINING CENTER</h3>
-                <p className="text-[10px] font-mono text-gray-500">Play minigames to boost your players' attributes</p>
-              </div>
-              <span className="text-3xl">🏋️</span>
-            </div>
-          </Link>
-
           <Link href="/attack" data-testid="link-attack" className="block p-5 rounded-2xl border border-cyan-500/30 bg-black/40 hover:bg-cyan-900/20 transition-colors group">
             <Swords className="w-6 h-6 text-cyan-500 mb-2 group-hover:animate-pulse" />
             <h3 className="font-black text-lg text-cyan-400 mb-1" style={{fontFamily: "'Orbitron', sans-serif"}}>ATTACK</h3>
@@ -601,6 +612,13 @@ export default function Home() {
               </div>
             </div>
           )}
+        </div>
+
+        <div className="p-4 rounded-2xl border border-pink-500/30 bg-gradient-to-br from-pink-500/10 to-transparent">
+          <h3 className="font-mono text-sm text-pink-300 mb-2">OWNER REGISTRY</h3>
+          <p data-testid="text-wallet" className="text-xs break-all text-gray-400 bg-black/50 p-3 rounded font-mono border border-gray-800">
+            {walletAddress}
+          </p>
         </div>
       </main>
     </div>

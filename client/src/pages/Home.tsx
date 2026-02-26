@@ -2,7 +2,7 @@ import { useGameStore } from "@/lib/store";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
-import { Terminal, ShieldAlert, Calendar, Swords, Shield, ListOrdered, RotateCcw, Zap, Trophy, Play, Pencil, Check, X, ScrollText, Dumbbell, Users, Coins, Clock, Eye, Target, Crosshair } from "lucide-react";
+import { Terminal, ShieldAlert, Calendar, Swords, Shield, ListOrdered, RotateCcw, Zap, Trophy, Play, Pencil, Check, X, ScrollText, Dumbbell, Users, Coins, Clock, Eye, Target, Crosshair, ChevronDown } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import type { SimPlayer } from "@/lib/calculations";
@@ -73,6 +73,7 @@ export default function Home() {
   const [nameInput, setNameInput] = useState("");
   const [savingName, setSavingName] = useState(false);
   const [claiming, setClaiming] = useState(false);
+  const [trainingOpen, setTrainingOpen] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
@@ -330,7 +331,7 @@ export default function Home() {
                   if (e.key === 'Escape') setEditingName(false);
                 }}
                 maxLength={30}
-                className="bg-black/80 border border-pink-500/50 text-pink-500 font-black uppercase text-2xl px-2 py-1 rounded-lg outline-none focus:border-pink-400 w-48"
+                className="bg-black/80 border border-pink-500/50 text-pink-500 font-black uppercase text-xl px-2 py-1 rounded-lg outline-none focus:border-pink-400 w-48"
                 style={{fontFamily: "'Orbitron', sans-serif"}}
                 disabled={savingName}
               />
@@ -343,7 +344,7 @@ export default function Home() {
             </div>
           ) : (
             <div className="flex items-center gap-2 mt-1">
-              <h1 data-testid="text-team-name" className="text-2xl font-black uppercase text-pink-500 drop-shadow-[0_0_8px_rgba(236,72,153,0.6)]" style={{fontFamily: "'Orbitron', sans-serif"}}>
+              <h1 data-testid="text-team-name" className="text-xl font-black uppercase text-pink-500 drop-shadow-[0_0_8px_rgba(236,72,153,0.6)]" style={{fontFamily: "'Orbitron', sans-serif"}}>
                 {team?.name || "Loading..."}
               </h1>
               <button
@@ -367,33 +368,75 @@ export default function Home() {
       </header>
 
       <main className="space-y-4">
-        <Link href="/training" data-testid="link-training" className="block p-5 rounded-2xl border-2 border-amber-500/40 bg-gradient-to-r from-amber-950/30 to-orange-950/30 hover:from-amber-900/30 hover:to-orange-900/30 transition-colors group shadow-[0_0_20px_rgba(245,158,11,0.15)]">
-          <div className="flex items-center justify-between">
-            <div>
-              <Dumbbell className="w-7 h-7 text-amber-400 mb-2 group-hover:animate-pulse" />
-              <h3 className="font-black text-xl text-amber-400 mb-1 group-hover:drop-shadow-[0_0_10px_rgba(245,158,11,0.8)]" style={{fontFamily: "'Orbitron', sans-serif"}}>TRAINING CENTER</h3>
-              <p className="text-[10px] font-mono text-gray-500">Play minigames to boost your players' attributes</p>
+        {(() => {
+          const display = lastResult || (() => {
+            const lastPlayed = recentResults[0];
+            if (!lastPlayed) return null;
+            return {
+              home: teamMap.get(lastPlayed.homeTeamId)?.name || 'Home',
+              away: teamMap.get(lastPlayed.awayTeamId)?.name || 'Away',
+              hs: lastPlayed.homeScore ?? 0,
+              as: lastPlayed.awayScore ?? 0,
+              matchId: lastPlayed.id,
+            };
+          })();
+          if (!display) return null;
+          return (
+            <div className="p-4 rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-cyan-950/20 to-pink-950/20 text-center space-y-2">
+              <p className="text-xs font-mono text-gray-400 uppercase tracking-wider">FINAL SCORE</p>
+              <div className="flex items-center justify-center gap-3 mt-1">
+                <span className="text-sm font-bold text-cyan-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{display.home}</span>
+                <span className="text-lg font-black text-cyan-400" style={{fontFamily: "'Press Start 2P', cursive", fontSize: '14px'}}>{display.hs}</span>
+                <span className="text-gray-600">-</span>
+                <span className="text-lg font-black text-pink-400" style={{fontFamily: "'Press Start 2P', cursive", fontSize: '14px'}}>{display.as}</span>
+                <span className="text-sm font-bold text-pink-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{display.away}</span>
+              </div>
+              <Link href={`/match/${display.matchId}`}>
+                <button data-testid="button-view-details" className="mt-1 px-4 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 font-mono text-xs uppercase tracking-wider rounded-lg transition-all">
+                  VIEW MATCH REPORT
+                </button>
+              </Link>
             </div>
-            <span className="text-3xl">🏋️</span>
-          </div>
-        </Link>
+          );
+        })()}
 
-        <div className="grid grid-cols-3 gap-2">
-          <Link href="/training/eye-drill" data-testid="link-minigame-eye" className="block p-3 rounded-xl border border-amber-500/20 bg-black/40 hover:bg-amber-900/20 transition-colors group text-center">
-            <Eye className="w-5 h-5 text-amber-400 mx-auto mb-1.5 group-hover:animate-pulse" />
-            <h4 className="font-black text-xs text-amber-300 mb-1" style={{fontFamily: "'Orbitron', sans-serif"}}>EYE DRILL</h4>
-            <p className="text-[9px] font-mono text-gray-500 leading-tight">Reaction · Timing · EYE</p>
-          </Link>
-          <Link href="/training/batting" data-testid="link-minigame-batting" className="block p-3 rounded-xl border border-amber-500/20 bg-black/40 hover:bg-amber-900/20 transition-colors group text-center">
-            <Target className="w-5 h-5 text-amber-400 mx-auto mb-1.5 group-hover:animate-pulse" />
-            <h4 className="font-black text-xs text-amber-300 mb-1" style={{fontFamily: "'Orbitron', sans-serif"}}>BATTING</h4>
-            <p className="text-[9px] font-mono text-gray-500 leading-tight">Swing · Power · CON/POW</p>
-          </Link>
-          <Link href="/training/pitch-control" data-testid="link-minigame-pitch" className="block p-3 rounded-xl border border-amber-500/20 bg-black/40 hover:bg-amber-900/20 transition-colors group text-center">
-            <Crosshair className="w-5 h-5 text-amber-400 mx-auto mb-1.5 group-hover:animate-pulse" />
-            <h4 className="font-black text-xs text-amber-300 mb-1" style={{fontFamily: "'Orbitron', sans-serif"}}>PITCH CTL</h4>
-            <p className="text-[9px] font-mono text-gray-500 leading-tight">Accuracy · Zones · CTL</p>
-          </Link>
+        <div className="rounded-2xl border-2 animate-border-glitter bg-gradient-to-r from-amber-950/30 to-orange-950/30 overflow-hidden">
+          <button
+            data-testid="button-toggle-training"
+            onClick={() => setTrainingOpen(!trainingOpen)}
+            className="w-full p-5 flex items-center justify-between hover:from-amber-900/30 hover:to-orange-900/30 transition-colors group text-left"
+          >
+            <div className="flex items-center gap-3">
+              <Dumbbell className="w-7 h-7 text-amber-400 group-hover:animate-pulse" />
+              <div>
+                <h3 className="font-black text-xl text-amber-400 group-hover:drop-shadow-[0_0_10px_rgba(245,158,11,0.8)]" style={{fontFamily: "'Orbitron', sans-serif"}}>TRAINING CENTER</h3>
+                <p className="text-[10px] font-mono text-gray-500">Play minigames to boost your players' attributes</p>
+              </div>
+            </div>
+            <ChevronDown className={`w-5 h-5 text-amber-400 transition-transform duration-300 ${trainingOpen ? 'rotate-180' : ''}`} />
+          </button>
+          <div className={`transition-all duration-300 ease-in-out overflow-hidden ${trainingOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}>
+            <div className="px-5 pb-5">
+              <p className="text-[10px] font-mono text-amber-500/70 uppercase tracking-widest mb-3">MINIGAMES</p>
+              <div className="grid grid-cols-3 gap-2">
+                <Link href="/training/eye-drill" data-testid="link-minigame-eye" className="block p-3 rounded-xl border border-amber-500/25 bg-black/50 hover:bg-amber-900/20 transition-colors group/card text-center">
+                  <Eye className="w-5 h-5 text-amber-400 mx-auto mb-1.5 group-hover/card:animate-pulse" />
+                  <h4 className="font-black text-xs text-amber-300 mb-1" style={{fontFamily: "'Orbitron', sans-serif"}}>EYE DRILL</h4>
+                  <p className="text-[9px] font-mono text-gray-500 leading-tight">Reaction · Timing · EYE</p>
+                </Link>
+                <Link href="/training/batting" data-testid="link-minigame-batting" className="block p-3 rounded-xl border border-amber-500/25 bg-black/50 hover:bg-amber-900/20 transition-colors group/card text-center">
+                  <Target className="w-5 h-5 text-amber-400 mx-auto mb-1.5 group-hover/card:animate-pulse" />
+                  <h4 className="font-black text-xs text-amber-300 mb-1" style={{fontFamily: "'Orbitron', sans-serif"}}>BATTING</h4>
+                  <p className="text-[9px] font-mono text-gray-500 leading-tight">Swing · Power · CON/POW</p>
+                </Link>
+                <Link href="/training/pitch-control" data-testid="link-minigame-pitch" className="block p-3 rounded-xl border border-amber-500/25 bg-black/50 hover:bg-amber-900/20 transition-colors group/card text-center">
+                  <Crosshair className="w-5 h-5 text-amber-400 mx-auto mb-1.5 group-hover/card:animate-pulse" />
+                  <h4 className="font-black text-xs text-amber-300 mb-1" style={{fontFamily: "'Orbitron', sans-serif"}}>PITCH CTL</h4>
+                  <p className="text-[9px] font-mono text-gray-500 leading-tight">Accuracy · Zones · CTL</p>
+                </Link>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="p-4 rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 to-transparent">
@@ -452,38 +495,6 @@ export default function Home() {
             <h3 className="font-black text-lg text-pink-400 mb-1" style={{fontFamily: "'Orbitron', sans-serif"}}>DEFENSE</h3>
             <p className="text-[10px] font-mono text-gray-500">Field positioning</p>
           </Link>
-
-          {(() => {
-            const display = lastResult || (() => {
-              const lastPlayed = recentResults[0];
-              if (!lastPlayed) return null;
-              return {
-                home: teamMap.get(lastPlayed.homeTeamId)?.name || 'Home',
-                away: teamMap.get(lastPlayed.awayTeamId)?.name || 'Away',
-                hs: lastPlayed.homeScore ?? 0,
-                as: lastPlayed.awayScore ?? 0,
-                matchId: lastPlayed.id,
-              };
-            })();
-            if (!display) return null;
-            return (
-              <div className="col-span-2 p-4 rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-cyan-950/20 to-pink-950/20 text-center space-y-2">
-                <p className="text-xs font-mono text-gray-400 uppercase tracking-wider">FINAL SCORE</p>
-                <div className="flex items-center justify-center gap-3 mt-1">
-                  <span className="text-sm font-bold text-cyan-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{display.home}</span>
-                  <span className="text-lg font-black text-cyan-400" style={{fontFamily: "'Press Start 2P', cursive", fontSize: '14px'}}>{display.hs}</span>
-                  <span className="text-gray-600">-</span>
-                  <span className="text-lg font-black text-pink-400" style={{fontFamily: "'Press Start 2P', cursive", fontSize: '14px'}}>{display.as}</span>
-                  <span className="text-sm font-bold text-pink-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{display.away}</span>
-                </div>
-                <Link href={`/match/${display.matchId}`}>
-                  <button data-testid="button-view-details" className="mt-1 px-4 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 font-mono text-xs uppercase tracking-wider rounded-lg transition-all">
-                    VIEW MATCH REPORT
-                  </button>
-                </Link>
-              </div>
-            );
-          })()}
 
           {seasonFinished ? (
             <div className="col-span-2 p-5 rounded-2xl border-2 border-cyan-400/50 bg-gradient-to-r from-cyan-950/30 to-pink-950/30 space-y-3">

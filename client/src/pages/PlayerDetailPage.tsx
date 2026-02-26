@@ -17,6 +17,15 @@ interface PlayerData {
   mov: number;
   sta: number;
   def: number;
+  powAdd: number;
+  conAdd: number;
+  spdAdd: number;
+  eyeAdd: number;
+  velAdd: number;
+  ctlAdd: number;
+  movAdd: number;
+  staAdd: number;
+  defAdd: number;
 }
 
 interface TeamData {
@@ -96,8 +105,19 @@ function statBarColor(val: number): string {
   return 'bg-red-500';
 }
 
+function getTotal(p: PlayerData, key: string): number {
+  const base = (p as any)[key] ?? 0;
+  const add = (p as any)[`${key}Add`] ?? 0;
+  return Math.min(99, base + add);
+}
+
+function getAdd(p: PlayerData, key: string): number {
+  return (p as any)[`${key}Add`] ?? 0;
+}
+
 function playerOverall(p: PlayerData): number {
-  return Math.round((p.pow + p.con + p.spd + p.eye + p.vel + p.ctl + p.mov + p.sta + p.def) / 9);
+  const attrs = ['pow', 'con', 'spd', 'eye', 'vel', 'ctl', 'mov', 'sta', 'def'];
+  return Math.round(attrs.reduce((sum, k) => sum + getTotal(p, k), 0) / 9);
 }
 
 export default function PlayerDetailPage() {
@@ -163,9 +183,10 @@ export default function PlayerDetailPage() {
 
   const overall = playerOverall(player);
   const isPitcher = player.positions.includes('P');
-  const battingAvg = Math.round((player.pow + player.con + player.eye) / 3);
-  const defenseAvg = Math.round((player.def + player.spd + player.eye + player.vel) / 4);
-  const pitchingAvg = Math.round((player.vel + player.ctl + player.mov) / 3);
+  const battingAvg = Math.round((getTotal(player, 'pow') + getTotal(player, 'con') + getTotal(player, 'eye')) / 3);
+  const defenseAvg = Math.round((getTotal(player, 'def') + getTotal(player, 'spd') + getTotal(player, 'eye') + getTotal(player, 'vel')) / 4);
+  const pitchingAvg = Math.round((getTotal(player, 'vel') + getTotal(player, 'ctl') + getTotal(player, 'mov')) / 3);
+  const hasAnyBoost = ['pow','con','spd','eye','vel','ctl','mov','sta','def'].some(k => getAdd(player, k) > 0);
 
   return (
     <div className="min-h-screen pb-24 bg-black text-cyan-50">
@@ -235,18 +256,32 @@ export default function PlayerDetailPage() {
               <span className="text-[10px] font-mono text-gray-500">VALUE</span>
             </div>
 
+            {hasAnyBoost && (
+              <div className="px-2 pb-2 flex items-center gap-2">
+                <div className="w-3 h-3 rounded-sm bg-amber-500/60" />
+                <span className="text-[9px] font-mono text-gray-500">= Training Boost</span>
+              </div>
+            )}
+
             <div className="mb-2 px-2">
               <span className="text-[10px] font-mono text-pink-400 uppercase tracking-wider">Offense</span>
             </div>
             {(['pow', 'con', 'eye'] as const).map(key => {
-              const val = player[key];
+              const base = player[key];
+              const add = getAdd(player, key);
+              const total = getTotal(player, key);
               return (
                 <div key={key} className="flex items-center gap-2 px-2">
                   <span className="text-[10px] font-mono text-gray-400 w-20 uppercase">{statLabels[key]}</span>
-                  <div className="flex-1 h-3 bg-gray-900 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full transition-all ${statBarColor(val)}`} style={{ width: `${val}%` }} />
+                  <div className="flex-1 h-3 bg-gray-900 rounded-full overflow-hidden relative">
+                    <div className={`h-full rounded-full transition-all ${statBarColor(total)}`} style={{ width: `${total}%` }} />
+                    {add > 0 && (
+                      <div className="absolute top-0 h-full bg-amber-500/60 rounded-r-full" style={{ left: `${base}%`, width: `${add}%` }} />
+                    )}
                   </div>
-                  <span className={`text-sm font-black w-8 text-right ${statColor(val)}`} style={{fontFamily: "'Orbitron', sans-serif"}}>{val}</span>
+                  <span className={`text-sm font-black text-right ${statColor(total)}`} style={{fontFamily: "'Orbitron', sans-serif", minWidth: add > 0 ? 56 : 32}}>
+                    {add > 0 ? <span className="text-[9px] text-amber-400">{base}+{add}=</span> : ''}{total}
+                  </span>
                 </div>
               );
             })}
@@ -255,14 +290,21 @@ export default function PlayerDetailPage() {
               <span className="text-[10px] font-mono text-green-400 uppercase tracking-wider">Defense</span>
             </div>
             {(['def', 'spd', 'eye', 'vel'] as const).map(key => {
-              const val = player[key];
+              const base = player[key];
+              const add = getAdd(player, key);
+              const total = getTotal(player, key);
               return (
                 <div key={`def-${key}`} className="flex items-center gap-2 px-2">
                   <span className="text-[10px] font-mono text-gray-400 w-20 uppercase">{defenseLabels[key]}</span>
-                  <div className="flex-1 h-3 bg-gray-900 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full transition-all ${statBarColor(val)}`} style={{ width: `${val}%` }} />
+                  <div className="flex-1 h-3 bg-gray-900 rounded-full overflow-hidden relative">
+                    <div className={`h-full rounded-full transition-all ${statBarColor(total)}`} style={{ width: `${total}%` }} />
+                    {add > 0 && (
+                      <div className="absolute top-0 h-full bg-amber-500/60 rounded-r-full" style={{ left: `${base}%`, width: `${add}%` }} />
+                    )}
                   </div>
-                  <span className={`text-sm font-black w-8 text-right ${statColor(val)}`} style={{fontFamily: "'Orbitron', sans-serif"}}>{val}</span>
+                  <span className={`text-sm font-black text-right ${statColor(total)}`} style={{fontFamily: "'Orbitron', sans-serif", minWidth: add > 0 ? 56 : 32}}>
+                    {add > 0 ? <span className="text-[9px] text-amber-400">{base}+{add}=</span> : ''}{total}
+                  </span>
                 </div>
               );
             })}
@@ -273,14 +315,21 @@ export default function PlayerDetailPage() {
                   <span className="text-[10px] font-mono text-cyan-400 uppercase tracking-wider">Pitching</span>
                 </div>
                 {(['vel', 'ctl', 'mov'] as const).map(key => {
-                  const val = player[key];
+                  const base = player[key];
+                  const add = getAdd(player, key);
+                  const total = getTotal(player, key);
                   return (
                     <div key={`pit-${key}`} className="flex items-center gap-2 px-2">
                       <span className="text-[10px] font-mono text-gray-400 w-20 uppercase">{statLabels[key]}</span>
-                      <div className="flex-1 h-3 bg-gray-900 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full transition-all ${statBarColor(val)}`} style={{ width: `${val}%` }} />
+                      <div className="flex-1 h-3 bg-gray-900 rounded-full overflow-hidden relative">
+                        <div className={`h-full rounded-full transition-all ${statBarColor(total)}`} style={{ width: `${total}%` }} />
+                        {add > 0 && (
+                          <div className="absolute top-0 h-full bg-amber-500/60 rounded-r-full" style={{ left: `${base}%`, width: `${add}%` }} />
+                        )}
                       </div>
-                      <span className={`text-sm font-black w-8 text-right ${statColor(val)}`} style={{fontFamily: "'Orbitron', sans-serif"}}>{val}</span>
+                      <span className={`text-sm font-black text-right ${statColor(total)}`} style={{fontFamily: "'Orbitron', sans-serif", minWidth: add > 0 ? 56 : 32}}>
+                        {add > 0 ? <span className="text-[9px] text-amber-400">{base}+{add}=</span> : ''}{total}
+                      </span>
                     </div>
                   );
                 })}
@@ -291,14 +340,21 @@ export default function PlayerDetailPage() {
               <span className="text-[10px] font-mono text-amber-400 uppercase tracking-wider">Crossing</span>
             </div>
             {(['spd', 'sta'] as const).map(key => {
-              const val = player[key];
+              const base = player[key];
+              const add = getAdd(player, key);
+              const total = getTotal(player, key);
               return (
                 <div key={`cross-${key}`} className="flex items-center gap-2 px-2">
                   <span className="text-[10px] font-mono text-gray-400 w-20 uppercase">{crossingLabels[key]}</span>
-                  <div className="flex-1 h-3 bg-gray-900 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full transition-all ${statBarColor(val)}`} style={{ width: `${val}%` }} />
+                  <div className="flex-1 h-3 bg-gray-900 rounded-full overflow-hidden relative">
+                    <div className={`h-full rounded-full transition-all ${statBarColor(total)}`} style={{ width: `${total}%` }} />
+                    {add > 0 && (
+                      <div className="absolute top-0 h-full bg-amber-500/60 rounded-r-full" style={{ left: `${base}%`, width: `${add}%` }} />
+                    )}
                   </div>
-                  <span className={`text-sm font-black w-8 text-right ${statColor(val)}`} style={{fontFamily: "'Orbitron', sans-serif"}}>{val}</span>
+                  <span className={`text-sm font-black text-right ${statColor(total)}`} style={{fontFamily: "'Orbitron', sans-serif", minWidth: add > 0 ? 56 : 32}}>
+                    {add > 0 ? <span className="text-[9px] text-amber-400">{base}+{add}=</span> : ''}{total}
+                  </span>
                 </div>
               );
             })}

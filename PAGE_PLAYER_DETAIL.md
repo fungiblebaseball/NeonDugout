@@ -18,7 +18,9 @@ Carta giocatore dettagliata con tutti gli attributi e statistiche di carriera.
 3. **Attribute Bars** — 9 attributi con:
    - Label (POWER, CONTACT, SPEED, EYE, VELOCITY, CONTROL, MOVEMENT, STAMINA, DEFENSE)
    - Barra progresso colorata (rosso < 35, arancione < 50, giallo < 65, verde < 80, cyan >= 80)
-   - Valore numerico
+   - Overlay ambra sulla porzione boost (se presente `_add > 0`)
+   - Valore numerico formato "base + add = total" (es. "72 + 3 = 75")
+   - Overall e medie calcolate su totale (base + add)
 4. **Career Averages** — Grid 3x2:
    - OVR, BAT, PITCH
    - DEF, SPD, STA

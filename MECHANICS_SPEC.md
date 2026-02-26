@@ -1,6 +1,6 @@
 # MECHANICS_SPEC.md
-Ultimo aggiornamento: 24 febbraio 2026  
-Versione: 0.4 (PlayI/PlayO implementato, Play Log, tattiche RPS complete, DH rule)
+Ultimo aggiornamento: 26 febbraio 2026  
+Versione: 0.5 (Training minigames, attribute boosts, admin config)
 
 ### Scopo del file
 Questo documento definisce le specifiche tecniche e le regole di gioco. Serve come riferimento per gli sviluppatori, gli architetti e i designer per garantire la coerenza e la determinazione del gameplay.  **Questo documento è una fonte di verità per il comportamento del gioco e deve essere consultato prima di qualsiasi modifica al codice.**
@@ -236,6 +236,45 @@ Ogni partita genera un array di `PlayLogEntry` salvato nel campo `play_log` JSON
 ### Visualizzazione
 - **MatchDetailPage**: accordion collassabile "PLAY LOG" sotto il MVP
 - **PlayLogPage** (/play-log): pagina dedicata con selettore giornata, accordion per match del team utente
+
+## Training / Minigames (v1.8.0)
+
+### Concetto
+3 minigame single-screen che simulano l'allenamento. Il giocatore (utente) esegue drill per guadagnare boost attributi ai propri giocatori.
+
+### Attribute Boosts
+- Ogni giocatore ha 9 colonne `_add` (pow_add, con_add, etc.) inizialmente a 0
+- Il boost viene sommato al valore base: `totale = base + add`
+- Cap: il totale non può superare 99 (`add = min(amount, 99 - base)`)
+- Player card mostra "base + add = total" con overlay ambra sulla barra
+
+### Scoring
+- Tutti i punteggi normalizzati 0-1000 per ranking globale uniforme
+- Ranking: best score per utente, ordinato decrescente
+
+### Minigame: Eye Drill
+- 10 round, icona ⚾ appare in posizione casuale nell'area di gioco
+- Misura tempo di reazione (ms) per round
+- Score = max(0, 1000 - avgReactionTime * 2)
+- Reward: EYE
+
+### Minigame: Batting Practice
+- 10 lanci, palla si muove orizzontalmente nella strike zone
+- Sweet spot: zona centrale (~15% larghezza)
+- Score per pitch: 100 se in sweet spot, decresce con distanza
+- Score totale normalizzato: totalPoints * 10
+- Reward: CON o POW (configurabile)
+
+### Minigame: Pitch Control
+- 10 round, griglia 3x3 (catcher's frame), una cella si illumina
+- Timer 1.5s per rispondere, bonus velocità per tap < 0.5s (+50)
+- Score: (correct * 100 + speed_bonus) normalizzato a 0-1000
+- Reward: CTL
+
+### Configurazione Admin (training_config)
+- Per ogni game_type: attributi reward, amount, min_score_for_reward, max_boost_per_season
+- Modificabile solo da utenti con `is_admin = true`
+- Default configs seedate all'avvio server
 
 ## Prossimi affinamenti
 - Hit_quality e spray chart per difesa granulare (sostituirebbe PlayI/PlayO semplificato)

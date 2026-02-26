@@ -4,7 +4,7 @@
 Text-based fantasy baseball manager game with retro 80s/90s cyberpunk aesthetic. Target platform: Solana Seeker mobile (Web3 integration planned). Zero MLB licenses - all fictional teams and players.
 
 ## Current State
-Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.7.0 — Defense Attribute Rework: 4-section player card (Offense/Defense/Pitching/Crossing), dual-context labels for defense stats, crossing attributes (SPD + STA) visible across all categories.
+Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.8.0 — Training Minigames: 3 interactive minigames (Eye Drill, Batting Practice, Pitch Control) that boost player attributes via `_add` columns. Admin page for configuring rewards. Player card shows base + boost breakdown with amber overlay bars.
 
 ## Branding
 - **Logo**: `client/src/assets/images/logo-neon-dugout.png` — Stylized baseball diamond (neon glow, transparent bg)
@@ -19,8 +19,8 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 - **Design**: Neon pink/cyan palette, Orbitron/VT323/Press Start 2P fonts, mobile-first bottom nav
 
 ## Key Files
-- `shared/schema.ts` - Drizzle schema: users, teams, players, matches, match_details, lineups, pitcher_rotations (with roles JSONB), tactics
-- `server/routes.ts` - API routes (/api/auth/challenge, /api/auth/verify, /api/auth/me, /api/teams, /api/matches, /api/player/:id, /api/matches/:id/result, /api/match-details/:matchId, /api/lineup, /api/pitcher-rotation, /api/tactics)
+- `shared/schema.ts` - Drizzle schema: users (with isAdmin), teams, players (with _add boost columns), matches, match_details, lineups, pitcher_rotations, tactics, training_results, training_config
+- `server/routes.ts` - API routes (/api/auth/*, /api/teams, /api/matches, /api/player/:id, /api/training/*, /api/admin/training-config, /api/lineup, /api/pitcher-rotation, /api/tactics)
 - `server/auth.ts` - JWT token creation/verification, ed25519 signature validation, challenge nonce management
 - `server/expansion.ts` - Dynamic league expansion: auto-creates new league with 20 teams + 400 players + 228 matches when all teams are owned
 - `server/storage.ts` - DatabaseStorage class implementing IStorage interface
@@ -30,20 +30,23 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 - `server/db.ts` - Database connection pool
 - `client/src/lib/store.ts` - Zustand store with wallet auth (loginWithSignature, restoreSession, disconnectWallet), JWT persistence
 - `client/src/components/WalletProvider.tsx` - Solana wallet adapter provider (auto-detects Phantom, Solflare, Backpack, Seeker)
-- `client/src/pages/` - LoginPage, Home, LineupPage, PitchersPage, AttackPage, DefensePage, SimulationPage, SchedulePage, StandingsPage, PlayerDetailPage, MatchDetailPage
+- `client/src/pages/` - LoginPage, Home, LineupPage, PitchersPage, AttackPage, DefensePage, SimulationPage, SchedulePage, StandingsPage, PlayerDetailPage, MatchDetailPage, TrainingPage, AdminPage
+- `client/src/pages/minigames/` - EyeDrillGame, BattingPracticeGame, PitchControlGame
 - `client/src/lib/calculations/` - Pure simulation engine (matchup, probability, simulate, rng, flavor, types)
-- `client/src/components/Navigation.tsx` - Bottom nav (7 items: Hub, Lineup, Pitch, ATK, DEF, Sched, Rank)
+- `client/src/components/Navigation.tsx` - Bottom nav (8 items: Hub, Lineup, Pitch, ATK, DEF, Train, Sched, Rank)
 
 ## Database Tables
-- `users` - wallet-based auth (id, wallet_address, team_id)
+- `users` - wallet-based auth (id, wallet_address, team_id, is_admin)
 - `teams` - 20 teams in divisions A & B (id, name, division, owner_wallet, season_id)
-- `players` - 20 per team with 9 stats (pow, con, spd, eye, vel, ctl, mov, sta, def)
+- `players` - 20 per team with 9 base stats + 9 _add boost columns (pow, con, spd, eye, vel, ctl, mov, sta, def + pow_add, con_add, etc.)
 - `matches` - round-robin schedule with scores (90 per division, 18 days)
 - `match_details` - full game data per match (box_score, flavor_texts, mvp, home_lineup, away_lineup, home_batters, away_batters, home_pitcher, away_pitcher, home_pitchers, away_pitchers, play_log)
 - `lineups` - field positions + batting order (JSON columns)
 - `pitcher_rotations` - roles JSONB {sp, r1, closer, nextSp} + rotation_order + SP switch conditions (maxPitches/maxInnings/maxBb/maxEr) + R1 conditions (r1MaxPitches/r1MaxEr) + Closer conditions (closerMaxPitches/closerMaxEr)
 - `tactics` - 7 tactical fields (attackStyle, infieldPosition, outfieldPosition, batterApproach, pitcherStyle, offensiveAttack, defenseSetup)
 - `team_snapshots` - historical team state per season (team_id, season_id, name, division, league, series, primary_color, owner_wallet, wins, losses, runs_for, runs_against)
+- `training_results` - minigame scores and rewards (user_id, team_id, game_type, score, raw_data, reward_attribute, reward_player_id, reward_amount)
+- `training_config` - admin-configurable reward rules per game type (game_type, reward_attributes[], reward_amount, min_score_for_reward, max_boost_per_season)
 
 ## Pages
 0. **Login** (/login) - Solana wallet authentication: select wallet (Phantom/Solflare/Backpack/Seeker), sign challenge message, verify signature
@@ -55,9 +58,14 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 6. **Simulate** (/simulate) - Exhibition test match using saved lineup/tactics/rotation with box score, batter/pitcher stats, flavor text
 7. **Schedule** (/schedule) - Division calendar (18 match days), next match highlight, W-L record, played matches clickable → Match Report
 8. **Standings** (/standings) - Division standings with W/L/PCT/RF/RA, switch divisions, season navigator (◀ ▶) for past seasons with match results, match preview for current season
-9. **Player Detail** (/player/:id) - Player card with photo slot, 4-section attributes (Offense/Defense/Pitching/Crossing), dual-context defense labels, career averages
+9. **Player Detail** (/player/:id) - Player card with photo slot, 4-section attributes (Offense/Defense/Pitching/Crossing), dual-context defense labels, base + boost breakdown with amber overlay, career averages
 10. **Match Detail** (/match/:id) - Full match report: box score, linescore, batter/pitcher stats, MVP, flavor text, player links, collapsible play log accordion
 11. **Play Log** (/play-log) - Dedicated play-by-play records page, match day selector, per-match accordion with inning-by-inning log, fielder and direction info
+12. **Training** (/training) - Training hub with 3 minigame cards (Eye Drill, Batting Practice, Pitch Control), best scores, links to each game
+13. **Eye Drill** (/training/eye-drill) - Reaction time minigame: tap baseball as fast as possible, 10 rounds, rewards EYE boost
+14. **Batting Practice** (/training/batting) - Timing minigame: swing at the sweet spot, 10 pitches, rewards CON/POW boost
+15. **Pitch Control** (/training/pitch-control) - Accuracy minigame: tap correct zone in 3x3 grid, 10 rounds, rewards CTL boost
+16. **Admin** (/admin) - Admin-only panel: configure training reward rules (attributes, amounts, min scores, caps). Access via is_admin flag on user
 
 ## Deep Navigation Flow
 - Home → Play Match → View Match Report → Player Detail

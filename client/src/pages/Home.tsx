@@ -2,7 +2,7 @@ import { useGameStore } from "@/lib/store";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
-import { Terminal, ShieldAlert, Calendar, Swords, Shield, ListOrdered, RotateCcw, Zap, Trophy, Play, Pencil, Check, X, ScrollText } from "lucide-react";
+import { Terminal, ShieldAlert, Calendar, Swords, Shield, ListOrdered, RotateCcw, Zap, Trophy, Play, Pencil, Check, X, ScrollText, Dumbbell } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import type { SimPlayer } from "@/lib/calculations";
 import logoImg from "@/assets/images/logo-neon-dugout.png";
@@ -501,6 +501,12 @@ export default function Home() {
               </div>
             </div>
           )}
+
+          <Link href="/training" data-testid="link-training" className="block col-span-2 p-5 rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-950/20 to-orange-950/20 hover:bg-amber-900/20 transition-colors group">
+            <Dumbbell className="w-6 h-6 text-amber-500 mb-2 group-hover:animate-pulse" />
+            <h3 className="font-black text-lg text-amber-400 mb-1 group-hover:drop-shadow-[0_0_8px_rgba(245,158,11,0.8)]" style={{fontFamily: "'Orbitron', sans-serif"}}>TRAINING CENTER</h3>
+            <p className="text-[10px] font-mono text-gray-500">Play minigames to boost your players' attributes</p>
+          </Link>
 
           <Link href="/schedule" data-testid="link-schedule" className="block p-5 rounded-2xl border border-pink-500/30 bg-black/40 hover:bg-pink-900/20 transition-colors group">
             <Calendar className="w-6 h-6 text-pink-500 mb-2 group-hover:animate-pulse" />

@@ -6,6 +6,65 @@ Formato:
   • Dettaglio 2 (file modificati)  
   • Trade-off / note (se rilevanti)
 
+## v1.8.0 – 26 febbraio 2026 – Training Minigames + Admin Panel
+
+- **Schema** (shared/schema.ts):
+  * Aggiunto `is_admin` boolean a `users` (default false)
+  * Aggiunte 9 colonne `_add` a `players` (pow_add, con_add, spd_add, eye_add, vel_add, ctl_add, mov_add, sta_add, def_add) — boost da allenamento, default 0
+  * Nuova tabella `training_results` — storico risultati minigame (user_id, team_id, game_type, score 0-1000, raw_data JSONB, reward info)
+  * Nuova tabella `training_config` — configurazione reward per tipo di gioco (reward_attributes, reward_amount, min_score, max_boost_per_season)
+
+- **Storage** (server/storage.ts):
+  * `saveTrainingResult()` — inserisce risultato allenamento
+  * `getTrainingRankings(gameType, limit)` — classifica globale per tipo di gioco (best score per utente)
+  * `getUserTrainingResults(userId, gameType)` — storico personale
+  * `boostPlayerAttribute(playerId, attribute, amount)` — incrementa colonna `_add`, cap a 99 totale (base + add)
+  * `getTrainingConfig()` / `upsertTrainingConfig()` / `getAllTrainingConfigs()` — CRUD configurazione admin
+
+- **API Routes** (server/routes.ts):
+  * `POST /api/training/result` — salva risultato + applica boost + ritorna posizione ranking
+  * `GET /api/training/rankings/:gameType` — top 20 globale
+  * `GET /api/training/history/:gameType` — storico utente
+  * `GET /api/admin/training-config` — lista config (solo admin)
+  * `PUT /api/admin/training-config/:gameType` — modifica config (solo admin)
+  * `/api/auth/me` include `isAdmin`
+  * Seed default training configs all'avvio
+
+- **Minigame 1: Eye Drill** (client/src/pages/minigames/EyeDrillGame.tsx):
+  * 10 round, icona ⚾ appare in posizione casuale, misura tempo di reazione (ms)
+  * Score normalizzato 0-1000 (tempo basso = score alto)
+  * Reward: EYE attribute boost
+
+- **Minigame 2: Batting Practice** (client/src/pages/minigames/BattingPracticeGame.tsx):
+  * 10 lanci, palla si muove orizzontalmente, tap SWING nella sweet spot
+  * Score basato su timing accuracy, normalizzato 0-1000
+  * Reward: CON o POW attribute boost
+
+- **Minigame 3: Pitch Control** (client/src/pages/minigames/PitchControlGame.tsx):
+  * 10 round, griglia 3x3, tap zona corretta entro 1.5s
+  * Score: 100 per tap corretto + bonus velocità, normalizzato 0-1000
+  * Reward: CTL attribute boost
+
+- **Training Hub** (client/src/pages/TrainingPage.tsx):
+  * Hub con 3 card minigame, best score, pulsante per giocare
+  * Route: /training
+
+- **Admin Page** (client/src/pages/AdminPage.tsx):
+  * Accessibile solo con `is_admin=true` (no link in nav, accesso diretto via URL)
+  * Card per ogni minigame con campi editabili: attributi reward, amount, min score, max boost
+  * Route: /admin
+
+- **Player Detail aggiornato** (client/src/pages/PlayerDetailPage.tsx):
+  * Barre attributo mostrano base + boost = totale
+  * Overlay ambra sulla barra per la porzione boost
+  * Tooltip con dettaglio "base + add = total"
+
+- **Home aggiornato** (client/src/pages/Home.tsx):
+  * Card "TRAINING CENTER" aggiunta alla griglia di navigazione (icona Dumbbell, tema ambra)
+
+- **Navigation aggiornata** (client/src/components/Navigation.tsx):
+  * Aggiunto item "Train" (icona Dumbbell) nella bottom nav
+
 ## v1.7.0 – 24 febbraio 2026 – Defense Attribute Rework + Crossing Attributes
 - **Player Card ristrutturata** (PlayerDetailPage.tsx):
   * 4 sezioni attributi: OFFENSE (pink), DEFENSE (green), PITCHING (cyan, solo pitcher), CROSSING (amber, tutti)

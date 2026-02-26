@@ -32,6 +32,7 @@ interface UserData {
   id: number;
   walletAddress: string;
   teamId: number | null;
+  isAdmin: boolean;
 }
 
 interface GameState {

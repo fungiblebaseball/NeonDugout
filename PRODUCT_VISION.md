@@ -65,4 +65,11 @@ Un gioco manager testuale ultra-leggero di baseball fantasy completamente on-cha
 - Divertimento nel tweakare lineup e vedere come cambiano davvero gli esiti  
 - Estetica che fa dire “questo non sembra un gioco web3 generico”
 
+8. Training System (v1.8.0)
+   - 3 minigame interattivi come allegorie dell'allenamento: Eye Drill, Batting Practice, Pitch Control
+   - Ogni minigame: 10 round, scoring normalizzato 0-1000, ranking globale
+   - Reward: boost attributi giocatore (colonne `_add` separate, cap totale 99)
+   - Admin panel per configurare reward rules (attributi, amount, min score, cap stagionale)
+   - Filosofia: skill del player (reazione, timing, precisione) si traduce in vantaggio strategico per la squadra
+
 Fine visione – v1.0

@@ -1,13 +1,16 @@
 import { db } from "./db";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, desc } from "drizzle-orm";
 import {
   users, teams, players, matches, lineups, pitcherRotations, tactics, matchDetails, playerSeasonStats, teamSnapshots,
+  trainingResults, trainingConfig,
   type User, type InsertUser, type Team, type InsertTeam,
   type Player, type Match, type Lineup, type InsertLineup,
   type PitcherRotation, type InsertPitcherRotation,
   type Tactics, type InsertTactics,
   type MatchDetails, type InsertMatchDetails,
   type PlayerSeasonStats, type TeamSnapshot,
+  type TrainingResult, type InsertTrainingResult,
+  type TrainingConfig, type InsertTrainingConfig,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -55,6 +58,15 @@ export interface IStorage {
 
   createTeamSnapshots(seasonId: number): Promise<void>;
   getTeamSnapshots(seasonId: number): Promise<TeamSnapshot[]>;
+
+  saveTrainingResult(result: InsertTrainingResult): Promise<TrainingResult>;
+  getTrainingRankings(gameType: string, limit: number): Promise<TrainingResult[]>;
+  getUserTrainingResults(userId: number, gameType: string): Promise<TrainingResult[]>;
+  boostPlayerAttribute(playerId: number, attribute: string, amount: number): Promise<void>;
+  countSeasonBoosts(userId: number, gameType: string): Promise<number>;
+  getTrainingConfig(gameType: string): Promise<TrainingConfig | undefined>;
+  upsertTrainingConfig(config: InsertTrainingConfig): Promise<TrainingConfig>;
+  getAllTrainingConfigs(): Promise<TrainingConfig[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -378,6 +390,85 @@ export class DatabaseStorage implements IStorage {
 
   async getTeamSnapshots(seasonId: number): Promise<TeamSnapshot[]> {
     return db.select().from(teamSnapshots).where(eq(teamSnapshots.seasonId, seasonId));
+  }
+
+  async saveTrainingResult(result: InsertTrainingResult): Promise<TrainingResult> {
+    const [created] = await db.insert(trainingResults).values(result).returning();
+    return created;
+  }
+
+  async getTrainingRankings(gameType: string, limit: number): Promise<TrainingResult[]> {
+    const bestPerUser = await db.execute(sql`
+      SELECT DISTINCT ON (user_id) *
+      FROM training_results
+      WHERE game_type = ${gameType}
+      ORDER BY user_id, score DESC, created_at DESC
+    `);
+    const mapped = bestPerUser.rows.map((r: any) => ({
+      id: r.id,
+      userId: r.user_id,
+      teamId: r.team_id,
+      gameType: r.game_type,
+      score: r.score,
+      rawData: r.raw_data,
+      rewardAttribute: r.reward_attribute,
+      rewardPlayerId: r.reward_player_id,
+      rewardAmount: r.reward_amount,
+      createdAt: r.created_at,
+    })) as TrainingResult[];
+    mapped.sort((a, b) => b.score - a.score);
+    return mapped.slice(0, limit);
+  }
+
+  async getUserTrainingResults(userId: number, gameType: string): Promise<TrainingResult[]> {
+    return db.select().from(trainingResults)
+      .where(and(eq(trainingResults.userId, userId), eq(trainingResults.gameType, gameType)))
+      .orderBy(desc(trainingResults.createdAt));
+  }
+
+  async boostPlayerAttribute(playerId: number, attribute: string, amount: number): Promise<void> {
+    const addCol = `${attribute}_add` as const;
+    const baseCol = attribute as keyof typeof players.$inferSelect;
+    const player = await this.getPlayer(playerId);
+    if (!player) return;
+    const baseVal = (player as any)[attribute] ?? 0;
+    const currentAdd = (player as any)[`${attribute}Add`] ?? 0;
+    const maxAdd = 99 - baseVal - currentAdd;
+    const actualAmount = Math.min(amount, Math.max(0, maxAdd));
+    if (actualAmount <= 0) return;
+    await db.update(players).set({
+      [`${attribute}Add`]: currentAdd + actualAmount,
+    } as any).where(eq(players.id, playerId));
+  }
+
+  async countSeasonBoosts(userId: number, gameType: string): Promise<number> {
+    const result = await db.select({ count: sql<number>`count(*)` })
+      .from(trainingResults)
+      .where(and(
+        eq(trainingResults.userId, userId),
+        eq(trainingResults.gameType, gameType),
+        sql`reward_amount > 0`
+      ));
+    return Number(result[0]?.count ?? 0);
+  }
+
+  async getTrainingConfig(gameType: string): Promise<TrainingConfig | undefined> {
+    const [config] = await db.select().from(trainingConfig).where(eq(trainingConfig.gameType, gameType));
+    return config;
+  }
+
+  async upsertTrainingConfig(config: InsertTrainingConfig): Promise<TrainingConfig> {
+    const existing = await this.getTrainingConfig(config.gameType);
+    if (existing) {
+      const [updated] = await db.update(trainingConfig).set(config).where(eq(trainingConfig.gameType, config.gameType)).returning();
+      return updated;
+    }
+    const [created] = await db.insert(trainingConfig).values(config).returning();
+    return created;
+  }
+
+  async getAllTrainingConfigs(): Promise<TrainingConfig[]> {
+    return db.select().from(trainingConfig);
   }
 }
 

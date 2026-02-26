@@ -17,6 +17,11 @@ import StandingsPage from "@/pages/StandingsPage";
 import PlayerDetailPage from "@/pages/PlayerDetailPage";
 import MatchDetailPage from "@/pages/MatchDetailPage";
 import PlayLogPage from "@/pages/PlayLogPage";
+import TrainingPage from "@/pages/TrainingPage";
+import EyeDrillGame from "@/pages/minigames/EyeDrillGame";
+import BattingPracticeGame from "@/pages/minigames/BattingPracticeGame";
+import PitchControlGame from "@/pages/minigames/PitchControlGame";
+import AdminPage from "@/pages/AdminPage";
 import NotFound from "@/pages/not-found";
 import { useGameStore } from "@/lib/store";
 import { useEffect } from "react";
@@ -45,6 +50,11 @@ function Router() {
         <Route path="/player/:id" component={PlayerDetailPage} />
         <Route path="/match/:id" component={MatchDetailPage} />
         <Route path="/play-log" component={PlayLogPage} />
+        <Route path="/training" component={TrainingPage} />
+        <Route path="/training/eye-drill" component={EyeDrillGame} />
+        <Route path="/training/batting" component={BattingPracticeGame} />
+        <Route path="/training/pitch-control" component={PitchControlGame} />
+        <Route path="/admin" component={AdminPage} />
         <Route component={NotFound} />
       </Switch>
       {walletAddress && <Navigation />}

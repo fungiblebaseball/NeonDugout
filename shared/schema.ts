@@ -7,6 +7,7 @@ export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   walletAddress: text("wallet_address").notNull().unique(),
   teamId: integer("team_id"),
+  isAdmin: boolean("is_admin").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -35,6 +36,15 @@ export const players = pgTable("players", {
   mov: integer("mov").notNull(),
   sta: integer("sta").notNull(),
   def: integer("def").notNull(),
+  powAdd: integer("pow_add").notNull().default(0),
+  conAdd: integer("con_add").notNull().default(0),
+  spdAdd: integer("spd_add").notNull().default(0),
+  eyeAdd: integer("eye_add").notNull().default(0),
+  velAdd: integer("vel_add").notNull().default(0),
+  ctlAdd: integer("ctl_add").notNull().default(0),
+  movAdd: integer("mov_add").notNull().default(0),
+  staAdd: integer("sta_add").notNull().default(0),
+  defAdd: integer("def_add").notNull().default(0),
 });
 
 export const matches = pgTable("matches", {
@@ -141,6 +151,28 @@ export const playerSeasonStats = pgTable("player_season_stats", {
   losses: integer("losses").notNull().default(0),
 });
 
+export const trainingResults = pgTable("training_results", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  teamId: integer("team_id").notNull(),
+  gameType: text("game_type").notNull(),
+  score: integer("score").notNull(),
+  rawData: jsonb("raw_data").notNull().$type<Record<string, any>>(),
+  rewardAttribute: text("reward_attribute").notNull(),
+  rewardPlayerId: integer("reward_player_id").notNull(),
+  rewardAmount: integer("reward_amount").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const trainingConfig = pgTable("training_config", {
+  id: serial("id").primaryKey(),
+  gameType: text("game_type").notNull().unique(),
+  rewardAttributes: text("reward_attributes").array().notNull(),
+  rewardAmount: integer("reward_amount").notNull().default(1),
+  minScoreForReward: integer("min_score_for_reward").notNull().default(200),
+  maxBoostPerSeason: integer("max_boost_per_season").notNull().default(10),
+});
+
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertTeamSchema = createInsertSchema(teams).omit({ id: true });
 export const insertPlayerSchema = createInsertSchema(players).omit({ id: true });
@@ -151,6 +183,8 @@ export const insertTacticsSchema = createInsertSchema(tactics).omit({ id: true }
 export const insertMatchDetailsSchema = createInsertSchema(matchDetails).omit({ id: true });
 export const insertTeamSnapshotSchema = createInsertSchema(teamSnapshots).omit({ id: true });
 export const insertPlayerSeasonStatsSchema = createInsertSchema(playerSeasonStats).omit({ id: true });
+export const insertTrainingResultSchema = createInsertSchema(trainingResults).omit({ id: true, createdAt: true });
+export const insertTrainingConfigSchema = createInsertSchema(trainingConfig).omit({ id: true });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -172,3 +206,7 @@ export type InsertTeamSnapshot = z.infer<typeof insertTeamSnapshotSchema>;
 export type TeamSnapshot = typeof teamSnapshots.$inferSelect;
 export type InsertPlayerSeasonStats = z.infer<typeof insertPlayerSeasonStatsSchema>;
 export type PlayerSeasonStats = typeof playerSeasonStats.$inferSelect;
+export type InsertTrainingResult = z.infer<typeof insertTrainingResultSchema>;
+export type TrainingResult = typeof trainingResults.$inferSelect;
+export type InsertTrainingConfig = z.infer<typeof insertTrainingConfigSchema>;
+export type TrainingConfig = typeof trainingConfig.$inferSelect;

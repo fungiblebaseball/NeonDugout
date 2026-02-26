@@ -76,7 +76,7 @@ export async function registerRoutes(
     const team = user.teamId ? await storage.getTeam(user.teamId) : null;
     const playersList = team ? await storage.getPlayersByTeam(team.id) : [];
 
-    res.json({ token, user, team, players: playersList });
+    res.json({ token, user: { ...user, isAdmin: user.isAdmin }, team, players: playersList });
   });
 
   app.get("/api/auth/me", async (req, res) => {
@@ -98,7 +98,7 @@ export async function registerRoutes(
     const team = user.teamId ? await storage.getTeam(user.teamId) : null;
     const playersList = team ? await storage.getPlayersByTeam(team.id) : [];
 
-    res.json({ user, team, players: playersList });
+    res.json({ user: { ...user, isAdmin: user.isAdmin }, team, players: playersList });
   });
 
   app.get("/api/teams", async (_req, res) => {
@@ -365,6 +365,121 @@ export async function registerRoutes(
     }
   });
 
+  const authenticateUser = async (req: Request, res: Response): Promise<{ userId: number; walletAddress: string } | null> => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      res.status(401).json({ message: "No token provided" });
+      return null;
+    }
+    const tokenData = verifyToken(authHeader.split(" ")[1]);
+    if (!tokenData) {
+      res.status(401).json({ message: "Invalid or expired token" });
+      return null;
+    }
+    return tokenData;
+  };
+
+  const requireAdmin = async (req: Request, res: Response): Promise<{ userId: number; walletAddress: string } | null> => {
+    const tokenData = await authenticateUser(req, res);
+    if (!tokenData) return null;
+    const user = await storage.getUser(tokenData.userId);
+    if (!user || !user.isAdmin) {
+      res.status(403).json({ message: "Admin access required" });
+      return null;
+    }
+    return tokenData;
+  };
+
+  app.post("/api/training/result", async (req, res) => {
+    const tokenData = await authenticateUser(req, res);
+    if (!tokenData) return;
+
+    const user = await storage.getUser(tokenData.userId);
+    if (!user || !user.teamId) return res.status(400).json({ message: "No team assigned" });
+
+    const { gameType, score, rawData } = req.body;
+    if (!gameType || score === undefined || !rawData) {
+      return res.status(400).json({ message: "gameType, score, and rawData required" });
+    }
+
+    const config = await storage.getTrainingConfig(gameType);
+    const rewardAttributes = config?.rewardAttributes || [];
+    const rewardAmount = config?.rewardAmount || 1;
+    const minScore = config?.minScoreForReward || 200;
+
+    const teamPlayers = await storage.getPlayersByTeam(user.teamId);
+    if (teamPlayers.length === 0) return res.status(400).json({ message: "No players on team" });
+
+    const randomPlayer = teamPlayers[Math.floor(Math.random() * teamPlayers.length)];
+    const rewardAttr = rewardAttributes.length > 0
+      ? rewardAttributes[Math.floor(Math.random() * rewardAttributes.length)]
+      : "eye";
+
+    let actualReward = 0;
+    const maxPerSeason = config?.maxBoostPerSeason || 50;
+    const boostCount = await storage.countSeasonBoosts(user.id, gameType);
+
+    if (score >= minScore && boostCount < maxPerSeason) {
+      actualReward = rewardAmount;
+      await storage.boostPlayerAttribute(randomPlayer.id, rewardAttr, rewardAmount);
+    }
+
+    const result = await storage.saveTrainingResult({
+      userId: user.id,
+      teamId: user.teamId,
+      gameType,
+      score,
+      rawData,
+      rewardAttribute: rewardAttr,
+      rewardPlayerId: randomPlayer.id,
+      rewardAmount: actualReward,
+    });
+
+    const rankings = await storage.getTrainingRankings(gameType, 100);
+    const rankPosition = rankings.findIndex(r => r.userId === user.id) + 1;
+
+    res.json({
+      result,
+      rankPosition: rankPosition || rankings.length + 1,
+      rewardPlayer: { id: randomPlayer.id, name: randomPlayer.name },
+      rewardAttribute: rewardAttr,
+      rewardAmount: actualReward,
+    });
+  });
+
+  app.get("/api/training/rankings/:gameType", async (req, res) => {
+    const rankings = await storage.getTrainingRankings(req.params.gameType, 20);
+    res.json(rankings);
+  });
+
+  app.get("/api/training/history/:gameType", async (req, res) => {
+    const tokenData = await authenticateUser(req, res);
+    if (!tokenData) return;
+    const results = await storage.getUserTrainingResults(tokenData.userId, req.params.gameType);
+    res.json(results);
+  });
+
+  app.get("/api/admin/training-config", async (req, res) => {
+    const tokenData = await requireAdmin(req, res);
+    if (!tokenData) return;
+    const configs = await storage.getAllTrainingConfigs();
+    res.json(configs);
+  });
+
+  app.put("/api/admin/training-config/:gameType", async (req, res) => {
+    const tokenData = await requireAdmin(req, res);
+    if (!tokenData) return;
+    const { rewardAttributes, rewardAmount, minScoreForReward, maxBoostPerSeason } = req.body;
+    const config = await storage.upsertTrainingConfig({
+      gameType: req.params.gameType,
+      rewardAttributes: rewardAttributes || [],
+      rewardAmount: rewardAmount ?? 1,
+      minScoreForReward: minScoreForReward ?? 200,
+      maxBoostPerSeason: maxBoostPerSeason ?? 10,
+    });
+    res.json(config);
+  });
+
   app.post("/api/new-season", async (_req, res) => {
     try {
       const result = await generateNewSeason();
@@ -381,6 +496,18 @@ export async function registerRoutes(
       res.status(500).json({ message: "Failed to generate new season" });
     }
   });
+
+  const defaultConfigs = [
+    { gameType: "eye_drill", rewardAttributes: ["eye"], rewardAmount: 1, minScoreForReward: 200, maxBoostPerSeason: 10 },
+    { gameType: "batting_practice", rewardAttributes: ["con", "pow"], rewardAmount: 1, minScoreForReward: 200, maxBoostPerSeason: 10 },
+    { gameType: "pitch_control", rewardAttributes: ["ctl"], rewardAmount: 1, minScoreForReward: 200, maxBoostPerSeason: 10 },
+  ];
+  for (const cfg of defaultConfigs) {
+    const existing = await storage.getTrainingConfig(cfg.gameType);
+    if (!existing) {
+      await storage.upsertTrainingConfig(cfg);
+    }
+  }
 
   return httpServer;
 }

@@ -2,7 +2,7 @@ import { db } from "./db";
 import { eq, and, sql, desc } from "drizzle-orm";
 import {
   users, teams, players, matches, lineups, pitcherRotations, tactics, matchDetails, playerSeasonStats, teamSnapshots,
-  trainingResults, trainingConfig,
+  trainingResults, trainingConfig, userTokens, tokenConfig,
   type User, type InsertUser, type Team, type InsertTeam,
   type Player, type Match, type Lineup, type InsertLineup,
   type PitcherRotation, type InsertPitcherRotation,
@@ -11,6 +11,7 @@ import {
   type PlayerSeasonStats, type TeamSnapshot,
   type TrainingResult, type InsertTrainingResult,
   type TrainingConfig, type InsertTrainingConfig,
+  type UserTokens, type TokenConfig,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -67,6 +68,12 @@ export interface IStorage {
   getTrainingConfig(gameType: string): Promise<TrainingConfig | undefined>;
   upsertTrainingConfig(config: InsertTrainingConfig): Promise<TrainingConfig>;
   getAllTrainingConfigs(): Promise<TrainingConfig[]>;
+
+  getUserTokens(userId: number): Promise<UserTokens | undefined>;
+  claimTokens(userId: number, claimAmount: number, intervalHours: number): Promise<UserTokens | null>;
+  resetAllTokens(): Promise<void>;
+  getTokenConfig(): Promise<TokenConfig | undefined>;
+  updateTokenConfig(claimAmount: number, claimIntervalHours: number): Promise<TokenConfig>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -469,6 +476,56 @@ export class DatabaseStorage implements IStorage {
 
   async getAllTrainingConfigs(): Promise<TrainingConfig[]> {
     return db.select().from(trainingConfig);
+  }
+
+  async getUserTokens(userId: number): Promise<UserTokens | undefined> {
+    const [record] = await db.select().from(userTokens).where(eq(userTokens.userId, userId));
+    return record;
+  }
+
+  async claimTokens(userId: number, claimAmount: number, intervalHours: number): Promise<UserTokens | null> {
+    const now = new Date();
+    const cutoff = new Date(now.getTime() - intervalHours * 60 * 60 * 1000);
+
+    const existing = await this.getUserTokens(userId);
+    if (existing) {
+      const [updated] = await db.update(userTokens)
+        .set({ balance: sql`${userTokens.balance} + ${claimAmount}`, lastClaimAt: now })
+        .where(and(
+          eq(userTokens.userId, userId),
+          sql`(${userTokens.lastClaimAt} IS NULL OR ${userTokens.lastClaimAt} <= ${cutoff})`
+        ))
+        .returning();
+      return updated || null;
+    }
+    const [created] = await db.insert(userTokens)
+      .values({ userId, balance: claimAmount, lastClaimAt: now })
+      .returning();
+    return created;
+  }
+
+  async resetAllTokens(): Promise<void> {
+    await db.delete(userTokens);
+  }
+
+  async getTokenConfig(): Promise<TokenConfig | undefined> {
+    const [config] = await db.select().from(tokenConfig);
+    return config;
+  }
+
+  async updateTokenConfig(claimAmount: number, claimIntervalHours: number): Promise<TokenConfig> {
+    const existing = await this.getTokenConfig();
+    if (existing) {
+      const [updated] = await db.update(tokenConfig)
+        .set({ claimAmount, claimIntervalHours })
+        .where(eq(tokenConfig.id, existing.id))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(tokenConfig)
+      .values({ claimAmount, claimIntervalHours })
+      .returning();
+    return created;
   }
 }
 

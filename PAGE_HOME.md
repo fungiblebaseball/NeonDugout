@@ -4,58 +4,54 @@
 `client/src/pages/Home.tsx`
 
 ## Descrizione
-Dashboard principale del manager. Punto di ingresso dopo il wallet connect.
+Dashboard principale del manager. Punto di ingresso dopo il wallet connect. Esalta le peculiarità dell'app: training, token economy, strategia e ownership Web3.
 
 ## Sezioni
 1. **Wallet Connect** — Schermata pre-auth con bottone connessione (mock wallet per dev)
-2. **Header** — Nome team (editabile inline con icona matita), lega/serie/divisione, bottone disconnect
+2. **Header** — Logo, nome team (editabile inline, testo text-2xl), lega/serie/divisione, bottone disconnect
 3. **Owner Registry** — Mostra wallet address
-4. **Grid Navigazione** — 6 card (2 colonne):
-   - LINEUP — Formazione e batting order
-   - PITCHERS — Rotazione lanciatori e ruoli
-   - ATTACK — Strategia offensiva
-   - DEFENSE — Posizionamento difensivo
-   - SCHEDULE — Calendario e risultati
-   - STANDINGS — Classifica e anteprima partita
-5. **Test Match** — Link a simulazione exhibition vs squadra della stessa lega/serie/girone corrente (col-span-2)
-6. **Next Game Preview** — Blocco sempre visibile con:
-   - Nome avversario e giorno partita
-   - Grafico confronto settori (barre affiancate ATK/DEF/PIT) delle due squadre
-   - ATK = media (pow + con + spd + eye) roster
-   - DEF = media (def) roster
-   - PIT = media (vel + ctl + mov + sta) roster
-   - Bottone PLAY DAY per simulare giornata completa (col-span-2)
-7. **Match Result** — Risultato inline dopo simulazione con link "View Match Report"
-8. **Recent Results (scrollabile)** — Lista completa gare disputate dall'utente, scrollabile orizzontalmente o verticalmente
-   - Ogni gara mostra: W/L badge, avversario, punteggio
-   - Ogni gara cliccabile → apre dettaglio match (/match/:id)
-   - Navigazione indietro per vedere tutte le gare precedenti (non solo ultime 3)
+4. **Token Balance** — Box con saldo token corrente, bottone CLAIM (con firma wallet) o countdown prossimo claim
+5. **Lineup & Pitchers** — Riga compatta con due bottoni link secondari (LINEUP e PITCHERS)
+6. **Training Center** — Card prominente col-span-2, bordo amber, icona grande, link a /training
+7. **Attack & Defense** — Due card tattiche affiancate
+8. **Final Score** — Box ultima gara giocata col-span-2, subito dopo tattiche:
+   - Nomi squadre, punteggio in stile Press Start 2P
+   - Bottone "VIEW MATCH REPORT"
+   - Persistente tra sessioni (fallback su recentResults[0])
+9. **League Progression / Match Preview** — Blocco GAME DAY o SEASON COMPLETE con settore preview
+10. **Navigation Cards** — TEST MATCH, PLAY LOG, MY TEAM, SCHEDULE, STANDINGS
+11. **Recent Results** — Lista scrollabile di tutte le gare disputate dall'utente
+
+## Token Claim Flow
+1. Utente clicca "CLAIM X TOKENS"
+2. Frontend richiede challenge: POST /api/tokens/claim-challenge
+3. Wallet firma il messaggio
+4. Frontend invia firma: POST /api/tokens/claim → token accreditati
+5. Bottone disabilitato con countdown se intervallo non trascorso
 
 ## Modifica Nome Team
 - Icona matita accanto al nome team nell'header
 - Click → campo input inline editabile
 - Conferma con Enter o icona check → PATCH `/api/teams/:id/name`
 - Annulla con Escape o icona X
-- Nome aggiornato in tempo reale nel frontend
 
 ## Test Match / Amichevoli
 - Avversari caricati dalla stessa lega + serie corrente del team utente
 - Endpoint: GET `/api/teams/league/:league/series/:series`
-- Filtro esclude il team dell'utente
-- Dopo promozione/retrocessione, gli avversari si aggiornano automaticamente
 
 ## Dati
-- Store Zustand: walletAddress, team, players
-- API: `/api/matches`, `/api/teams`, `/api/teams/league/:league/series/:series`
+- Store Zustand: walletAddress, team, players, token
+- API: `/api/matches`, `/api/teams`, `/api/season`
+- API: `/api/tokens/balance` — saldo e stato claim
+- API: `POST /api/tokens/claim-challenge` + `POST /api/tokens/claim` — flusso claim
 - API: `PATCH /api/teams/:id/name` per rinominare team
-- API: `/api/team/:id/players` per statistiche avversario (preview confronto)
+- API: `/api/team/:id/players` per statistiche avversario
 - Simulazione batch: `POST /api/simulate-day`
-- Salvataggio risultato: incluso nella simulazione batch
 
 ## Interazioni
 - Connect wallet → navigazione a /login
-- Play League Match → simula giornata + mostra risultato + invalida cache
+- Claim tokens → firma wallet → accredito
+- Play League Match → simula giornata + mostra risultato
 - Tutte le card navigano alla rispettiva pagina
 - Click nome team → modalità edit inline
 - Click gara in Recent Results → apre Match Detail
-- Scroll Recent Results → visualizza tutte le gare passate

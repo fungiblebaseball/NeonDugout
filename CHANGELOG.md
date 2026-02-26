@@ -6,6 +6,51 @@ Formato:
   • Dettaglio 2 (file modificati)  
   • Trade-off / note (se rilevanti)
 
+## v1.9.0 – 26 febbraio 2026 – Token Economy + Team Page + Home Rework
+
+- **Token Economy System**:
+  * Nuova tabella `user_tokens` (userId unique, balance, lastClaimAt) — saldo token per utente
+  * Nuova tabella `token_config` (claimAmount, claimIntervalHours) — configurazione admin X token ogni Y ore
+  * Claim protetto da firma wallet: challenge/verify con tweetnacl, identico al login
+  * Intervallo temporale tra claim configurabile da admin
+  * API: `GET /api/tokens/balance`, `POST /api/tokens/claim-challenge`, `POST /api/tokens/claim`
+  * API admin: `GET/PUT /api/admin/token-config`, `POST /api/admin/reset-tokens`
+  * Seed default: 10 token ogni 24 ore
+
+- **Team Page** (client/src/pages/TeamPage.tsx):
+  * Nuova pagina /team con dati utente (wallet, data registrazione)
+  * Info squadra (nome, colore, lega/serie/divisione)
+  * Token balance con bottone claim e countdown
+  * Roster completo in tabella: nome, posizioni, 9 attributi base + bonus
+  * Bonus _add mostrati in ambra sotto il valore totale
+  * Righe cliccabili → Player Detail
+  * Link in Navigation bottom bar e griglia Home
+
+- **Home Page riorganizzata** (client/src/pages/Home.tsx):
+  * Nome team ridotto da text-3xl a text-2xl
+  * Token Balance box con bottone CLAIM e countdown sotto Owner Registry
+  * LINEUP e PITCHERS spostati come bottoni compatti secondari
+  * TRAINING CENTER promosso in cima alla griglia (col-span-2, bordo amber, glow)
+  * ATTACK e DEFENSE in riga 2
+  * FINAL SCORE box in riga 3 (sotto tattiche)
+  * Card MY TEAM aggiunta alla griglia navigazione
+  * TEST MATCH, PLAY LOG, SCHEDULE, STANDINGS in basso
+  * Recent Results in fondo
+
+- **Admin Page aggiornata** (client/src/pages/AdminPage.tsx):
+  * Nuova sezione "Token Economy Config" in cima:
+    - Input Tokens per Claim (X) e Interval Hours (Y)
+    - Bottone Save
+    - Bottone "Reset Treasury" con conferma a due click (5s timeout)
+  * Sezione Training Reward Config invariata sotto
+
+- **Auth** (server/auth.ts):
+  * Aggiunto claim challenge store separato con TTL 5 minuti
+  * `generateClaimChallenge()` e `verifyClaimSignature()` per firma claim
+
+- Files modificati: `shared/schema.ts`, `server/storage.ts`, `server/routes.ts`, `server/auth.ts`, `client/src/pages/Home.tsx`, `client/src/pages/TeamPage.tsx` (new), `client/src/pages/AdminPage.tsx`, `client/src/App.tsx`, `client/src/components/Navigation.tsx`
+- Docs: `PAGE_HOME.md`, `PAGE_ADMIN.md`, `PAGE_TEAM.md` (new), `CHANGELOG.md`, `replit.md`
+
 ## v1.8.0 – 26 febbraio 2026 – Training Minigames + Admin Panel
 
 - **Schema** (shared/schema.ts):

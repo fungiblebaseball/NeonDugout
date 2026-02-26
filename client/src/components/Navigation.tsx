@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Home, ListOrdered, RotateCcw, Swords, Shield, Calendar, Trophy, Dumbbell } from "lucide-react";
+import { Home, ListOrdered, RotateCcw, Swords, Shield, Calendar, Trophy, Dumbbell, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function Navigation() {
@@ -12,6 +12,7 @@ export function Navigation() {
     { href: "/attack", icon: Swords, label: "ATK" },
     { href: "/defense", icon: Shield, label: "DEF" },
     { href: "/training", icon: Dumbbell, label: "Train" },
+    { href: "/team", icon: Users, label: "Team" },
     { href: "/schedule", icon: Calendar, label: "Sched" },
     { href: "/standings", icon: Trophy, label: "Rank" },
   ];

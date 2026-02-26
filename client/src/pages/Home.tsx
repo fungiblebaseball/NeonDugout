@@ -2,8 +2,9 @@ import { useGameStore } from "@/lib/store";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
-import { Terminal, ShieldAlert, Calendar, Swords, Shield, ListOrdered, RotateCcw, Zap, Trophy, Play, Pencil, Check, X, ScrollText, Dumbbell } from "lucide-react";
+import { Terminal, ShieldAlert, Calendar, Swords, Shield, ListOrdered, RotateCcw, Zap, Trophy, Play, Pencil, Check, X, ScrollText, Dumbbell, Users, Coins, Clock } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
 import type { SimPlayer } from "@/lib/calculations";
 import logoImg from "@/assets/images/logo-neon-dugout.png";
 
@@ -64,12 +65,14 @@ function SectorBar({ label, myVal, oppVal, color }: { label: string; myVal: numb
 }
 
 export default function Home() {
-  const { walletAddress, disconnectWallet, team, players, loading } = useGameStore();
+  const { walletAddress, disconnectWallet, team, players, loading, token } = useGameStore();
+  const { signMessage } = useWallet();
   const [simulating, setSimulating] = useState(false);
   const [lastResult, setLastResult] = useState<{ home: string; away: string; hs: number; as: number; matchId: number } | null>(null);
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState("");
   const [savingName, setSavingName] = useState(false);
+  const [claiming, setClaiming] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
@@ -89,6 +92,42 @@ export default function Home() {
     },
   });
   const currentSeason = seasonData?.seasonId ?? 1;
+
+  const { data: tokenBalance } = useQuery<{ balance: number; canClaim: boolean; nextClaimAt: string | null; claimAmount: number }>({
+    queryKey: ['token-balance'],
+    queryFn: async () => {
+      const res = await fetch('/api/tokens/balance', { headers: { Authorization: `Bearer ${token}` } });
+      return res.json();
+    },
+    enabled: !!token,
+    refetchInterval: 30000,
+  });
+
+  const claimTokens = async () => {
+    if (!token || !signMessage || claiming) return;
+    setClaiming(true);
+    try {
+      const challengeRes = await fetch('/api/tokens/claim-challenge', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const { message } = await challengeRes.json();
+      const encodedMessage = new TextEncoder().encode(message);
+      const signatureBytes = await signMessage(encodedMessage);
+      const signature = Buffer.from(signatureBytes).toString('base64');
+      const claimRes = await fetch('/api/tokens/claim', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ signature, message }),
+      });
+      if (claimRes.ok) {
+        queryClient.invalidateQueries({ queryKey: ['token-balance'] });
+      }
+    } catch (err) {
+      console.error('Token claim failed:', err);
+    }
+    setClaiming(false);
+  };
 
   const { data: allMatchesRaw = [] } = useQuery<MatchData[]>({
     queryKey: ['matches-all'],
@@ -304,7 +343,7 @@ export default function Home() {
             </div>
           ) : (
             <div className="flex items-center gap-2 mt-1">
-              <h1 data-testid="text-team-name" className="text-3xl font-black uppercase text-pink-500 drop-shadow-[0_0_8px_rgba(236,72,153,0.6)]" style={{fontFamily: "'Orbitron', sans-serif"}}>
+              <h1 data-testid="text-team-name" className="text-2xl font-black uppercase text-pink-500 drop-shadow-[0_0_8px_rgba(236,72,153,0.6)]" style={{fontFamily: "'Orbitron', sans-serif"}}>
                 {team?.name || "Loading..."}
               </h1>
               <button
@@ -335,17 +374,60 @@ export default function Home() {
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <Link href="/lineup" data-testid="link-lineup" className="block p-5 rounded-2xl border border-cyan-500/30 bg-black/40 hover:bg-cyan-900/20 transition-colors group">
-            <ListOrdered className="w-6 h-6 text-cyan-500 mb-2 group-hover:animate-pulse" />
-            <h3 className="font-black text-lg text-cyan-400 mb-1 group-hover:drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]" style={{fontFamily: "'Orbitron', sans-serif"}}>LINEUP</h3>
-            <p className="text-[10px] font-mono text-gray-500">Batting order & field</p>
-          </Link>
+        <div className="p-4 rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 to-transparent">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Coins className="w-5 h-5 text-amber-400" />
+              <h3 className="font-mono text-sm text-amber-300">TOKEN BALANCE</h3>
+            </div>
+            <span data-testid="text-token-balance" className="text-xl font-black text-amber-400" style={{fontFamily: "'Orbitron', sans-serif"}}>
+              {tokenBalance?.balance ?? 0}
+            </span>
+          </div>
+          <div className="mt-3 flex items-center gap-2">
+            {tokenBalance?.canClaim ? (
+              <button
+                data-testid="button-claim-tokens"
+                onClick={claimTokens}
+                disabled={claiming}
+                className="flex-1 py-2 bg-amber-500 hover:bg-amber-400 text-black font-black uppercase tracking-widest rounded-lg transition-all shadow-[0_0_10px_rgba(245,158,11,0.3)] disabled:opacity-50 text-xs"
+              >
+                {claiming ? "SIGNING..." : `CLAIM ${tokenBalance?.claimAmount ?? 0} TOKENS`}
+              </button>
+            ) : (
+              <div className="flex-1 flex items-center gap-2 py-2 px-3 bg-gray-900/50 rounded-lg border border-gray-800">
+                <Clock className="w-3 h-3 text-gray-500" />
+                <span className="text-[10px] font-mono text-gray-500">
+                  {tokenBalance?.nextClaimAt
+                    ? `NEXT CLAIM: ${new Date(tokenBalance.nextClaimAt).toLocaleString()}`
+                    : "CLAIM AVAILABLE SOON"}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
 
-          <Link href="/pitchers" data-testid="link-pitchers" className="block p-5 rounded-2xl border border-pink-500/30 bg-black/40 hover:bg-pink-900/20 transition-colors group">
-            <RotateCcw className="w-6 h-6 text-pink-500 mb-2 group-hover:animate-pulse" />
-            <h3 className="font-black text-lg text-pink-400 mb-1" style={{fontFamily: "'Orbitron', sans-serif"}}>PITCHERS</h3>
-            <p className="text-[10px] font-mono text-gray-500">Rotation & conditions</p>
+        <div className="flex gap-2">
+          <Link href="/lineup" data-testid="link-lineup" className="flex-1 flex items-center gap-2 px-4 py-3 rounded-xl border border-cyan-500/20 bg-black/30 hover:bg-cyan-900/20 transition-colors group">
+            <ListOrdered className="w-4 h-4 text-cyan-500 group-hover:animate-pulse" />
+            <span className="font-bold text-sm text-cyan-400 uppercase" style={{fontFamily: "'Orbitron', sans-serif"}}>LINEUP</span>
+          </Link>
+          <Link href="/pitchers" data-testid="link-pitchers" className="flex-1 flex items-center gap-2 px-4 py-3 rounded-xl border border-pink-500/20 bg-black/30 hover:bg-pink-900/20 transition-colors group">
+            <RotateCcw className="w-4 h-4 text-pink-500 group-hover:animate-pulse" />
+            <span className="font-bold text-sm text-pink-400 uppercase" style={{fontFamily: "'Orbitron', sans-serif"}}>PITCHERS</span>
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Link href="/training" data-testid="link-training" className="block col-span-2 p-5 rounded-2xl border-2 border-amber-500/40 bg-gradient-to-r from-amber-950/30 to-orange-950/30 hover:from-amber-900/30 hover:to-orange-900/30 transition-colors group shadow-[0_0_20px_rgba(245,158,11,0.15)]">
+            <div className="flex items-center justify-between">
+              <div>
+                <Dumbbell className="w-7 h-7 text-amber-400 mb-2 group-hover:animate-pulse" />
+                <h3 className="font-black text-xl text-amber-400 mb-1 group-hover:drop-shadow-[0_0_10px_rgba(245,158,11,0.8)]" style={{fontFamily: "'Orbitron', sans-serif"}}>TRAINING CENTER</h3>
+                <p className="text-[10px] font-mono text-gray-500">Play minigames to boost your players' attributes</p>
+              </div>
+              <span className="text-3xl">🏋️</span>
+            </div>
           </Link>
 
           <Link href="/attack" data-testid="link-attack" className="block p-5 rounded-2xl border border-cyan-500/30 bg-black/40 hover:bg-cyan-900/20 transition-colors group">
@@ -360,22 +442,37 @@ export default function Home() {
             <p className="text-[10px] font-mono text-gray-500">Field positioning</p>
           </Link>
 
-          <Link href="/simulate" data-testid="link-simulate" className="block p-5 rounded-2xl border border-cyan-400/50 bg-gradient-to-r from-cyan-950/30 to-pink-950/30 hover:from-cyan-900/30 hover:to-pink-900/30 transition-colors group">
-            <div className="flex items-center justify-between">
-              <div>
-                <Zap className="w-6 h-6 text-cyan-400 mb-2 group-hover:animate-pulse" />
-                <h3 className="font-black text-lg text-cyan-400 group-hover:drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]" style={{fontFamily: "'Orbitron', sans-serif"}}>TEST MATCH</h3>
-                <p className="text-[10px] font-mono text-gray-500">Exhibition vs rival</p>
+          {(() => {
+            const display = lastResult || (() => {
+              const lastPlayed = recentResults[0];
+              if (!lastPlayed) return null;
+              return {
+                home: teamMap.get(lastPlayed.homeTeamId)?.name || 'Home',
+                away: teamMap.get(lastPlayed.awayTeamId)?.name || 'Away',
+                hs: lastPlayed.homeScore ?? 0,
+                as: lastPlayed.awayScore ?? 0,
+                matchId: lastPlayed.id,
+              };
+            })();
+            if (!display) return null;
+            return (
+              <div className="col-span-2 p-4 rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-cyan-950/20 to-pink-950/20 text-center space-y-2">
+                <p className="text-xs font-mono text-gray-400 uppercase tracking-wider">FINAL SCORE</p>
+                <div className="flex items-center justify-center gap-3 mt-1">
+                  <span className="text-sm font-bold text-cyan-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{display.home}</span>
+                  <span className="text-lg font-black text-cyan-400" style={{fontFamily: "'Press Start 2P', cursive", fontSize: '14px'}}>{display.hs}</span>
+                  <span className="text-gray-600">-</span>
+                  <span className="text-lg font-black text-pink-400" style={{fontFamily: "'Press Start 2P', cursive", fontSize: '14px'}}>{display.as}</span>
+                  <span className="text-sm font-bold text-pink-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{display.away}</span>
+                </div>
+                <Link href={`/match/${display.matchId}`}>
+                  <button data-testid="button-view-details" className="mt-1 px-4 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 font-mono text-xs uppercase tracking-wider rounded-lg transition-all">
+                    VIEW MATCH REPORT
+                  </button>
+                </Link>
               </div>
-              <span className="text-3xl">⚾</span>
-            </div>
-          </Link>
-
-          <Link href="/play-log" data-testid="link-play-log" className="block p-5 rounded-2xl border border-green-500/30 bg-black/40 hover:bg-green-900/20 transition-colors group">
-            <ScrollText className="w-6 h-6 text-green-500 mb-2 group-hover:animate-pulse" />
-            <h3 className="font-black text-lg text-green-400 mb-1" style={{fontFamily: "'Orbitron', sans-serif"}}>PLAY LOG</h3>
-            <p className="text-[10px] font-mono text-gray-500">Play-by-play records</p>
-          </Link>
+            );
+          })()}
 
           {seasonFinished ? (
             <div className="col-span-2 p-5 rounded-2xl border-2 border-cyan-400/50 bg-gradient-to-r from-cyan-950/30 to-pink-950/30 space-y-3">
@@ -441,37 +538,40 @@ export default function Home() {
             </div>
           ) : null}
 
-          {(() => {
-            const display = lastResult || (() => {
-              const lastPlayed = recentResults[0];
-              if (!lastPlayed) return null;
-              return {
-                home: teamMap.get(lastPlayed.homeTeamId)?.name || 'Home',
-                away: teamMap.get(lastPlayed.awayTeamId)?.name || 'Away',
-                hs: lastPlayed.homeScore ?? 0,
-                as: lastPlayed.awayScore ?? 0,
-                matchId: lastPlayed.id,
-              };
-            })();
-            if (!display) return null;
-            return (
-              <div className="col-span-2 p-3 rounded-lg border border-cyan-500/30 bg-black/40 text-center space-y-2">
-                <p className="text-xs font-mono text-gray-400">FINAL SCORE</p>
-                <div className="flex items-center justify-center gap-3 mt-1">
-                  <span className="text-sm font-bold text-cyan-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{display.home}</span>
-                  <span className="text-lg font-black text-cyan-400" style={{fontFamily: "'Press Start 2P', cursive", fontSize: '14px'}}>{display.hs}</span>
-                  <span className="text-gray-600">-</span>
-                  <span className="text-lg font-black text-pink-400" style={{fontFamily: "'Press Start 2P', cursive", fontSize: '14px'}}>{display.as}</span>
-                  <span className="text-sm font-bold text-pink-300" style={{fontFamily: "'Orbitron', sans-serif"}}>{display.away}</span>
-                </div>
-                <Link href={`/match/${display.matchId}`}>
-                  <button data-testid="button-view-details" className="mt-1 px-4 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 font-mono text-xs uppercase tracking-wider rounded-lg transition-all">
-                    VIEW MATCH REPORT
-                  </button>
-                </Link>
+          <Link href="/simulate" data-testid="link-simulate" className="block p-5 rounded-2xl border border-cyan-400/50 bg-gradient-to-r from-cyan-950/30 to-pink-950/30 hover:from-cyan-900/30 hover:to-pink-900/30 transition-colors group">
+            <div className="flex items-center justify-between">
+              <div>
+                <Zap className="w-6 h-6 text-cyan-400 mb-2 group-hover:animate-pulse" />
+                <h3 className="font-black text-lg text-cyan-400 group-hover:drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]" style={{fontFamily: "'Orbitron', sans-serif"}}>TEST MATCH</h3>
+                <p className="text-[10px] font-mono text-gray-500">Exhibition vs rival</p>
               </div>
-            );
-          })()}
+              <span className="text-3xl">⚾</span>
+            </div>
+          </Link>
+
+          <Link href="/play-log" data-testid="link-play-log" className="block p-5 rounded-2xl border border-green-500/30 bg-black/40 hover:bg-green-900/20 transition-colors group">
+            <ScrollText className="w-6 h-6 text-green-500 mb-2 group-hover:animate-pulse" />
+            <h3 className="font-black text-lg text-green-400 mb-1" style={{fontFamily: "'Orbitron', sans-serif"}}>PLAY LOG</h3>
+            <p className="text-[10px] font-mono text-gray-500">Play-by-play records</p>
+          </Link>
+
+          <Link href="/team" data-testid="link-team" className="block p-5 rounded-2xl border border-cyan-500/30 bg-black/40 hover:bg-cyan-900/20 transition-colors group">
+            <Users className="w-6 h-6 text-cyan-500 mb-2 group-hover:animate-pulse" />
+            <h3 className="font-black text-lg text-cyan-400 mb-1 group-hover:drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]" style={{fontFamily: "'Orbitron', sans-serif"}}>MY TEAM</h3>
+            <p className="text-[10px] font-mono text-gray-500">Roster & token info</p>
+          </Link>
+
+          <Link href="/schedule" data-testid="link-schedule" className="block p-5 rounded-2xl border border-pink-500/30 bg-black/40 hover:bg-pink-900/20 transition-colors group">
+            <Calendar className="w-6 h-6 text-pink-500 mb-2 group-hover:animate-pulse" />
+            <h3 className="font-black text-lg text-pink-400 mb-1 group-hover:drop-shadow-[0_0_8px_rgba(236,72,153,0.8)]" style={{fontFamily: "'Orbitron', sans-serif"}}>SCHEDULE</h3>
+            <p className="text-[10px] font-mono text-gray-500">Calendar & results</p>
+          </Link>
+
+          <Link href="/standings" data-testid="link-standings" className="block p-5 rounded-2xl border border-cyan-500/30 bg-black/40 hover:bg-cyan-900/20 transition-colors group">
+            <Trophy className="w-6 h-6 text-cyan-500 mb-2 group-hover:animate-pulse" />
+            <h3 className="font-black text-lg text-cyan-400 mb-1 group-hover:drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]" style={{fontFamily: "'Orbitron', sans-serif"}}>STANDINGS</h3>
+            <p className="text-[10px] font-mono text-gray-500">Rankings & preview</p>
+          </Link>
 
           {recentResults.length > 0 && (
             <div className="col-span-2 rounded-xl border border-gray-800 bg-black/30 p-3 space-y-1">
@@ -501,24 +601,6 @@ export default function Home() {
               </div>
             </div>
           )}
-
-          <Link href="/training" data-testid="link-training" className="block col-span-2 p-5 rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-950/20 to-orange-950/20 hover:bg-amber-900/20 transition-colors group">
-            <Dumbbell className="w-6 h-6 text-amber-500 mb-2 group-hover:animate-pulse" />
-            <h3 className="font-black text-lg text-amber-400 mb-1 group-hover:drop-shadow-[0_0_8px_rgba(245,158,11,0.8)]" style={{fontFamily: "'Orbitron', sans-serif"}}>TRAINING CENTER</h3>
-            <p className="text-[10px] font-mono text-gray-500">Play minigames to boost your players' attributes</p>
-          </Link>
-
-          <Link href="/schedule" data-testid="link-schedule" className="block p-5 rounded-2xl border border-pink-500/30 bg-black/40 hover:bg-pink-900/20 transition-colors group">
-            <Calendar className="w-6 h-6 text-pink-500 mb-2 group-hover:animate-pulse" />
-            <h3 className="font-black text-lg text-pink-400 mb-1 group-hover:drop-shadow-[0_0_8px_rgba(236,72,153,0.8)]" style={{fontFamily: "'Orbitron', sans-serif"}}>SCHEDULE</h3>
-            <p className="text-[10px] font-mono text-gray-500">Calendar & results</p>
-          </Link>
-
-          <Link href="/standings" data-testid="link-standings" className="block p-5 rounded-2xl border border-cyan-500/30 bg-black/40 hover:bg-cyan-900/20 transition-colors group">
-            <Trophy className="w-6 h-6 text-cyan-500 mb-2 group-hover:animate-pulse" />
-            <h3 className="font-black text-lg text-cyan-400 mb-1 group-hover:drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]" style={{fontFamily: "'Orbitron', sans-serif"}}>STANDINGS</h3>
-            <p className="text-[10px] font-mono text-gray-500">Rankings & preview</p>
-          </Link>
         </div>
       </main>
     </div>

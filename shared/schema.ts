@@ -184,7 +184,22 @@ export const insertMatchDetailsSchema = createInsertSchema(matchDetails).omit({ 
 export const insertTeamSnapshotSchema = createInsertSchema(teamSnapshots).omit({ id: true });
 export const insertPlayerSeasonStatsSchema = createInsertSchema(playerSeasonStats).omit({ id: true });
 export const insertTrainingResultSchema = createInsertSchema(trainingResults).omit({ id: true, createdAt: true });
+export const userTokens = pgTable("user_tokens", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().unique(),
+  balance: integer("balance").notNull().default(0),
+  lastClaimAt: timestamp("last_claim_at"),
+});
+
+export const tokenConfig = pgTable("token_config", {
+  id: serial("id").primaryKey(),
+  claimAmount: integer("claim_amount").notNull().default(10),
+  claimIntervalHours: integer("claim_interval_hours").notNull().default(24),
+});
+
 export const insertTrainingConfigSchema = createInsertSchema(trainingConfig).omit({ id: true });
+export const insertUserTokensSchema = createInsertSchema(userTokens).omit({ id: true });
+export const insertTokenConfigSchema = createInsertSchema(tokenConfig).omit({ id: true });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -210,3 +225,7 @@ export type InsertTrainingResult = z.infer<typeof insertTrainingResultSchema>;
 export type TrainingResult = typeof trainingResults.$inferSelect;
 export type InsertTrainingConfig = z.infer<typeof insertTrainingConfigSchema>;
 export type TrainingConfig = typeof trainingConfig.$inferSelect;
+export type InsertUserTokens = z.infer<typeof insertUserTokensSchema>;
+export type UserTokens = typeof userTokens.$inferSelect;
+export type InsertTokenConfig = z.infer<typeof insertTokenConfigSchema>;
+export type TokenConfig = typeof tokenConfig.$inferSelect;

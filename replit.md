@@ -4,7 +4,7 @@
 Text-based fantasy baseball manager game with retro 80s/90s cyberpunk aesthetic. Target platform: Solana Seeker mobile (Web3 integration planned). Zero MLB licenses - all fictional teams and players.
 
 ## Current State
-Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.8.0 — Training Minigames: 3 interactive minigames (Eye Drill, Batting Practice, Pitch Control) that boost player attributes via `_add` columns. Admin page for configuring rewards. Player card shows base + boost breakdown with amber overlay bars.
+Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.9.0 — Token Economy: in-game token system with wallet-signed claims (X tokens every Y hours, admin configurable). Team Page with full roster + bonus attributes. Home page reorganized to highlight training, token balance, and game features. Admin panel with token config and treasury reset.
 
 ## Branding
 - **Logo**: `client/src/assets/images/logo-neon-dugout.png` — Stylized baseball diamond (neon glow, transparent bg)
@@ -19,9 +19,9 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 - **Design**: Neon pink/cyan palette, Orbitron/VT323/Press Start 2P fonts, mobile-first bottom nav
 
 ## Key Files
-- `shared/schema.ts` - Drizzle schema: users (with isAdmin), teams, players (with _add boost columns), matches, match_details, lineups, pitcher_rotations, tactics, training_results, training_config
-- `server/routes.ts` - API routes (/api/auth/*, /api/teams, /api/matches, /api/player/:id, /api/training/*, /api/admin/training-config, /api/lineup, /api/pitcher-rotation, /api/tactics)
-- `server/auth.ts` - JWT token creation/verification, ed25519 signature validation, challenge nonce management
+- `shared/schema.ts` - Drizzle schema: users (with isAdmin), teams, players (with _add boost columns), matches, match_details, lineups, pitcher_rotations, tactics, training_results, training_config, user_tokens, token_config
+- `server/routes.ts` - API routes (/api/auth/*, /api/teams, /api/matches, /api/player/:id, /api/training/*, /api/tokens/*, /api/admin/training-config, /api/admin/token-config, /api/admin/reset-tokens, /api/lineup, /api/pitcher-rotation, /api/tactics)
+- `server/auth.ts` - JWT token creation/verification, ed25519 signature validation, challenge nonce management, claim challenge/verify
 - `server/expansion.ts` - Dynamic league expansion: auto-creates new league with 20 teams + 400 players + 228 matches when all teams are owned
 - `server/storage.ts` - DatabaseStorage class implementing IStorage interface
 - `server/seed.ts` - Seeds 40 teams (2 leagues × 2 series × 10 teams), 800 players, 14-day schedule (regular + interleague + playoff)
@@ -30,10 +30,10 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 - `server/db.ts` - Database connection pool
 - `client/src/lib/store.ts` - Zustand store with wallet auth (loginWithSignature, restoreSession, disconnectWallet), JWT persistence
 - `client/src/components/WalletProvider.tsx` - Solana wallet adapter provider (auto-detects Phantom, Solflare, Backpack, Seeker)
-- `client/src/pages/` - LoginPage, Home, LineupPage, PitchersPage, AttackPage, DefensePage, SimulationPage, SchedulePage, StandingsPage, PlayerDetailPage, MatchDetailPage, TrainingPage, AdminPage
+- `client/src/pages/` - LoginPage, Home, LineupPage, PitchersPage, AttackPage, DefensePage, SimulationPage, SchedulePage, StandingsPage, PlayerDetailPage, MatchDetailPage, TrainingPage, TeamPage, AdminPage
 - `client/src/pages/minigames/` - EyeDrillGame, BattingPracticeGame, PitchControlGame
 - `client/src/lib/calculations/` - Pure simulation engine (matchup, probability, simulate, rng, flavor, types)
-- `client/src/components/Navigation.tsx` - Bottom nav (8 items: Hub, Lineup, Pitch, ATK, DEF, Train, Sched, Rank)
+- `client/src/components/Navigation.tsx` - Bottom nav (9 items: Hub, Lineup, Pitch, ATK, DEF, Train, Team, Sched, Rank)
 
 ## Database Tables
 - `users` - wallet-based auth (id, wallet_address, team_id, is_admin)
@@ -47,6 +47,8 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 - `team_snapshots` - historical team state per season (team_id, season_id, name, division, league, series, primary_color, owner_wallet, wins, losses, runs_for, runs_against)
 - `training_results` - minigame scores and rewards (user_id, team_id, game_type, score, raw_data, reward_attribute, reward_player_id, reward_amount)
 - `training_config` - admin-configurable reward rules per game type (game_type, reward_attributes[], reward_amount, min_score_for_reward, max_boost_per_season)
+- `user_tokens` - token balance per utente (user_id unique, balance, last_claim_at) — claim certificato con firma wallet
+- `token_config` - configurazione admin token economy (claim_amount, claim_interval_hours)
 
 ## Pages
 0. **Login** (/login) - Solana wallet authentication: select wallet (Phantom/Solflare/Backpack/Seeker), sign challenge message, verify signature
@@ -65,7 +67,8 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 13. **Eye Drill** (/training/eye-drill) - Reaction time minigame: tap baseball as fast as possible, 10 rounds, rewards EYE boost
 14. **Batting Practice** (/training/batting) - Timing minigame: swing at the sweet spot, 10 pitches, rewards CON/POW boost
 15. **Pitch Control** (/training/pitch-control) - Accuracy minigame: tap correct zone in 3x3 grid, 10 rounds, rewards CTL boost
-16. **Admin** (/admin) - Admin-only panel: configure training reward rules (attributes, amounts, min scores, caps). Access via is_admin flag on user
+16. **Team** (/team) - Team overview: user info (wallet, registration), team info (name, color, league), token balance with claim button, full roster table with base + bonus attributes
+17. **Admin** (/admin) - Admin-only panel: token economy config (X tokens per Y hours, reset treasury), training reward rules (attributes, amounts, min scores, caps). Access via is_admin flag on user
 
 ## Deep Navigation Flow
 - Home → Play Match → View Match Report → Player Detail
@@ -129,7 +132,7 @@ All modifiers are multiplicative percentages applied to base probability table i
 - New team from expansion is automatically assigned to the registering user
 
 ## Page Documentation
-Each page has a dedicated .md file in root: PAGE_LOGIN.md, PAGE_HOME.md, PAGE_LINEUP.md, PAGE_PITCHERS.md, PAGE_ATTACK.md, PAGE_DEFENSE.md, PAGE_SIMULATE.md, PAGE_SCHEDULE.md, PAGE_STANDINGS.md, PAGE_PLAYER_DETAIL.md, PAGE_MATCH_DETAIL.md, PAGE_PLAY_LOG.md
+Each page has a dedicated .md file in root: PAGE_LOGIN.md, PAGE_HOME.md, PAGE_LINEUP.md, PAGE_PITCHERS.md, PAGE_ATTACK.md, PAGE_DEFENSE.md, PAGE_SIMULATE.md, PAGE_SCHEDULE.md, PAGE_STANDINGS.md, PAGE_PLAYER_DETAIL.md, PAGE_MATCH_DETAIL.md, PAGE_PLAY_LOG.md, PAGE_TEAM.md, PAGE_ADMIN.md
 
 ## Technical Documentation
 - `Player_SEED.md` — Player generation algorithm: roster structure, gaussian distribution, talent tiers, attribute definitions and matchup weights

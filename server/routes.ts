@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { simulateMatchDay, updatePlayoffMatchups } from "./simulation";
 import { generateNewSeason } from "./season";
-import { generateChallenge, verifySignature, createToken, verifyToken } from "./auth";
+import { generateChallenge, verifySignature, createToken, verifyToken, generateClaimChallenge, verifyClaimSignature } from "./auth";
 import { expandLeague, ensureExtraLeague } from "./expansion";
 
 export async function registerRoutes(
@@ -480,6 +480,97 @@ export async function registerRoutes(
     res.json(config);
   });
 
+  app.get("/api/tokens/balance", async (req, res) => {
+    const tokenData = await authenticateUser(req, res);
+    if (!tokenData) return;
+    const userTokenRecord = await storage.getUserTokens(tokenData.userId);
+    const config = await storage.getTokenConfig();
+    const balance = userTokenRecord?.balance ?? 0;
+    const lastClaimAt = userTokenRecord?.lastClaimAt ?? null;
+    const intervalHours = config?.claimIntervalHours ?? 24;
+    let canClaim = true;
+    let nextClaimAt: string | null = null;
+    if (lastClaimAt) {
+      const nextTime = new Date(lastClaimAt.getTime() + intervalHours * 60 * 60 * 1000);
+      if (new Date() < nextTime) {
+        canClaim = false;
+        nextClaimAt = nextTime.toISOString();
+      }
+    }
+    res.json({ balance, lastClaimAt: lastClaimAt?.toISOString() ?? null, canClaim, nextClaimAt, claimAmount: config?.claimAmount ?? 10 });
+  });
+
+  app.post("/api/tokens/claim-challenge", async (req, res) => {
+    const tokenData = await authenticateUser(req, res);
+    if (!tokenData) return;
+    const challenge = generateClaimChallenge(tokenData.walletAddress);
+    res.json(challenge);
+  });
+
+  app.post("/api/tokens/claim", async (req, res) => {
+    const tokenData = await authenticateUser(req, res);
+    if (!tokenData) return;
+
+    const { signature, message } = req.body;
+    if (!signature || !message) {
+      return res.status(400).json({ message: "signature and message required" });
+    }
+
+    const valid = verifyClaimSignature(tokenData.walletAddress, signature, message);
+    if (!valid) {
+      return res.status(401).json({ message: "Invalid claim signature" });
+    }
+
+    const config = await storage.getTokenConfig();
+    const claimAmount = config?.claimAmount ?? 10;
+    const intervalHours = config?.claimIntervalHours ?? 24;
+
+    const existing = await storage.getUserTokens(tokenData.userId);
+    if (existing?.lastClaimAt) {
+      const nextTime = new Date(existing.lastClaimAt.getTime() + intervalHours * 60 * 60 * 1000);
+      if (new Date() < nextTime) {
+        return res.status(429).json({ message: "Claim not available yet", nextClaimAt: nextTime.toISOString() });
+      }
+    }
+
+    const updated = await storage.claimTokens(tokenData.userId, claimAmount, intervalHours);
+    if (!updated) {
+      return res.status(429).json({ message: "Claim not available yet" });
+    }
+    res.json({ balance: updated.balance, lastClaimAt: updated.lastClaimAt?.toISOString(), claimAmount });
+  });
+
+  app.get("/api/admin/token-config", async (req, res) => {
+    const tokenData = await requireAdmin(req, res);
+    if (!tokenData) return;
+    const config = await storage.getTokenConfig();
+    res.json(config || { claimAmount: 10, claimIntervalHours: 24 });
+  });
+
+  app.put("/api/admin/token-config", async (req, res) => {
+    const tokenData = await requireAdmin(req, res);
+    if (!tokenData) return;
+    const { claimAmount, claimIntervalHours } = req.body;
+    if (typeof claimAmount !== 'number' || typeof claimIntervalHours !== 'number') {
+      return res.status(400).json({ message: "claimAmount and claimIntervalHours must be numbers" });
+    }
+    if (claimAmount < 1 || claimAmount > 1000 || !Number.isInteger(claimAmount)) {
+      return res.status(400).json({ message: "claimAmount must be an integer between 1 and 1000" });
+    }
+    if (claimIntervalHours < 1 || claimIntervalHours > 168 || !Number.isInteger(claimIntervalHours)) {
+      return res.status(400).json({ message: "claimIntervalHours must be an integer between 1 and 168" });
+    }
+    const config = await storage.updateTokenConfig(claimAmount, claimIntervalHours);
+    res.json(config);
+  });
+
+  app.post("/api/admin/reset-tokens", async (req, res) => {
+    const tokenData = await requireAdmin(req, res);
+    if (!tokenData) return;
+    await storage.resetAllTokens();
+    res.json({ message: "All token balances have been reset" });
+  });
+
   app.post("/api/new-season", async (_req, res) => {
     try {
       const result = await generateNewSeason();
@@ -507,6 +598,11 @@ export async function registerRoutes(
     if (!existing) {
       await storage.upsertTrainingConfig(cfg);
     }
+  }
+
+  const existingTokenConfig = await storage.getTokenConfig();
+  if (!existingTokenConfig) {
+    await storage.updateTokenConfig(10, 24);
   }
 
   return httpServer;

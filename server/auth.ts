@@ -69,6 +69,54 @@ export function verifyToken(token: string): { userId: number; walletAddress: str
   }
 }
 
+const claimChallengeStore = new Map<string, { nonce: string; createdAt: number }>();
+
+setInterval(() => {
+  const now = Date.now();
+  claimChallengeStore.forEach((val, key) => {
+    if (now - val.createdAt > CHALLENGE_TTL) {
+      claimChallengeStore.delete(key);
+    }
+  });
+}, 60 * 1000);
+
+export function generateClaimChallenge(walletAddress: string): { message: string; nonce: string } {
+  const nonce = uuidv4();
+  const message = `Claim tokens in Neon Dugout: ${nonce}`;
+  claimChallengeStore.set(walletAddress, { nonce, createdAt: Date.now() });
+  return { message, nonce };
+}
+
+export function verifyClaimSignature(walletAddress: string, signature: string, message: string): boolean {
+  const stored = claimChallengeStore.get(walletAddress);
+  if (!stored) return false;
+
+  const now = Date.now();
+  if (now - stored.createdAt > CHALLENGE_TTL) {
+    claimChallengeStore.delete(walletAddress);
+    return false;
+  }
+
+  if (!message.includes(stored.nonce)) return false;
+
+  try {
+    const messageBytes = new TextEncoder().encode(message);
+    const signatureBytes = Buffer.from(signature, "base64");
+    const publicKeyBytes = decodeBase58(walletAddress);
+
+    const valid = nacl.sign.detached.verify(messageBytes, signatureBytes, publicKeyBytes);
+
+    if (valid) {
+      claimChallengeStore.delete(walletAddress);
+    }
+
+    return valid;
+  } catch (err) {
+    console.error("Claim signature verification failed:", err);
+    return false;
+  }
+}
+
 function decodeBase58(str: string): Uint8Array {
   const ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
   const bytes: number[] = [0];

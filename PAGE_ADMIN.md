@@ -62,7 +62,22 @@ Pannello di amministrazione per configurare token economy, regole di reward dei 
   - Max Boosts per Season (input numerico — cap stagionale, conta solo boost confermati con firma wallet)
   - Pulsante "SAVE" per salvare la configurazione
 
+### 4. Tactic Coefficients Config (v1.14.0)
+- Sezione per il tuning dei coefficienti moltiplicativi delle tattiche.
+- 4 tabelle editabili (una per layer):
+  - **Batter Approach** (Power, Contact, Patient)
+  - **Pitcher Style** (Velocity, Movement, Command)
+  - **Offensive Attack** (Aggressive, Balanced, Conservative)
+  - **Defense Setup** (Aggressive, Balanced, Protective)
+- Ogni tabella ha 7 colonne (HR, XBH, 1B, BB, SO, GO, FO) per inserire il modificatore percentuale (es. +12 o -5).
+- Pulsante "SAVE" per ogni layer.
+- Pulsante **"RESET TO DEFAULTS"**: ripristina i valori originali bilanciati (conferma a due click).
+
 ## Dati
+- API: `GET /api/admin/tactic-coefficients` — legge tutti i coefficienti
+- API: `PUT /api/admin/tactic-coefficients` — aggiorna coefficienti per un layer
+- API: `POST /api/admin/reset-tactic-coefficients` — ripristino default (admin auth)
+- API: `GET /api/tactic-coefficients` — endpoint pubblico per la simulazione
 - API: `GET /api/admin/token-config` — legge configurazione token (admin auth)
 - API: `PUT /api/admin/token-config` — aggiorna X e Y (admin auth)
 - API: `POST /api/admin/reset-tokens` — reset tesoreria globale (admin auth)

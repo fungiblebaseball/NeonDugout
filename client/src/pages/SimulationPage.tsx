@@ -2,7 +2,7 @@ import { useGameStore } from "@/lib/store";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { simulateGame, resetRng } from "@/lib/calculations";
-import type { GameResult, SimPlayer, SimTeam, SimConfig, PitchingConfig, TacticsModifiers } from "@/lib/calculations";
+import type { GameResult, SimPlayer, SimTeam, SimConfig, PitchingConfig, TacticsModifiers, TacticCoefficientRow, TacticSchedules } from "@/lib/calculations";
 
 export default function SimulationPage() {
   const { team, players, walletAddress } = useGameStore();
@@ -36,17 +36,19 @@ export default function SimulationPage() {
       return;
     }
 
-    const [oppPlayersRes, myLineupRes, myRotationRes, myTacticsRes] = await Promise.all([
+    const [oppPlayersRes, myLineupRes, myRotationRes, myTacticsRes, coeffRes] = await Promise.all([
       fetch(`/api/team/${opponent.id}/players`),
       fetch(`/api/lineup/${team.id}`),
       fetch(`/api/pitcher-rotation/${team.id}`),
       fetch(`/api/tactics/${team.id}`),
+      fetch(`/api/tactic-coefficients`),
     ]);
 
     const opponentPlayers: SimPlayer[] = await oppPlayersRes.json();
     const myLineup = await myLineupRes.json();
     const myRotation = await myRotationRes.json();
     const myTactics = await myTacticsRes.json();
+    const coefficients: TacticCoefficientRow[] = await coeffRes.json();
 
     const playerMap = new Map((players as SimPlayer[]).map(p => [p.id, p]));
 
@@ -108,12 +110,23 @@ export default function SimulationPage() {
       };
     };
 
+    const buildSchedules = (tac: any): TacticSchedules | undefined => {
+      if (!tac) return undefined;
+      const s: TacticSchedules = {};
+      if (tac.batterApproachSchedule) s.batterApproachSchedule = tac.batterApproachSchedule;
+      if (tac.attackStyleSchedule) s.attackStyleSchedule = tac.attackStyleSchedule;
+      if (tac.offensiveAttackSchedule) s.offensiveAttackSchedule = tac.offensiveAttackSchedule;
+      return Object.keys(s).length > 0 ? s : undefined;
+    };
+
     const simConfig: SimConfig = {
       homeLineup: builtLineup,
       homePitching: buildPitching(myRotation, players as SimPlayer[]),
       homeTactics: buildTac(myTactics),
       homeHasDH: hasDH,
       awayHasDH: true,
+      homeTacticSchedules: buildSchedules(myTactics),
+      tacticCoefficients: coefficients,
     };
 
     resetRng();

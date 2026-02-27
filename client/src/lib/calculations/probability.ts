@@ -54,6 +54,18 @@ export interface TacticsModifiers {
   defenseSetup?: DefenseSetup;
 }
 
+export interface TacticCoefficientRow {
+  layer: string;
+  tacticValue: string;
+  hr: number;
+  xbh: number;
+  single: number;
+  bb: number;
+  so: number;
+  go: number;
+  fo: number;
+}
+
 const ATTACK_MODIFIERS: Record<AttackStyle, Partial<OutcomeProbabilities>> = {
   bunt:           { '1B': 0.15, XBH: -0.20, HR: -0.20, GO: 0.10 },
   hit_and_run:    { '1B': 0.15, XBH: -0.15, HR: -0.25, SO: 0.05 },
@@ -111,34 +123,20 @@ const OFFENSE_VS_DEFENSE: Record<OffensiveAttack, Record<DefenseSetup, RpsOutcom
   conservative: { aggressive: 'lose', balanced: 'tie',  protective: 'tie'  },
 };
 
-const RPS_BATTER_MODS: Record<RpsOutcome, Partial<OutcomeProbabilities>> = {
-  win:  { HR: 0.12, XBH: 0.10, '1B': 0.05, SO: -0.08 },
-  tie:  {},
-  lose: { HR: -0.10, XBH: -0.08, SO: 0.12, GO: 0.05 },
-};
-
-const RPS_OFFENSE_MODS: Record<RpsOutcome, Partial<OutcomeProbabilities>> = {
-  win:  { '1B': 0.08, XBH: 0.06, BB: 0.05, GO: -0.06 },
-  tie:  {},
-  lose: { '1B': -0.06, GO: 0.08, FO: 0.04, BB: -0.05 },
-};
-
-function getRpsBatterModifiers(
-  batterApproach?: BatterApproach,
-  opponentPitcherStyle?: PitcherStyle,
-): Partial<OutcomeProbabilities> {
-  if (!batterApproach || !opponentPitcherStyle) return {};
-  const outcome = BATTER_VS_PITCHER[batterApproach][opponentPitcherStyle];
-  return RPS_BATTER_MODS[outcome];
+function coefficientRowToMods(row: TacticCoefficientRow): Partial<OutcomeProbabilities> {
+  const mods: Partial<OutcomeProbabilities> = {};
+  if (row.hr !== 0) mods.HR = row.hr / 100;
+  if (row.xbh !== 0) mods.XBH = row.xbh / 100;
+  if (row.single !== 0) mods['1B'] = row.single / 100;
+  if (row.bb !== 0) mods.BB = row.bb / 100;
+  if (row.so !== 0) mods.SO = row.so / 100;
+  if (row.go !== 0) mods.GO = row.go / 100;
+  if (row.fo !== 0) mods.FO = row.fo / 100;
+  return mods;
 }
 
-function getRpsOffenseModifiers(
-  offensiveAttack?: OffensiveAttack,
-  opponentDefenseSetup?: DefenseSetup,
-): Partial<OutcomeProbabilities> {
-  if (!offensiveAttack || !opponentDefenseSetup) return {};
-  const outcome = OFFENSE_VS_DEFENSE[offensiveAttack][opponentDefenseSetup];
-  return RPS_OFFENSE_MODS[outcome];
+function findCoefficient(coefficients: TacticCoefficientRow[], layer: string, tacticValue: string): TacticCoefficientRow | undefined {
+  return coefficients.find(c => c.layer === layer && c.tacticValue === tacticValue);
 }
 
 function applyModifiers(base: OutcomeProbabilities, mods: Partial<OutcomeProbabilities>): OutcomeProbabilities {
@@ -164,29 +162,68 @@ function applyModifiers(base: OutcomeProbabilities, mods: Partial<OutcomeProbabi
   return result;
 }
 
-export function getOutcomeProbabilities(matchupRating: number, tactics?: TacticsModifiers, opponentTactics?: TacticsModifiers, activePitcherStyle?: string): OutcomeProbabilities {
+export function getOutcomeProbabilities(
+  matchupRating: number,
+  tactics?: TacticsModifiers,
+  opponentTactics?: TacticsModifiers,
+  activePitcherStyle?: string,
+  coefficients?: TacticCoefficientRow[],
+): OutcomeProbabilities {
   let probs = interpolateBrackets(matchupRating);
+
+  const effectivePitcherStyle = (activePitcherStyle as PitcherStyle) || opponentTactics?.pitcherStyle;
+
+  if (tactics?.batterApproach && effectivePitcherStyle && coefficients) {
+    const rpsResult = BATTER_VS_PITCHER[tactics.batterApproach][effectivePitcherStyle];
+    if (rpsResult === 'win') {
+      const row = findCoefficient(coefficients, 'batter_approach', tactics.batterApproach);
+      if (row) probs = applyModifiers(probs, coefficientRowToMods(row));
+    } else if (rpsResult === 'lose') {
+      const row = findCoefficient(coefficients, 'pitcher_style', effectivePitcherStyle);
+      if (row) probs = applyModifiers(probs, coefficientRowToMods(row));
+    }
+  } else if (tactics?.batterApproach && effectivePitcherStyle) {
+    const rpsResult = BATTER_VS_PITCHER[tactics.batterApproach][effectivePitcherStyle];
+    if (rpsResult === 'win') {
+      probs = applyModifiers(probs, { HR: 0.12, XBH: 0.10, '1B': 0.05, SO: -0.08 });
+    } else if (rpsResult === 'lose') {
+      probs = applyModifiers(probs, { HR: -0.10, XBH: -0.08, SO: 0.12, GO: 0.05 });
+    }
+  }
 
   if (tactics) {
     const atkMods = ATTACK_MODIFIERS[tactics.attackStyle];
     probs = applyModifiers(probs, atkMods);
 
-    const defMods = getDefenseCounterBonus(tactics.attackStyle, tactics.infieldPosition, tactics.outfieldPosition);
-    probs = applyModifiers(probs, defMods);
+    if (opponentTactics) {
+      const defMods = getDefenseCounterBonus(tactics.attackStyle, opponentTactics.infieldPosition, opponentTactics.outfieldPosition);
+      probs = applyModifiers(probs, defMods);
+    }
   }
 
-  const effectivePitcherStyle = (activePitcherStyle as PitcherStyle) || opponentTactics?.pitcherStyle;
-  const rpsBatterMods = getRpsBatterModifiers(tactics?.batterApproach, effectivePitcherStyle);
-  probs = applyModifiers(probs, rpsBatterMods);
-
-  const rpsOffenseMods = getRpsOffenseModifiers(tactics?.offensiveAttack, opponentTactics?.defenseSetup);
-  probs = applyModifiers(probs, rpsOffenseMods);
+  if (tactics?.offensiveAttack && opponentTactics?.defenseSetup && coefficients) {
+    const rpsResult = OFFENSE_VS_DEFENSE[tactics.offensiveAttack][opponentTactics.defenseSetup];
+    if (rpsResult === 'win') {
+      const row = findCoefficient(coefficients, 'offensive_attack', tactics.offensiveAttack);
+      if (row) probs = applyModifiers(probs, coefficientRowToMods(row));
+    } else if (rpsResult === 'lose') {
+      const row = findCoefficient(coefficients, 'defense_setup', opponentTactics.defenseSetup);
+      if (row) probs = applyModifiers(probs, coefficientRowToMods(row));
+    }
+  } else if (tactics?.offensiveAttack && opponentTactics?.defenseSetup) {
+    const rpsResult = OFFENSE_VS_DEFENSE[tactics.offensiveAttack][opponentTactics.defenseSetup];
+    if (rpsResult === 'win') {
+      probs = applyModifiers(probs, { '1B': 0.08, XBH: 0.06, BB: 0.05, GO: -0.06 });
+    } else if (rpsResult === 'lose') {
+      probs = applyModifiers(probs, { '1B': -0.06, GO: 0.08, FO: 0.04, BB: -0.05 });
+    }
+  }
 
   return probs;
 }
 
-export function rollOutcome(matchupRating: number, roll: number, tactics?: TacticsModifiers, opponentTactics?: TacticsModifiers, activePitcherStyle?: string): AtBatOutcome {
-  const probs = getOutcomeProbabilities(matchupRating, tactics, opponentTactics, activePitcherStyle);
+export function rollOutcome(matchupRating: number, roll: number, tactics?: TacticsModifiers, opponentTactics?: TacticsModifiers, activePitcherStyle?: string, coefficients?: TacticCoefficientRow[]): AtBatOutcome {
+  const probs = getOutcomeProbabilities(matchupRating, tactics, opponentTactics, activePitcherStyle, coefficients);
 
   let cumulative = 0;
   const entries: [AtBatOutcome, number][] = [

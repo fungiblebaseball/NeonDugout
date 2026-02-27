@@ -1,7 +1,7 @@
 import { simulateGame } from '../shared/calculations/simulate';
 import { resetRng } from '../shared/calculations/rng';
-import type { SimConfig, PitchingConfig } from '../shared/calculations/simulate';
-import type { TacticsModifiers } from '../shared/calculations/probability';
+import type { SimConfig, PitchingConfig, TacticSchedules } from '../shared/calculations/simulate';
+import type { TacticsModifiers, TacticCoefficientRow } from '../shared/calculations/probability';
 import type { SimPlayer, SimTeam } from '../shared/calculations/types';
 import { storage } from './storage';
 
@@ -12,25 +12,35 @@ interface SimulationResult {
   details: any;
 }
 
-function buildLineupFromSaved(lineup: any, players: SimPlayer[], rotation: any): { lineup: SimPlayer[]; hasDH: boolean } {
-  if (!lineup?.fieldPositions) return { lineup: [], hasDH: true };
+function buildLineupFromSaved(lineup: any, players: SimPlayer[], rotation: any, teamLabel?: string): { lineup: SimPlayer[]; hasDH: boolean } {
+  const label = teamLabel || 'team';
+  if (!lineup?.fieldPositions) {
+    console.warn(`[lineup:${label}] No fieldPositions saved — will use auto-generated lineup`);
+    return { lineup: [], hasDH: true };
+  }
   const positions = lineup.fieldPositions as Record<string, number | null>;
   const order = lineup.battingOrder as number[] | undefined;
 
   const hasDH = !!(positions['DH'] && positions['DH'] > 0);
 
-  const pitcherIds = new Set<number>();
-  if (rotation?.roles?.sp) pitcherIds.add(rotation.roles.sp);
-  if (rotation?.roles?.r1) pitcherIds.add(rotation.roles.r1);
-  if (rotation?.roles?.closer) pitcherIds.add(rotation.roles.closer);
-  if (rotation?.roles?.nextSp) pitcherIds.add(rotation.roles.nextSp);
+  const savedPositionCount = Object.entries(positions).filter(([pos, id]) => pos !== 'P' && id).length;
+  console.log(`[lineup:${label}] fieldPositions: ${savedPositionCount} positions saved, hasDH=${hasDH}, battingOrder has ${order?.length || 0} entries`);
 
   const positionPlayers: SimPlayer[] = [];
+  const missingPlayers: string[] = [];
   for (const [pos, playerId] of Object.entries(positions)) {
     if (!playerId) continue;
     if (pos === 'P') continue;
     const p = players.find(pl => pl.id === playerId);
-    if (p) positionPlayers.push(p);
+    if (p) {
+      positionPlayers.push(p);
+    } else {
+      missingPlayers.push(`${pos}:${playerId}`);
+    }
+  }
+
+  if (missingPlayers.length > 0) {
+    console.warn(`[lineup:${label}] Players not found in roster: ${missingPlayers.join(', ')}`);
   }
 
   if (!hasDH && rotation?.roles?.sp) {
@@ -42,18 +52,36 @@ function buildLineupFromSaved(lineup: any, players: SimPlayer[], rotation: any):
 
   if (order && order.length > 0) {
     const validIds = new Set(positionPlayers.map(p => p.id));
+    const skippedIds: number[] = [];
     const ordered: SimPlayer[] = [];
     for (const id of order) {
-      if (!validIds.has(id)) continue;
+      if (!validIds.has(id)) {
+        skippedIds.push(id);
+        continue;
+      }
       const p = positionPlayers.find(pl => pl.id === id);
       if (p) ordered.push(p);
     }
     for (const p of positionPlayers) {
       if (!ordered.find(o => o.id === p.id)) ordered.push(p);
     }
-    return { lineup: ordered.slice(0, 9), hasDH };
+    if (skippedIds.length > 0) {
+      console.warn(`[lineup:${label}] BattingOrder IDs skipped (not in field positions): ${skippedIds.join(', ')}`);
+    }
+    const final = ordered.slice(0, 9);
+    if (final.length < 9) {
+      console.warn(`[lineup:${label}] Only ${final.length} valid players (need 9) — simulation may use fallback`);
+    }
+    console.log(`[lineup:${label}] Final lineup: ${final.map(p => `${p.id}:${p.name}`).join(', ')}`);
+    return { lineup: final, hasDH };
   }
-  return { lineup: positionPlayers.slice(0, 9), hasDH };
+
+  const final = positionPlayers.slice(0, 9);
+  if (final.length < 9) {
+    console.warn(`[lineup:${label}] Only ${final.length} valid players (need 9) — simulation may use fallback`);
+  }
+  console.log(`[lineup:${label}] Final lineup (no batting order): ${final.map(p => `${p.id}:${p.name}`).join(', ')}`);
+  return { lineup: final, hasDH };
 }
 
 function buildPitchingConfig(rotation: any, players: SimPlayer[]): PitchingConfig | undefined {
@@ -101,6 +129,15 @@ function buildTactics(tac: any): TacticsModifiers | undefined {
     offensiveAttack: tac.offensiveAttack || 'balanced',
     defenseSetup: tac.defenseSetup || 'balanced',
   };
+}
+
+function buildTacticSchedules(tac: any): TacticSchedules | undefined {
+  if (!tac) return undefined;
+  const schedules: TacticSchedules = {};
+  if (tac.batterApproachSchedule) schedules.batterApproachSchedule = tac.batterApproachSchedule;
+  if (tac.attackStyleSchedule) schedules.attackStyleSchedule = tac.attackStyleSchedule;
+  if (tac.offensiveAttackSchedule) schedules.offensiveAttackSchedule = tac.offensiveAttackSchedule;
+  return Object.keys(schedules).length > 0 ? schedules : undefined;
 }
 
 function computeDivisionStandings(allMatches: any[], divTeamIds: number[]) {
@@ -322,6 +359,13 @@ export async function simulateMatchDay(day: number): Promise<SimulationResult[]>
 
   if (dayMatches.length === 0) return [];
 
+  const tacticCoefficients = await storage.getAllTacticCoefficients();
+  const coefficientRows: TacticCoefficientRow[] = tacticCoefficients.map(c => ({
+    layer: c.layer,
+    tacticValue: c.tacticValue,
+    hr: c.hr, xbh: c.xbh, single: c.single, bb: c.bb, so: c.so, go: c.go, fo: c.fo,
+  }));
+
   const results: SimulationResult[] = [];
 
   for (const match of dayMatches) {
@@ -359,8 +403,8 @@ export async function simulateMatchDay(day: number): Promise<SimulationResult[]>
       const homeSimPlayers = homePlayers as SimPlayer[];
       const awaySimPlayers = awayPlayers as SimPlayer[];
 
-      const homeBuilt = buildLineupFromSaved(homeLineup, homeSimPlayers, homeRotation);
-      const awayBuilt = buildLineupFromSaved(awayLineup, awaySimPlayers, awayRotation);
+      const homeBuilt = buildLineupFromSaved(homeLineup, homeSimPlayers, homeRotation, homeTeam.name);
+      const awayBuilt = buildLineupFromSaved(awayLineup, awaySimPlayers, awayRotation, awayTeam.name);
 
       const simConfig: SimConfig = {
         homeLineup: homeBuilt.lineup.length >= 9 ? homeBuilt.lineup : undefined,
@@ -371,6 +415,9 @@ export async function simulateMatchDay(day: number): Promise<SimulationResult[]>
         awayTactics: buildTactics(awayTactics),
         homeHasDH: homeBuilt.hasDH,
         awayHasDH: awayBuilt.hasDH,
+        homeTacticSchedules: buildTacticSchedules(homeTactics),
+        awayTacticSchedules: buildTacticSchedules(awayTactics),
+        tacticCoefficients: coefficientRows,
       };
 
       resetRng();

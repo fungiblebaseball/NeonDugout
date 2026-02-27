@@ -165,60 +165,40 @@ Al cambio lanciatore, il `pitcherStyle` attivo viene aggiornato con lo stile del
 Senza DH: il rilievo prende lo slot di battuta del predecessore.
 Con DH: il rilievo non batte mai.
 
-## Tattiche — Sistema completo (IMPLEMENTATO v1.0–v1.3, pitcherStyle refactored v1.13.0)
+## Tattiche — Sistema Dinamico (v1.14.0)
 
-6 campi tattici salvati per team in tabella `tactics`:
-`attackStyle`, `infieldPosition`, `outfieldPosition`, `batterApproach`, `offensiveAttack`, `defenseSetup`
+Il sistema tattico è basato su coefficienti dinamici configurabili da admin e schedule di switch in-game.
 
-`pitcherStyle` e' ora PER-PITCHER: salvato nel campo `pitcherConfigs` JSONB della tabella `pitcher_rotations` (non piu' in `tactics`).
+### Tactic Schedules & Switching
+Ogni team configura 3 slot (Primary, Secondary, Optional) per Batter Approach, Attack Style e Offensive Attack. Lo switch avviene se le condizioni del box corrente non sono più soddisfatte:
+- `maxInning`, `maxStrikeouts`, `maxRunsAllowed`, `maxHitsAllowed`.
 
-Configurati nelle pagine Attack (/attack), Defense (/defense) e Pitchers (/pitchers). Tutti i modificatori sono moltiplicativi sulla tabella probabilità in `shared/calculations/probability.ts`.
+### Ordine di Applicazione (Per ogni At-Bat)
+1. **Layer 1: Batter Approach vs Pitcher Style (RPS)**
+   - Win/Tie/Lose bilaterale. Il vincitore applica i propri coefficienti.
+2. **Layer 2: Attack Style + Defense Counter**
+   - Modificatori diretti (Attack Style) + bonus/malus da posizionamento difensivo.
+3. **Layer 3: Offensive Attack vs Defense Setup (RPS)**
+   - Win/Tie/Lose bilaterale tra attacco e difesa.
 
-### 1. Attack Style (4 opzioni) — modificatori diretti
-| Stile | Effetto |
-|-------|---------|
-| Bunt | +15% 1B, -20% XBH, -20% HR, +10% GO |
-| Hit & Run | +15% 1B, -15% XBH, -25% HR, +5% SO |
-| Neutral | Nessun modificatore |
-| Swing on Sight | +20% XBH, +15% HR, +20% SO, +10% FO |
+### Tabelle Coefficienti (Configurabili in Admin)
+Tutti i valori sono percentuali intere salvate in `tactic_coefficients`.
 
-### 2. Infield Position (3 opzioni) — counter Attack Style avversario
-| Posizione | Counter vs | Effetto |
-|-----------|-----------|---------|
-| Short | Bunt | -12% 1B, +10% GO |
-| Neutral | Hit & Run | -8% 1B, +6% GO |
-| Deep | Swing on Sight | -5% 1B, +5% GO |
+**Esempio Batter Approach (Attaccante):**
+| Approach | HR | XBH | 1B | BB | SO | GO | FO |
+|---|---|---|---|---|---|---|---|
+| Power | +12% | +10% | 0 | 0 | 0 | -5% | -5% |
+| Contact | 0 | +5% | +12% | +5% | -10% | 0 | 0 |
+| Patient | 0 | +6% | +8% | +10% | -8% | -4% | 0 |
 
-### 3. Outfield Position (3 opzioni) — counter Attack Style avversario
-| Posizione | Counter vs | Effetto |
-|-----------|-----------|---------|
-| Short | Bunt | -5% 1B, +4% FO |
-| Neutral | Hit & Run | -4% 1B |
-| Deep | Swing on Sight | -8% HR, -6% XBH, +8% FO |
+**Esempio Pitcher Style (Difensore):**
+| Style | HR | XBH | 1B | BB | SO | GO | FO |
+|---|---|---|---|---|---|---|---|
+| Velocity | -8% | -6% | 0 | 0 | +12% | 0 | +5% |
+| Movement | -5% | -8% | -4% | 0 | +5% | +10% | +5% |
+| Command | -6% | -5% | -5% | -8% | +8% | +6% | +6% |
 
-### 4. Batter Approach vs Pitcher Style (RPS)
-
-| Batter \ Pitcher | Velocity | Movement | Command |
-|---|---|---|---|
-| **Power** | Tie | Batter wins | Pitcher wins |
-| **Contact** | Pitcher wins | Tie | Batter wins |
-| **Patient** | Batter wins | Pitcher wins | Tie |
-
-"Batter wins" = bias favorevole al battitore (più hit/XBH).
-"Pitcher wins" = bias favorevole al lanciatore (più SO/outs).
-
-### 5. Offensive Attack vs Defense Setup (RPS)
-
-| Offense \ Defense | Aggressive | Balanced | Protective |
-|---|---|---|---|
-| **Aggressive** | Defense wins | Tie | Offense wins |
-| **Balanced** | Offense wins (slight) | Tie | Defense wins |
-| **Conservative** | Defense wins | Tie | Tie |
-
-Defense Setup influenza anche esiti in-play:
-- Aggressive: + out prob su grounder/bunt/weak contact, - extra base prob
-- Protective: + preso prob su fly/line drive, + extra base concesse su hard hit
-- Balanced: baseline
+(Tabelle complete per Offensive Attack e Defense Setup seguono la stessa logica Win/Lose).
 
 ## Play Log (IMPLEMENTATO v1.6.0)
 

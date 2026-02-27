@@ -96,6 +96,42 @@ export const pitcherRotations = pgTable("pitcher_rotations", {
   pitcherConfigs: jsonb("pitcher_configs").$type<PitcherConfigs>().default(DEFAULT_PITCHER_CONFIGS),
 });
 
+export interface TacticSwitchConditions {
+  maxInning?: number;
+  maxStrikeouts?: number;
+  maxRunsAllowed?: number;
+  maxHitsAllowed?: number;
+}
+
+export interface TacticSlot {
+  value: string;
+  conditions: TacticSwitchConditions;
+}
+
+export interface TacticSchedule {
+  primary: TacticSlot;
+  secondary: TacticSlot;
+  optional: TacticSlot;
+}
+
+export const DEFAULT_BATTER_APPROACH_SCHEDULE: TacticSchedule = {
+  primary: { value: 'contact', conditions: { maxInning: 5 } },
+  secondary: { value: 'power', conditions: { maxInning: 8 } },
+  optional: { value: 'patient', conditions: {} },
+};
+
+export const DEFAULT_ATTACK_STYLE_SCHEDULE: TacticSchedule = {
+  primary: { value: 'neutral', conditions: { maxInning: 5 } },
+  secondary: { value: 'neutral', conditions: { maxInning: 8 } },
+  optional: { value: 'neutral', conditions: {} },
+};
+
+export const DEFAULT_OFFENSIVE_ATTACK_SCHEDULE: TacticSchedule = {
+  primary: { value: 'balanced', conditions: { maxInning: 5 } },
+  secondary: { value: 'balanced', conditions: { maxInning: 8 } },
+  optional: { value: 'balanced', conditions: {} },
+};
+
 export const tactics = pgTable("tactics", {
   id: serial("id").primaryKey(),
   teamId: integer("team_id").notNull(),
@@ -105,6 +141,22 @@ export const tactics = pgTable("tactics", {
   batterApproach: text("batter_approach").notNull().default("contact"),
   offensiveAttack: text("offensive_attack").notNull().default("balanced"),
   defenseSetup: text("defense_setup").notNull().default("balanced"),
+  batterApproachSchedule: jsonb("batter_approach_schedule").$type<TacticSchedule>(),
+  attackStyleSchedule: jsonb("attack_style_schedule").$type<TacticSchedule>(),
+  offensiveAttackSchedule: jsonb("offensive_attack_schedule").$type<TacticSchedule>(),
+});
+
+export const tacticCoefficients = pgTable("tactic_coefficients", {
+  id: serial("id").primaryKey(),
+  layer: text("layer").notNull(),
+  tacticValue: text("tactic_value").notNull(),
+  hr: integer("hr").notNull().default(0),
+  xbh: integer("xbh").notNull().default(0),
+  single: integer("single").notNull().default(0),
+  bb: integer("bb").notNull().default(0),
+  so: integer("so").notNull().default(0),
+  go: integer("go").notNull().default(0),
+  fo: integer("fo").notNull().default(0),
 });
 
 export const matchDetails = pgTable("match_details", {
@@ -214,6 +266,7 @@ export const tokenConfig = pgTable("token_config", {
   claimIntervalHours: integer("claim_interval_hours").notNull().default(24),
 });
 
+export const insertTacticCoefficientsSchema = createInsertSchema(tacticCoefficients).omit({ id: true });
 export const insertTrainingConfigSchema = createInsertSchema(trainingConfig).omit({ id: true });
 export const insertUserTokensSchema = createInsertSchema(userTokens).omit({ id: true });
 export const insertTokenConfigSchema = createInsertSchema(tokenConfig).omit({ id: true });
@@ -244,5 +297,7 @@ export type InsertTrainingConfig = z.infer<typeof insertTrainingConfigSchema>;
 export type TrainingConfig = typeof trainingConfig.$inferSelect;
 export type InsertUserTokens = z.infer<typeof insertUserTokensSchema>;
 export type UserTokens = typeof userTokens.$inferSelect;
+export type InsertTacticCoefficients = z.infer<typeof insertTacticCoefficientsSchema>;
+export type TacticCoefficient = typeof tacticCoefficients.$inferSelect;
 export type InsertTokenConfig = z.infer<typeof insertTokenConfigSchema>;
 export type TokenConfig = typeof tokenConfig.$inferSelect;

@@ -6,6 +6,28 @@ Formato:
   • Dettaglio 2 (file modificati)  
   • Trade-off / note (se rilevanti)
 
+## v1.14.0 – 28 febbraio 2026 – Dynamic Tactic Coefficients & Schedules
+
+- **Sistema Tattico Dinamico**:
+  * Nuova tabella `tactic_coefficients`: 12 set di coefficienti (4 layer × 3 valori) con 7 campi esito (HR, XBH, 1B, BB, SO, GO, FO).
+  * Meccanica **Win/Tie/Lose Bilateral**: in RPS (Batter vs Pitcher e Offense vs Defense), solo il vincitore applica i propri coefficienti. In Tie nessuno, in Lose solo il perdente.
+  * Tactic Schedules: le tattiche offensive ora hanno 3 slot (Primary/Secondary/Optional) con condizioni di switch basate su Inning, K, Runs o Hits.
+
+- **Admin Tuning**:
+  * Sezione "Tactic Coefficients" in Admin Page: tabelle editabili per layer, salvataggio persistente e reset ai default.
+  * Nuove API: `GET/PUT /api/admin/tactic-coefficients`, `POST /api/admin/reset-tactic-coefficients`.
+
+- **UI Redesign**:
+  * **AttackPage**: nuova struttura a 3 box temporali per tattica con slider per le condizioni di switch.
+  * **SimulationPage**: supporta il caricamento dei coefficienti da API e il passaggio degli schedule completi.
+
+- **Motore di Simulazione**:
+  * `probability.ts`: riscritto per gestire il nuovo ordine dei layer e l'applicazione dei coefficienti caricati dal DB.
+  * `simulate.ts`: implementata `evaluateActiveTactic()` per lo switch in-game e il tracking del `gameState` (cumulative stats).
+
+- **File Modificati**: shared/schema.ts, shared/calculations/probability.ts, shared/calculations/simulate.ts, server/storage.ts, server/routes.ts, server/simulation.ts, client/src/pages/AttackPage.tsx, client/src/pages/AdminPage.tsx, client/src/pages/SimulationPage.tsx, mechanic_spec.md, MECHANICS_SPEC.md, replit.md, Pages_Tattics_Influence.md, CHANGELOG.md
+
+
 ## v1.13.0 – 27 febbraio 2026 – Per-Pitcher Pitching Staff Refactor
 
 - **Schema DB Refactored**:

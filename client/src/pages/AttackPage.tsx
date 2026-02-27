@@ -1,52 +1,52 @@
 import { useGameStore } from "@/lib/store";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
-import type { AttackStyle, BatterApproach, OffensiveAttack } from "@/lib/types";
+import type { AttackStyle, BatterApproach, OffensiveAttack, TacticSchedule, TacticSlot } from "@/lib/types";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Slider } from "@/components/ui/slider";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
+import { ButtonGroup } from "@/components/ui/button-group";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
 const ATTACK_OPTIONS: { value: AttackStyle; label: string; desc: string; icon: string; effects: { label: string; value: string; color: string }[] }[] = [
   {
     value: 'bunt',
-    label: 'BUNT PRIORITY',
-    desc: 'Sacrifice hits to advance runners. Contact-focused small ball.',
+    label: 'BUNT',
+    desc: 'Sacrifice hits to advance runners.',
     icon: '◇',
     effects: [
       { label: 'Singles', value: '+15%', color: 'text-green-400' },
-      { label: 'Extra-base hits', value: '-20%', color: 'text-red-400' },
-      { label: 'Home runs', value: '-20%', color: 'text-red-400' },
-      { label: 'Ground outs', value: '+10%', color: 'text-red-400' },
+      { label: 'XBH', value: '-20%', color: 'text-red-400' },
     ],
   },
   {
     value: 'hit_and_run',
-    label: 'HIT & RUN',
-    desc: 'Runners go on pitch, batter must make contact. High risk, high reward.',
+    label: 'H&R',
+    desc: 'Runners go on pitch.',
     icon: '⚡',
     effects: [
       { label: 'Singles', value: '+15%', color: 'text-green-400' },
-      { label: 'Extra-base hits', value: '-15%', color: 'text-red-400' },
-      { label: 'Home runs', value: '-25%', color: 'text-red-400' },
-      { label: 'Strikeouts', value: '+5%', color: 'text-red-400' },
+      { label: 'HR', value: '-25%', color: 'text-red-400' },
     ],
   },
   {
     value: 'neutral',
     label: 'NEUTRAL',
-    desc: 'Balanced approach. No modifiers applied — pure skill vs skill.',
+    desc: 'Balanced approach.',
     icon: '⬡',
     effects: [
-      { label: 'All probabilities', value: 'BASE', color: 'text-gray-400' },
+      { label: 'All', value: 'BASE', color: 'text-gray-400' },
     ],
   },
   {
     value: 'swing_on_sight',
-    label: 'SWING ON SIGHT',
-    desc: 'Maximum aggression. Hack at everything for power.',
+    label: 'SWING',
+    desc: 'Maximum aggression for power.',
     icon: '💥',
     effects: [
-      { label: 'Extra-base hits', value: '+20%', color: 'text-green-400' },
-      { label: 'Home runs', value: '+15%', color: 'text-green-400' },
-      { label: 'Strikeouts', value: '+20%', color: 'text-red-400' },
-      { label: 'Fly outs', value: '+10%', color: 'text-red-400' },
+      { label: 'XBH', value: '+20%', color: 'text-green-400' },
+      { label: 'SO', value: '+20%', color: 'text-red-400' },
     ],
   },
 ];
@@ -55,7 +55,7 @@ const BATTER_APPROACH_OPTIONS: { value: BatterApproach; label: string; desc: str
   {
     value: 'power',
     label: 'POWER',
-    desc: 'Swing for the fences. Best barrel contact on breaking balls.',
+    desc: 'Swing for the fences.',
     icon: '🔥',
     beats: 'Movement',
     losesTo: 'Command',
@@ -63,7 +63,7 @@ const BATTER_APPROACH_OPTIONS: { value: BatterApproach; label: string; desc: str
   {
     value: 'contact',
     label: 'CONTACT',
-    desc: 'Put the ball in play consistently. Precise bat control.',
+    desc: 'Put the ball in play.',
     icon: '🎯',
     beats: 'Command',
     losesTo: 'Velocity',
@@ -71,7 +71,7 @@ const BATTER_APPROACH_OPTIONS: { value: BatterApproach; label: string; desc: str
   {
     value: 'patient',
     label: 'PATIENT',
-    desc: 'Work the count, draw walks, wait for mistakes.',
+    desc: 'Work the count.',
     icon: '👁️',
     beats: 'Velocity',
     losesTo: 'Movement',
@@ -81,29 +81,47 @@ const BATTER_APPROACH_OPTIONS: { value: BatterApproach; label: string; desc: str
 const OFFENSIVE_ATTACK_OPTIONS: { value: OffensiveAttack; label: string; desc: string; icon: string; beats: string; losesTo: string }[] = [
   {
     value: 'aggressive',
-    label: 'AGGRESSIVE',
-    desc: 'Big leads, frequent steals, always take the extra base.',
+    label: 'AGGR',
+    desc: 'Big leads, frequent steals.',
     icon: '⚡',
-    beats: 'Protective defense',
-    losesTo: 'Aggressive defense',
+    beats: 'Protective',
+    losesTo: 'Aggressive',
   },
   {
     value: 'balanced',
-    label: 'BALANCED',
-    desc: 'Standard jumps, situational steals, advance on sure hits.',
+    label: 'BAL',
+    desc: 'Standard situational running.',
     icon: '⚖️',
-    beats: 'Aggressive defense',
-    losesTo: 'Protective defense',
+    beats: 'Aggressive',
+    losesTo: 'Protective',
   },
   {
     value: 'conservative',
-    label: 'CONSERVATIVE',
-    desc: 'Small leads, delayed steals, cautious hit-and-run.',
+    label: 'CONS',
+    desc: 'Small leads, cautious.',
     icon: '🛡️',
     beats: '—',
-    losesTo: 'Aggressive defense',
+    losesTo: 'Aggressive',
   },
 ];
+
+const DEFAULT_APPROACH_SCHEDULE: TacticSchedule = {
+  primary: { value: 'contact', conditions: { maxInning: 5, maxStrikeouts: 5, maxRunsAllowed: 3, maxHitsAllowed: 5 } },
+  secondary: { value: 'power', conditions: { maxInning: 8, maxStrikeouts: 10, maxRunsAllowed: 5, maxHitsAllowed: 10 } },
+  optional: { value: 'patient', conditions: {} },
+};
+
+const DEFAULT_STYLE_SCHEDULE: TacticSchedule = {
+  primary: { value: 'neutral', conditions: { maxInning: 5, maxStrikeouts: 5, maxRunsAllowed: 3, maxHitsAllowed: 5 } },
+  secondary: { value: 'neutral', conditions: { maxInning: 8, maxStrikeouts: 10, maxRunsAllowed: 5, maxHitsAllowed: 10 } },
+  optional: { value: 'neutral', conditions: {} },
+};
+
+const DEFAULT_OFFENSIVE_SCHEDULE: TacticSchedule = {
+  primary: { value: 'balanced', conditions: { maxInning: 5, maxStrikeouts: 5, maxRunsAllowed: 3, maxHitsAllowed: 5 } },
+  secondary: { value: 'balanced', conditions: { maxInning: 8, maxStrikeouts: 10, maxRunsAllowed: 5, maxHitsAllowed: 10 } },
+  optional: { value: 'balanced', conditions: {} },
+};
 
 export default function AttackPage() {
   const { team, walletAddress } = useGameStore();
@@ -118,15 +136,27 @@ export default function AttackPage() {
     enabled: !!team,
   });
 
-  const [attackStyle, setAttackStyle] = useState<AttackStyle>('neutral');
-  const [batterApproach, setBatterApproach] = useState<BatterApproach>('contact');
-  const [offensiveAttack, setOffensiveAttack] = useState<OffensiveAttack>('balanced');
+  const [approachSchedule, setApproachSchedule] = useState<TacticSchedule>(DEFAULT_APPROACH_SCHEDULE);
+  const [styleSchedule, setStyleSchedule] = useState<TacticSchedule>(DEFAULT_STYLE_SCHEDULE);
+  const [offensiveSchedule, setOffensiveSchedule] = useState<TacticSchedule>(DEFAULT_OFFENSIVE_SCHEDULE);
 
   useEffect(() => {
     if (saved) {
-      if (saved.attackStyle) setAttackStyle(saved.attackStyle as AttackStyle);
-      if (saved.batterApproach) setBatterApproach(saved.batterApproach as BatterApproach);
-      if (saved.offensiveAttack) setOffensiveAttack(saved.offensiveAttack as OffensiveAttack);
+      setApproachSchedule(saved.batterApproachSchedule || {
+        primary: { value: saved.batterApproach || 'contact', conditions: DEFAULT_APPROACH_SCHEDULE.primary.conditions },
+        secondary: DEFAULT_APPROACH_SCHEDULE.secondary,
+        optional: DEFAULT_APPROACH_SCHEDULE.optional,
+      });
+      setStyleSchedule(saved.attackStyleSchedule || {
+        primary: { value: saved.attackStyle || 'neutral', conditions: DEFAULT_STYLE_SCHEDULE.primary.conditions },
+        secondary: DEFAULT_STYLE_SCHEDULE.secondary,
+        optional: DEFAULT_STYLE_SCHEDULE.optional,
+      });
+      setOffensiveSchedule(saved.offensiveAttackSchedule || {
+        primary: { value: saved.offensiveAttack || 'balanced', conditions: DEFAULT_OFFENSIVE_SCHEDULE.primary.conditions },
+        secondary: DEFAULT_OFFENSIVE_SCHEDULE.secondary,
+        optional: DEFAULT_OFFENSIVE_SCHEDULE.optional,
+      });
     }
   }, [saved]);
 
@@ -137,9 +167,12 @@ export default function AttackPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           teamId: team!.id,
-          attackStyle,
-          batterApproach,
-          offensiveAttack,
+          batterApproach: approachSchedule.primary.value,
+          attackStyle: styleSchedule.primary.value,
+          offensiveAttack: offensiveSchedule.primary.value,
+          batterApproachSchedule: approachSchedule,
+          attackStyleSchedule: styleSchedule,
+          offensiveAttackSchedule: offensiveSchedule,
           infieldPosition: saved?.infieldPosition || 'neutral',
           outfieldPosition: saved?.outfieldPosition || 'neutral',
           defenseSetup: saved?.defenseSetup || 'balanced',
@@ -150,9 +183,114 @@ export default function AttackPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tactics'] }),
   });
 
+  const updateSchedule = (
+    section: 'approach' | 'style' | 'offensive',
+    slot: 'primary' | 'secondary' | 'optional',
+    updates: Partial<TacticSlot>
+  ) => {
+    const setter = section === 'approach' ? setApproachSchedule : section === 'style' ? setStyleSchedule : setOffensiveSchedule;
+    setter((prev: TacticSchedule) => ({
+      ...prev,
+      [slot]: { ...prev[slot], ...updates }
+    }));
+  };
+
+  const updateCondition = (
+    section: 'approach' | 'style' | 'offensive',
+    slot: 'primary' | 'secondary',
+    condition: keyof NonNullable<TacticSlot['conditions']>,
+    val: number
+  ) => {
+    const setter = section === 'approach' ? setApproachSchedule : section === 'style' ? setStyleSchedule : setOffensiveSchedule;
+    setter((prev: TacticSchedule) => ({
+      ...prev,
+      [slot]: {
+        ...prev[slot],
+        conditions: { ...prev[slot].conditions, [condition]: val }
+      }
+    }));
+  };
+
   if (!walletAddress || !team) {
     return <div className="min-h-screen bg-black p-6 flex items-center justify-center text-center text-pink-500 font-mono text-xl uppercase tracking-widest">ACCESS DENIED</div>;
   }
+
+  const renderTacticBox = (
+    section: 'approach' | 'style' | 'offensive',
+    slot: 'primary' | 'secondary' | 'optional',
+    options: { value: string; label: string; icon: string }[],
+    schedule: TacticSchedule
+  ) => {
+    const data = schedule[slot];
+    const badgeColors = {
+      primary: "bg-cyan-500/20 text-cyan-400 border-cyan-500/50",
+      secondary: "bg-yellow-500/20 text-yellow-400 border-yellow-500/50",
+      optional: "bg-gray-500/20 text-gray-400 border-gray-500/50"
+    };
+
+    return (
+      <div className="bg-gray-900/40 border border-gray-800 rounded-lg p-3 space-y-3">
+        <div className="flex items-center justify-between">
+          <Badge className={`uppercase font-black text-[10px] tracking-widest ${badgeColors[slot]}`}>
+            {slot}
+          </Badge>
+          <div className="text-[10px] font-mono text-gray-500 uppercase">
+            {slot === 'optional' ? 'Until End' : `Triggers ${slot === 'primary' ? 'Secondary' : 'Optional'}`}
+          </div>
+        </div>
+
+        <ButtonGroup className="w-full">
+          {options.map(opt => (
+            <Button
+              key={opt.value}
+              size="sm"
+              variant={data.value === opt.value ? "default" : "outline"}
+              className={`flex-1 text-[10px] h-8 ${data.value === opt.value ? (slot === 'primary' ? 'bg-cyan-600 border-cyan-400' : slot === 'secondary' ? 'bg-yellow-600 border-yellow-400' : 'bg-gray-600 border-gray-400') : 'bg-transparent border-gray-800 text-gray-400'}`}
+              data-testid={`button-schedule-${section}-${slot}-${opt.value}`}
+              onClick={() => updateSchedule(section, slot, { value: opt.value })}
+            >
+              <span className="mr-1">{opt.icon}</span>
+              {opt.label}
+            </Button>
+          ))}
+        </ButtonGroup>
+
+        {slot !== 'optional' && (
+          <Collapsible>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="w-full h-6 text-[9px] text-gray-500 flex items-center justify-between px-2 hover:bg-white/5">
+                CONDITION LIMITS
+                <ChevronDown className="w-3 h-3" />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-4 pt-2 pb-1">
+              {[
+                { label: 'Max Inning', key: 'maxInning', min: 1, max: 9 },
+                { label: 'Max K', key: 'maxStrikeouts', min: 1, max: 20 },
+                { label: 'Max Runs', key: 'maxRunsAllowed', min: 0, max: 10 },
+                { label: 'Max Hits', key: 'maxHitsAllowed', min: 1, max: 20 },
+              ].map(cond => (
+                <div key={cond.key} className="space-y-1.5 px-1">
+                  <div className="flex justify-between text-[9px] font-mono text-gray-400">
+                    <span>{cond.label}</span>
+                    <span className="text-cyan-400">{(data.conditions as any)[cond.key] || 0}</span>
+                  </div>
+                  <Slider
+                    value={[(data.conditions as any)[cond.key] || 0]}
+                    min={cond.min}
+                    max={cond.max}
+                    step={1}
+                    onValueChange={([val]) => updateCondition(section, slot as any, cond.key as any, val)}
+                    data-testid={`slider-${section}-${slot}-${cond.key}`}
+                  />
+                </div>
+              ))}
+            </CollapsibleContent>
+          </Collapsible>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen pb-24 bg-black text-cyan-50">
@@ -163,119 +301,56 @@ export default function AttackPage() {
         <p className="text-xs font-mono text-cyan-200/60 mt-1">{team.name}</p>
       </header>
 
-      <main className="p-4 space-y-6">
-        <div className="space-y-4">
-          <h2 className="text-sm font-mono text-pink-500 border-b border-pink-500/30 pb-2">OFFENSIVE STRATEGY</h2>
-          <p className="text-[10px] font-mono text-gray-500">Each strategy applies probability modifiers to at-bat outcomes</p>
+      <main className="p-4 space-y-8">
+        {/* 1. BATTER APPROACH */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between border-b border-purple-500/30 pb-2">
+            <h2 className="text-sm font-mono text-purple-400">1. BATTER APPROACH</h2>
+            <div className="text-[10px] font-mono text-gray-500">RPS VS PITCHER STYLE</div>
+          </div>
+          <div className="grid grid-cols-1 gap-3">
+            {renderTacticBox('approach', 'primary', BATTER_APPROACH_OPTIONS, approachSchedule)}
+            {renderTacticBox('approach', 'secondary', BATTER_APPROACH_OPTIONS, approachSchedule)}
+            {renderTacticBox('approach', 'optional', BATTER_APPROACH_OPTIONS, approachSchedule)}
+          </div>
+        </section>
 
-          {ATTACK_OPTIONS.map(opt => (
-            <button
-              key={opt.value}
-              data-testid={`button-attack-${opt.value}`}
-              onClick={() => setAttackStyle(opt.value)}
-              className={`w-full text-left p-4 rounded-xl border transition-all ${
-                attackStyle === opt.value
-                  ? 'border-cyan-400 bg-cyan-950/30 shadow-[0_0_15px_rgba(34,211,238,0.2)]'
-                  : 'border-gray-800 bg-gray-950/30 hover:border-gray-600'
-              }`}
-            >
-              <div className="flex items-center gap-3 mb-2">
-                <span className="text-2xl">{opt.icon}</span>
-                <span className={`font-black text-lg ${attackStyle === opt.value ? 'text-cyan-400' : 'text-gray-400'}`} style={{fontFamily: "'Orbitron', sans-serif"}}>
-                  {opt.label}
-                </span>
-                {attackStyle === opt.value && (
-                  <span className="ml-auto text-xs font-mono text-cyan-400 bg-cyan-400/10 px-2 py-1 rounded">ACTIVE</span>
-                )}
-              </div>
-              <p className="text-xs font-mono text-gray-500 leading-relaxed mb-3">{opt.desc}</p>
-              <div className="grid grid-cols-2 gap-1">
-                {opt.effects.map((eff, i) => (
-                  <div key={i} className="flex items-center justify-between px-2 py-1 rounded bg-black/30">
-                    <span className="text-[9px] font-mono text-gray-500">{eff.label}</span>
-                    <span className={`text-[10px] font-mono font-bold ${eff.color}`}>{eff.value}</span>
-                  </div>
-                ))}
-              </div>
-            </button>
-          ))}
-        </div>
+        {/* 2. OFFENSIVE STRATEGY */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between border-b border-pink-500/30 pb-2">
+            <h2 className="text-sm font-mono text-pink-500">2. OFFENSIVE STRATEGY</h2>
+            <div className="text-[10px] font-mono text-gray-500">PROBABILITY MODIFIERS</div>
+          </div>
+          <div className="grid grid-cols-1 gap-3">
+            {renderTacticBox('style', 'primary', ATTACK_OPTIONS, styleSchedule)}
+            {renderTacticBox('style', 'secondary', ATTACK_OPTIONS, styleSchedule)}
+            {renderTacticBox('style', 'optional', ATTACK_OPTIONS, styleSchedule)}
+          </div>
+        </section>
 
-        <div className="space-y-4">
-          <h2 className="text-sm font-mono text-purple-400 border-b border-purple-500/30 pb-2">BATTER APPROACH</h2>
-          <p className="text-[10px] font-mono text-gray-500">RPS matchup vs opponent's Pitcher Style — buffs/debuffs on top of base probabilities</p>
+        {/* 3. OFFENSIVE ATTACK */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between border-b border-orange-500/30 pb-2">
+            <h2 className="text-sm font-mono text-orange-400">3. OFFENSIVE ATTACK</h2>
+            <div className="text-[10px] font-mono text-gray-500">RPS VS DEFENSE SETUP</div>
+          </div>
+          <div className="grid grid-cols-1 gap-3">
+            {renderTacticBox('offensive', 'primary', OFFENSIVE_ATTACK_OPTIONS, offensiveSchedule)}
+            {renderTacticBox('offensive', 'secondary', OFFENSIVE_ATTACK_OPTIONS, offensiveSchedule)}
+            {renderTacticBox('offensive', 'optional', OFFENSIVE_ATTACK_OPTIONS, offensiveSchedule)}
+          </div>
+        </section>
 
-          {BATTER_APPROACH_OPTIONS.map(opt => (
-            <button
-              key={opt.value}
-              data-testid={`button-batter-${opt.value}`}
-              onClick={() => setBatterApproach(opt.value)}
-              className={`w-full text-left p-4 rounded-xl border transition-all ${
-                batterApproach === opt.value
-                  ? 'border-purple-400 bg-purple-950/30 shadow-[0_0_15px_rgba(168,85,247,0.2)]'
-                  : 'border-gray-800 bg-gray-950/30 hover:border-gray-600'
-              }`}
-            >
-              <div className="flex items-center gap-3 mb-2">
-                <span className="text-2xl">{opt.icon}</span>
-                <span className={`font-black text-lg ${batterApproach === opt.value ? 'text-purple-400' : 'text-gray-400'}`} style={{fontFamily: "'Orbitron', sans-serif"}}>
-                  {opt.label}
-                </span>
-                {batterApproach === opt.value && (
-                  <span className="ml-auto text-xs font-mono text-purple-400 bg-purple-400/10 px-2 py-1 rounded">ACTIVE</span>
-                )}
-              </div>
-              <p className="text-xs font-mono text-gray-500 leading-relaxed mb-2">{opt.desc}</p>
-              <div className="flex gap-4">
-                <span className="text-[10px] font-mono text-green-400">▲ Beats: {opt.beats}</span>
-                <span className="text-[10px] font-mono text-red-400">▼ Weak vs: {opt.losesTo}</span>
-              </div>
-            </button>
-          ))}
-        </div>
-
-        <div className="space-y-4">
-          <h2 className="text-sm font-mono text-orange-400 border-b border-orange-500/30 pb-2">OFFENSIVE ATTACK</h2>
-          <p className="text-[10px] font-mono text-gray-500">RPS matchup vs opponent's Defense Setup — buffs/debuffs on base running and extra bases</p>
-
-          {OFFENSIVE_ATTACK_OPTIONS.map(opt => (
-            <button
-              key={opt.value}
-              data-testid={`button-offensive-${opt.value}`}
-              onClick={() => setOffensiveAttack(opt.value)}
-              className={`w-full text-left p-4 rounded-xl border transition-all ${
-                offensiveAttack === opt.value
-                  ? 'border-orange-400 bg-orange-950/30 shadow-[0_0_15px_rgba(251,146,60,0.2)]'
-                  : 'border-gray-800 bg-gray-950/30 hover:border-gray-600'
-              }`}
-            >
-              <div className="flex items-center gap-3 mb-2">
-                <span className="text-2xl">{opt.icon}</span>
-                <span className={`font-black text-lg ${offensiveAttack === opt.value ? 'text-orange-400' : 'text-gray-400'}`} style={{fontFamily: "'Orbitron', sans-serif"}}>
-                  {opt.label}
-                </span>
-                {offensiveAttack === opt.value && (
-                  <span className="ml-auto text-xs font-mono text-orange-400 bg-orange-400/10 px-2 py-1 rounded">ACTIVE</span>
-                )}
-              </div>
-              <p className="text-xs font-mono text-gray-500 leading-relaxed mb-2">{opt.desc}</p>
-              <div className="flex gap-4">
-                <span className="text-[10px] font-mono text-green-400">▲ Beats: {opt.beats}</span>
-                <span className="text-[10px] font-mono text-red-400">▼ Weak vs: {opt.losesTo}</span>
-              </div>
-            </button>
-          ))}
-        </div>
-
-        <button
+        <Button
           data-testid="button-save-attack"
           onClick={() => saveMutation.mutate()}
           disabled={saveMutation.isPending}
-          className="w-full py-4 bg-cyan-500 hover:bg-cyan-400 text-black font-black uppercase tracking-widest rounded-xl transition-all shadow-[0_0_15px_rgba(34,211,238,0.4)] disabled:opacity-50"
+          className="w-full py-6 bg-cyan-500 hover:bg-cyan-400 text-black font-black uppercase tracking-widest rounded-xl transition-all shadow-[0_0_15px_rgba(34,211,238,0.4)] disabled:opacity-50"
         >
-          {saveMutation.isPending ? "SAVING..." : "SAVE TACTICS"}
-        </button>
+          {saveMutation.isPending ? "SAVING..." : "COMMIT TACTICAL OVERRIDE"}
+        </Button>
       </main>
     </div>
   );
 }
+

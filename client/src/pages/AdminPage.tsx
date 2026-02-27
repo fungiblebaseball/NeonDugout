@@ -29,6 +29,19 @@ interface MatchData {
   matchType: string;
 }
 
+interface TacticCoefficient {
+  id: number;
+  layer: string;
+  tacticValue: string;
+  hr: number;
+  xbh: number;
+  single: number;
+  bb: number;
+  so: number;
+  go: number;
+  fo: number;
+}
+
 const ALL_ATTRIBUTES = ["pow", "con", "spd", "eye", "vel", "ctl", "mov", "sta", "def"];
 const ALL_POSITIONS = ["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF", "DH"];
 
@@ -121,6 +134,12 @@ export default function AdminPage() {
           <ConfigCard key={config.id} config={config} token={token!} queryClient={queryClient} />
         ))}
       </div>
+
+      <h2 className="text-sm text-gray-400 uppercase tracking-wider mb-4 mt-8" style={{ fontFamily: "Orbitron, sans-serif" }}>
+        Tactic Coefficients
+      </h2>
+
+      <TacticCoefficientsCard token={token!} queryClient={queryClient} />
     </div>
   );
 }
@@ -137,7 +156,7 @@ function GameDayCard({
   const [simulating, setSimulating] = useState(false);
   const [simResult, setSimResult] = useState<string | null>(null);
 
-  const unplayedDays = [...new Set(allMatches.filter(m => !m.played).map(m => m.day))].sort((a, b) => a - b);
+  const unplayedDays = Array.from(new Set(allMatches.filter(m => !m.played).map(m => m.day))).sort((a, b) => a - b);
   const nextDay = unplayedDays.length > 0 ? unplayedDays[0] : null;
   const matchesForNextDay = nextDay ? allMatches.filter(m => m.day === nextDay && !m.played).length : 0;
   const seasonFinished = allMatches.length > 0 && unplayedDays.length === 0;
@@ -632,6 +651,188 @@ function ConfigCard({
         <Save className="w-3 h-3" />
         {saving ? "Saving..." : saved ? "Saved!" : "Save"}
       </button>
+    </div>
+  );
+}
+
+function TacticCoefficientsCard({
+  token,
+  queryClient,
+}: {
+  token: string;
+  queryClient: any;
+}) {
+  const { data: coefficients, isLoading } = useQuery<TacticCoefficient[]>({
+    queryKey: ["admin-tactic-coefficients"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/tactic-coefficients", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to load coefficients");
+      return res.json();
+    },
+    enabled: !!token,
+  });
+
+  const [localCoeffs, setLocalCoeffs] = useState<TacticCoefficient[]>([]);
+  const [savingLayer, setSavingLayer] = useState<string | null>(null);
+  const [confirmReset, setConfirmReset] = useState(false);
+
+  useEffect(() => {
+    if (coefficients) {
+      setLocalCoeffs(coefficients);
+    }
+  }, [coefficients]);
+
+  const layers = [
+    { id: "batter_approach", label: "Batter Approach" },
+    { id: "pitcher_style", label: "Pitcher Style" },
+    { id: "offensive_attack", label: "Offensive Attack" },
+    { id: "defense_setup", label: "Defense Setup" },
+  ];
+
+  const handleInputChange = (id: number, field: keyof TacticCoefficient, value: string) => {
+    const numValue = Math.min(30, Math.max(-30, parseInt(value) || 0));
+    setLocalCoeffs((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, [field]: numValue } : c))
+    );
+  };
+
+  const handleSaveLayer = async (layer: string) => {
+    setSavingLayer(layer);
+    try {
+      const layerCoeffs = localCoeffs.filter((c) => c.layer === layer);
+      await Promise.all(
+        layerCoeffs.map((c) =>
+          fetch(`/api/admin/tactic-coefficients/${c.layer}/${c.tacticValue}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              hr: c.hr,
+              xbh: c.xbh,
+              single: c.single,
+              bb: c.bb,
+              so: c.so,
+              go: c.go,
+              fo: c.fo,
+            }),
+          })
+        )
+      );
+      queryClient.invalidateQueries({ queryKey: ["admin-tactic-coefficients"] });
+    } catch (err) {
+      console.error("Failed to save coefficients", err);
+    }
+    setSavingLayer(null);
+  };
+
+  const handleReset = async () => {
+    if (!confirmReset) {
+      setConfirmReset(true);
+      setTimeout(() => setConfirmReset(false), 3000);
+      return;
+    }
+    try {
+      await fetch("/api/admin/reset-tactic-coefficients", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      queryClient.invalidateQueries({ queryKey: ["admin-tactic-coefficients"] });
+      setConfirmReset(false);
+    } catch (err) {
+      console.error("Failed to reset coefficients", err);
+    }
+  };
+
+  if (isLoading) return <p className="text-gray-500 text-sm">Loading coefficients...</p>;
+
+  const getTextColor = (val: number) => {
+    if (val > 0) return "text-green-400";
+    if (val < 0) return "text-red-400";
+    return "text-gray-500";
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-end">
+        <button
+          onClick={handleReset}
+          data-testid="button-reset-coefficients"
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
+            confirmReset
+              ? "bg-red-600 text-white animate-pulse"
+              : "bg-red-900/30 text-red-400 border border-red-500/30 hover:bg-red-900/50"
+          }`}
+        >
+          <RotateCcw className="w-3 h-3" />
+          {confirmReset ? "CONFIRM RESET" : "RESET TO DEFAULTS"}
+        </button>
+      </div>
+
+      {layers.map((layer) => (
+        <div
+          key={layer.id}
+          className="bg-gray-900/50 border border-gray-800 rounded-xl p-4 space-y-4"
+          data-testid={`card-tactic-layer-${layer.id}`}
+        >
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold tracking-wider text-cyan-400" style={{ fontFamily: "Orbitron, sans-serif" }}>
+              {layer.label}
+            </h3>
+            <button
+              onClick={() => handleSaveLayer(layer.id)}
+              disabled={savingLayer === layer.id}
+              data-testid={`button-save-coefficients-${layer.id}`}
+              className="flex items-center gap-2 px-4 py-1.5 bg-cyan-600 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-cyan-500 disabled:opacity-50 transition-colors"
+            >
+              <Save className="w-3 h-3" />
+              {savingLayer === layer.id ? "SAVING..." : "SAVE LAYER"}
+            </button>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="text-[10px] text-gray-500 uppercase tracking-wider border-b border-gray-800">
+                  <th className="py-2 px-1">Tactic</th>
+                  <th className="py-2 px-1">HR</th>
+                  <th className="py-2 px-1">XBH</th>
+                  <th className="py-2 px-1">1B</th>
+                  <th className="py-2 px-1">BB</th>
+                  <th className="py-2 px-1">SO</th>
+                  <th className="py-2 px-1">GO</th>
+                  <th className="py-2 px-1">FO</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-800/50">
+                {localCoeffs
+                  .filter((c) => c.layer === layer.id)
+                  .map((coeff) => (
+                    <tr key={coeff.id} className="text-xs">
+                      <td className="py-2 px-1 font-bold text-gray-400 capitalize">{coeff.tacticValue.replace("_", " ")}</td>
+                      {["hr", "xbh", "single", "bb", "so", "go", "fo"].map((field) => (
+                        <td key={field} className="py-1 px-1">
+                          <input
+                            type="number"
+                            value={coeff[field as keyof TacticCoefficient]}
+                            onChange={(e) => handleInputChange(coeff.id, field as keyof TacticCoefficient, e.target.value)}
+                            min={-30}
+                            max={30}
+                            data-testid={`input-coeff-${layer.id}-${coeff.tacticValue}-${field}`}
+                            className={`w-12 bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-center font-mono ${getTextColor(coeff[field as keyof TacticCoefficient] as number)}`}
+                          />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

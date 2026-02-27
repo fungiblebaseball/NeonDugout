@@ -1,6 +1,6 @@
 import { rng } from './rng';
 import { matchupRating, errorChance, findFielderByPosition, pickRandomInfielder, pickRandomOutfielder } from './matchup';
-import { rollOutcome, type TacticsModifiers } from './probability';
+import { rollOutcome, type TacticsModifiers, type TacticCoefficientRow } from './probability';
 import { generateAtBatDescription, generateFlavorTexts } from './flavor';
 import type {
   SimPlayer, SimTeam, AtBatResult, AtBatOutcome,
@@ -26,6 +26,52 @@ export interface PitchingConfig {
   closerConfig: PitcherRoleSimConfig;
 }
 
+export interface TacticSlot {
+  value: string;
+  conditions: {
+    maxInning?: number;
+    maxStrikeouts?: number;
+    maxRunsAllowed?: number;
+    maxHitsAllowed?: number;
+  };
+}
+
+export interface TacticScheduleConfig {
+  primary: TacticSlot;
+  secondary: TacticSlot;
+  optional: TacticSlot;
+}
+
+export interface TacticSchedules {
+  batterApproachSchedule?: TacticScheduleConfig;
+  attackStyleSchedule?: TacticScheduleConfig;
+  offensiveAttackSchedule?: TacticScheduleConfig;
+}
+
+export interface GameState {
+  inning: number;
+  cumulativeStrikeouts: number;
+  cumulativeRunsAllowed: number;
+  cumulativeHitsAllowed: number;
+}
+
+export function evaluateActiveTactic(schedule: TacticScheduleConfig | undefined, gameState: GameState): string | undefined {
+  if (!schedule) return undefined;
+
+  const shouldSwitch = (slot: TacticSlot): boolean => {
+    const c = slot.conditions;
+    if (c.maxInning !== undefined && gameState.inning > c.maxInning) return true;
+    if (c.maxStrikeouts !== undefined && gameState.cumulativeStrikeouts > c.maxStrikeouts) return true;
+    if (c.maxRunsAllowed !== undefined && gameState.cumulativeRunsAllowed > c.maxRunsAllowed) return true;
+    if (c.maxHitsAllowed !== undefined && gameState.cumulativeHitsAllowed > c.maxHitsAllowed) return true;
+    return false;
+  };
+
+  if (!shouldSwitch(schedule.primary)) return schedule.primary.value;
+  if (!shouldSwitch(schedule.secondary)) return schedule.secondary.value;
+  return schedule.optional.value;
+}
+
 export interface SimConfig {
   homeLineup?: SimPlayer[];
   awayLineup?: SimPlayer[];
@@ -35,6 +81,9 @@ export interface SimConfig {
   awayTactics?: TacticsModifiers;
   homeHasDH?: boolean;
   awayHasDH?: boolean;
+  homeTacticSchedules?: TacticSchedules;
+  awayTacticSchedules?: TacticSchedules;
+  tacticCoefficients?: TacticCoefficientRow[];
 }
 
 interface ActivePitcher {
@@ -83,6 +132,7 @@ function simulateAtBat(
   tactics?: TacticsModifiers,
   opponentTactics?: TacticsModifiers,
   activePitcherStyle?: string,
+  coefficients?: TacticCoefficientRow[],
 ): AtBatResult {
   const mr = matchupRating(batter, pitcher, inning) + (isHome ? HOME_ADVANTAGE : 0);
   const r = rng();
@@ -110,7 +160,7 @@ function simulateAtBat(
     };
   }
 
-  const outcome = rollOutcome(mr, r.next(), tactics, opponentTactics, activePitcherStyle);
+  const outcome = rollOutcome(mr, r.next(), tactics, opponentTactics, activePitcherStyle, coefficients);
 
   return {
     outcome,
@@ -295,6 +345,28 @@ function getSubstitutionReason(active: ActivePitcher, config: PitchingConfig): s
   return '';
 }
 
+function applyTacticSchedules(
+  baseTactics: TacticsModifiers | undefined,
+  schedules: TacticSchedules | undefined,
+  gameState: GameState,
+): TacticsModifiers | undefined {
+  if (!baseTactics) return baseTactics;
+  if (!schedules) return baseTactics;
+
+  const result = { ...baseTactics };
+
+  const activeBatter = evaluateActiveTactic(schedules.batterApproachSchedule, gameState);
+  if (activeBatter) result.batterApproach = activeBatter as any;
+
+  const activeAttackStyle = evaluateActiveTactic(schedules.attackStyleSchedule, gameState);
+  if (activeAttackStyle) result.attackStyle = activeAttackStyle as any;
+
+  const activeOffense = evaluateActiveTactic(schedules.offensiveAttackSchedule, gameState);
+  if (activeOffense) result.offensiveAttack = activeOffense as any;
+
+  return result;
+}
+
 function simulateHalfInning(
   battingLineup: SimPlayer[],
   activePitcher: ActivePitcher,
@@ -305,6 +377,10 @@ function simulateHalfInning(
   defenseLineup: SimPlayer[],
   battingTactics?: TacticsModifiers,
   defenseTactics?: TacticsModifiers,
+  battingSchedules?: TacticSchedules,
+  defenseSchedules?: TacticSchedules,
+  coefficients?: TacticCoefficientRow[],
+  cumulativeGameState?: GameState,
 ): HalfInningResult {
   let outs = 0;
   let runs = 0;
@@ -318,6 +394,11 @@ function simulateHalfInning(
   const batterIds: number[] = [];
   const logEntries: PlayLogEntry[] = [];
   const halfLabel: 'top' | 'bottom' = isHome ? 'bottom' : 'top';
+
+  const gs: GameState = cumulativeGameState ? { ...cumulativeGameState } : {
+    inning, cumulativeStrikeouts: 0, cumulativeRunsAllowed: 0, cumulativeHitsAllowed: 0,
+  };
+  gs.inning = inning;
 
   while (outs < 3) {
     if (pitchingConfig && shouldSubstitutePitcher(activePitcher, pitchingConfig, inning)) {
@@ -339,10 +420,13 @@ function simulateHalfInning(
       }
     }
 
+    const effectiveBattingTactics = applyTacticSchedules(battingTactics, battingSchedules, gs);
+    const effectiveDefenseTactics = applyTacticSchedules(defenseTactics, defenseSchedules, gs);
+
     const batter = battingLineup[currentBatter % battingLineup.length];
     const mr = matchupRating(batter, activePitcher.player, inning) + (isHome ? HOME_ADVANTAGE : 0);
     const currentPitcherStyle = pitchingConfig ? getRoleConfig(activePitcher.role, pitchingConfig).pitcherStyle : undefined;
-    const result = simulateAtBat(batter, activePitcher.player, inning, isHome, battingTactics, defenseTactics, currentPitcherStyle);
+    const result = simulateAtBat(batter, activePitcher.player, inning, isHome, effectiveBattingTactics, effectiveDefenseTactics, currentPitcherStyle, coefficients);
     pitchesUsed += result.pitchCount;
     activePitcher.pitchCount += result.pitchCount;
 
@@ -407,6 +491,7 @@ function simulateHalfInning(
       outs++;
       outsThisPlay = 1;
       activePitcher.soCount++;
+      gs.cumulativeStrikeouts++;
     } else if (['GO', 'FO', 'GIDP', 'ERR', 'HR', '3B', '2B', '1B', 'BB'].includes(outcome)) {
       const { newBases, runsScored, outsAdded } = advanceRunners(bases, outcome, batter, outs);
       bases = newBases;
@@ -416,10 +501,12 @@ function simulateHalfInning(
       outsThisPlay = outsAdded;
       result.rbiCount = runsScored;
       activePitcher.erAllowed += runsScored;
+      gs.cumulativeRunsAllowed += runsScored;
 
       if (['HR', '3B', '2B', '1B'].includes(outcome)) {
         hits++;
         activePitcher.hitsAllowed++;
+        gs.cumulativeHitsAllowed++;
       }
       if (outcome === 'BB') activePitcher.bbAllowed++;
       if (outcome === 'ERR') errors++;
@@ -636,12 +723,20 @@ export function simulateGame(
 
   let totalInnings = 9;
 
+  const awayGameState: GameState = { inning: 1, cumulativeStrikeouts: 0, cumulativeRunsAllowed: 0, cumulativeHitsAllowed: 0 };
+  const homeGameState: GameState = { inning: 1, cumulativeStrikeouts: 0, cumulativeRunsAllowed: 0, cumulativeHitsAllowed: 0 };
+  const coefficients = config?.tacticCoefficients;
+
   for (let inning = 1; inning <= totalInnings; inning++) {
     innings.push(inning);
+    awayGameState.inning = inning;
+    homeGameState.inning = inning;
 
     const topHalf = simulateHalfInning(
       awayLineup, homeActivePitcher, homeP.config, inning, false, awayBatterIdx, homeLineup,
-      config?.awayTactics, config?.homeTactics
+      config?.awayTactics, config?.homeTactics,
+      config?.awayTacticSchedules, config?.homeTacticSchedules,
+      coefficients, awayGameState
     );
     awayScore += topHalf.half.runs;
     awayLine.push(topHalf.half.runs);
@@ -650,6 +745,10 @@ export function simulateGame(
     allAwayBatterIds.push(...topHalf.batterIds);
     allHomePitchers.push(...topHalf.substitutions);
     allPlayLog.push(...topHalf.logEntries);
+
+    awayGameState.cumulativeStrikeouts += topHalf.half.events.filter(e => e.outcome === 'SO').length;
+    awayGameState.cumulativeRunsAllowed += topHalf.half.runs;
+    awayGameState.cumulativeHitsAllowed += topHalf.half.events.filter(e => ['HR', '3B', '2B', '1B'].includes(e.outcome)).length;
 
     if (topHalf.substitutions.length > 0 && !homeHasDH) {
       const prevPitcherId = homePitcherIdInLineup;
@@ -666,7 +765,9 @@ export function simulateGame(
 
     const bottomHalf = simulateHalfInning(
       homeLineup, awayActivePitcher, awayP.config, inning, true, homeBatterIdx, awayLineup,
-      config?.homeTactics, config?.awayTactics
+      config?.homeTactics, config?.awayTactics,
+      config?.homeTacticSchedules, config?.awayTacticSchedules,
+      coefficients, homeGameState
     );
     homeScore += bottomHalf.half.runs;
     homeLine.push(bottomHalf.half.runs);
@@ -675,6 +776,10 @@ export function simulateGame(
     allHomeBatterIds.push(...bottomHalf.batterIds);
     allAwayPitchers.push(...bottomHalf.substitutions);
     allPlayLog.push(...bottomHalf.logEntries);
+
+    homeGameState.cumulativeStrikeouts += bottomHalf.half.events.filter(e => e.outcome === 'SO').length;
+    homeGameState.cumulativeRunsAllowed += bottomHalf.half.runs;
+    homeGameState.cumulativeHitsAllowed += bottomHalf.half.events.filter(e => ['HR', '3B', '2B', '1B'].includes(e.outcome)).length;
 
     if (bottomHalf.substitutions.length > 0 && !awayHasDH) {
       const prevPitcherId = awayPitcherIdInLineup;

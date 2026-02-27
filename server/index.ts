@@ -62,6 +62,8 @@ app.use((req, res, next) => {
 (async () => {
   const { seedDatabase } = await import("./seed");
   await seedDatabase();
+  const { storage } = await import("./storage");
+  await storage.seedDefaultTacticCoefficients();
   await registerRoutes(httpServer, app);
   const { startGameDayScheduler } = await import("./scheduler");
   startGameDayScheduler();

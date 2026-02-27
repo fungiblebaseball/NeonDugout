@@ -4,7 +4,7 @@
 Text-based fantasy baseball manager game with retro 80s/90s cyberpunk aesthetic. Target platform: Solana Seeker mobile (Web3 integration planned). Zero MLB licenses - all fictional teams and players.
 
 ## Current State
-Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.13.0 — Season genesis: 4 leagues (L1-L4, 80 teams, 1600 players), max 4 leagues cap (no further expansion). Auto new season when all matches played. Admin: reset & regenerate season, erase all data (wipe DB + re-seed, first user = admin). First user to register on empty DB auto-promoted to admin. Per-pitcher pitching staff configs (v1.13.0).
+Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.14.0 — Dynamic Tactic Coefficients: 12 rows (4 layers x 3 values) for RPS and strategy modifiers. Tactic schedules (Primary/Secondary/Optional) with mid-game switching based on conditions (Inning, K, Runs, Hits). Admin panel for tuning coefficients. Per-pitcher pitching staff configs (v1.13.0).
 
 ## Branding
 - **Logo**: `client/src/assets/images/logo-neon-dugout.png` — Stylized baseball diamond (neon glow, transparent bg)
@@ -45,7 +45,8 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 - `match_details` - full game data per match (box_score, flavor_texts, mvp, home_lineup, away_lineup, home_batters, away_batters, home_pitcher, away_pitcher, home_pitchers, away_pitchers, play_log)
 - `lineups` - field positions + batting order (JSON columns)
 - `pitcher_rotations` - roles JSONB {sp, r1, closer, nextSp} + rotation_order + pitcherConfigs JSONB { sp: PitcherRoleConfig, r1: PitcherRoleConfig, closer: PitcherRoleConfig } where PitcherRoleConfig = { maxPitches, maxInnings, maxBb, maxEr, pitcherStyle }
-- `tactics` - 6 tactical fields (attackStyle, infieldPosition, outfieldPosition, batterApproach, offensiveAttack, defenseSetup) — pitcherStyle moved to per-pitcher configs in pitcher_rotations (v1.13.0)
+- `tactics` - 6 tactical fields (infieldPosition, outfieldPosition, defenseSetup) + schedules JSONB (batterApproachSchedule, attackStyleSchedule, offensiveAttackSchedule) for mid-game switching (v1.14.0)
+- `tactic_coefficients` - 12 rows of multiplicative modifiers (HR, XBH, 1B, BB, SO, GO, FO) for each tactic type (batter_approach, pitcher_style, offensive_attack, defense_setup)
 - `team_snapshots` - historical team state per season (team_id, season_id, name, division, league, series, primary_color, owner_wallet, wins, losses, runs_for, runs_against)
 - `training_results` - minigame scores and rewards (user_id, team_id, game_type, score, raw_data, reward_attribute, reward_player_id, reward_amount, confirmed, reward_player_ids, reward_attributes)
 - `training_config` - admin-configurable reward rules per game type (game_type, reward_attributes[], reward_amount, min_score_for_reward, max_boost_per_season, reward_target, reward_target_role)
@@ -57,9 +58,9 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 1. **Home** (/) - Team dashboard, nav grid, game day info (read-only, no play button), training center always visible with dynamic labels, redirect to login if not authenticated
 2. **Lineup** (/lineup) - Assign field positions (SP read-only from pitching, C,1B...RF), DH toggle, reorder batting order 1-9 (SP moveable)
 3. **Pitchers** (/pitchers) - Assign pitcher roles: SP, R1, C, 2P with collapsible cards. Each role has 4 uniform switch condition sliders (Pitches 10-100, IP 0-9, BB 1-10, ER 1-10) + per-pitcher RPS style selector (velocity/movement/command). Bullpen section for unassigned pitchers
-4. **Attack** (/attack) - 3 tactical sections: Attack Style (bunt/h&r/neutral/sos with probability modifiers), Batter Approach (power/contact/patient RPS vs pitcher), Offensive Attack (aggressive/balanced/conservative RPS vs defense)
-5. **Defense** (/defense) - 3 tactical sections: Infield Position (short/neutral/deep counter), Outfield Position (short/neutral/deep counter), Defense Setup (aggressive/balanced/protective RPS vs offense)
-6. **Simulate** (/simulate) - Exhibition test match using saved lineup/tactics/rotation with box score, batter/pitcher stats, flavor text
+4. **Attack** (/attack) - 3 tactical sections: Batter Approach, Offensive Strategy (Attack Style), Offensive Attack. Each has 3 temporal boxes (Primary/Secondary/Optional) with switch condition sliders (v1.14.0)
+5. **Defense** (/defense) - 3 tactical sections: Infield Position, Outfield Position, Defense Setup
+6. **Simulate** (/simulate) - Exhibition test match using saved lineup/tactics/rotation with box score, batter/pitcher stats, flavor text. Loads tactic coefficients from API (v1.14.0)
 7. **Schedule** (/schedule) - Division calendar (18 match days), next match highlight, W-L record, played matches clickable → Match Report
 8. **Standings** (/standings) - Division standings with W/L/PCT/RF/RA, switch divisions, season navigator (◀ ▶) for past seasons with match results, match preview for current season
 9. **Player Detail** (/player/:id) - Player card with photo slot, 4-section attributes (Offense/Defense/Pitching/Crossing), dual-context defense labels, base + boost breakdown with amber overlay, career averages
@@ -70,7 +71,7 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 14. **Batting Practice** (/training/batting) - Timing minigame: swing at the sweet spot, 10 pitches, rewards CON/POW boost
 15. **Pitch Control** (/training/pitch-control) - Accuracy minigame: tap correct zone in 3x3 grid, 10 rounds, rewards CTL boost
 16. **Team** (/team) - Team overview: user info (wallet, registration), team info (name, color, league), token balance with claim button, full roster table with base + bonus attributes
-17. **Admin** (/admin) - Admin-only panel: match day control (simulate/new season/reset season/wipe DB), token economy config (X tokens per Y hours, reset treasury), training reward rules (attributes, amounts, min scores, caps, reward target). First user on empty DB = auto admin
+17. **Admin** (/admin) - Admin-only panel: match day control, token economy config, training reward rules, and **Tactic Coefficients tuning** (12 tables for layer-based modifiers). First user on empty DB = auto admin
 
 ## Deep Navigation Flow
 - Home → Play Match → View Match Report → Player Detail

@@ -112,38 +112,52 @@ Ogni ruolo ha le stesse 4 condizioni configurabili individualmente tramite `pitc
 
 Al cambio lanciatore, il pitcherStyle attivo viene aggiornato con lo stile del nuovo pitcher (ricalcolo RPS).
 
-## Tactics System (RPS Layer)
+## Tactics System (RPS + Coefficients System v1.14.0)
 
-### Attack Style (4 stili)
-| Stile | Effetto |
-|-------|---------|
-| Bunt | +15% 1B, -20% XBH, -20% HR, +10% GO |
-| Hit & Run | +15% 1B, -15% XBH, -25% HR, +5% SO |
-| Neutral | Nessun modificatore |
-| Swing on Sight | +20% XBH, +15% HR, +20% SO, +10% FO |
+Le tattiche operano su 3 layer sequenziali applicando coefficienti moltiplicativi alla tabella probabilità.
 
-### Defense Positioning Counter
-- Infield short countra bunt (-12% 1B, +10% GO)
-- Infield neutral countra hit & run (-8% 1B, +6% GO)
-- Infield deep countra swing on sight (-5% 1B, +5% GO)
-- Outfield deep countra power (-8% HR, -6% XBH, +8% FO)
+### Tactic Switching (Schedules)
+Ogni team definisce uno schedule (Primary/Secondary/Optional) per:
+- `batterApproach`
+- `attackStyle`
+- `offensiveAttack`
 
-### RPS Batter vs Pitcher (pitcherStyle per-pitcher, v1.13.0)
-Il pitcherStyle (velocity/movement/command) e' configurato PER OGNI lanciatore (SP, R1, Closer) nel campo `pitcherConfigs` JSONB della tabella `pitcher_rotations`, non piu' globale in `tactics`.
-Al cambio lanciatore durante la simulazione, il pitcherStyle attivo viene aggiornato automaticamente.
+Il sistema valuta quale slot è attivo prima di ogni at-bat basandosi su:
+- Inning corrente
+- Strikeout subiti (cumulative)
+- Run subiti (cumulative)
+- Hit subiti (cumulative)
 
-| | Velocity | Movement | Command |
-|---|----------|----------|---------|
-| Power | Tie | Win | Lose |
-| Contact | Lose | Tie | Win |
-| Patient | Win | Lose | Tie |
+### Meccanica Win/Tie/Lose Bilateral
+Per i layer RPS (1 e 3):
+- **Win**: Si applicano solo i coefficienti della tattica del vincitore.
+- **Lose**: Si applicano solo i coefficienti della tattica del perdente (spesso penalità o bias difensivo).
+- **Tie**: Nessun coefficiente applicato (annullamento).
 
-### RPS Offense vs Defense
-| | Aggressive | Balanced | Protective |
-|---|------------|----------|------------|
-| Aggressive | Lose | Win | Tie |
-| Balanced | Win | Tie | Lose |
-| Conservative | Tie | Lose | Win |
+### Layer 1: Batter Approach vs Pitcher Style (RPS)
+Il `pitcherStyle` è determinato dal lanciatore attivo.
+
+| Batter \ Pitcher | Velocity | Movement | Command |
+|---|---|---|---|
+| **Power** | Tie | Batter wins | Pitcher wins |
+| **Contact** | Pitcher wins | Tie | Batter wins |
+| **Patient** | Batter wins | Pitcher wins | Tie |
+
+### Layer 2: Attack Style + Defense Counter
+Modificatori diretti (Attack Style) contrastati dalle posizioni difensive.
+- **Attack Styles**: Bunt, Hit & Run, Neutral, Swing on Sight.
+- **Defense Counter**: Infield/Outfield Short/Neutral/Deep.
+
+### Layer 3: Offensive Attack vs Defense Setup (RPS)
+
+| Offense \ Defense | Aggressive | Balanced | Protective |
+|---|---|---|---|
+| **Aggressive** | Defense wins | Tie | Offense wins |
+| **Balanced** | Offense wins | Tie | Defense wins |
+| **Conservative** | Defense wins | Tie | Tie |
+
+### Coefficienti (Tuning Admin)
+Tutti i coefficienti (HR, XBH, 1B, BB, SO, GO, FO) per i 12 tipi di tattica (4 layer x 3 valori) sono configurabili via API Admin e salvati nella tabella `tactic_coefficients`.
 
 ## DH Rule
 

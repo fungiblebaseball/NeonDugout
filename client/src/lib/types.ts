@@ -9,3 +9,21 @@ export type BatterApproach = 'power' | 'contact' | 'patient';
 export type PitcherStyle = 'velocity' | 'movement' | 'command';
 export type OffensiveAttack = 'aggressive' | 'balanced' | 'conservative';
 export type DefenseSetup = 'aggressive' | 'balanced' | 'protective';
+
+export interface TacticSwitchConditions {
+  maxInning?: number;
+  maxStrikeouts?: number;
+  maxRunsAllowed?: number;
+  maxHitsAllowed?: number;
+}
+
+export interface TacticSlot {
+  value: string;
+  conditions: TacticSwitchConditions;
+}
+
+export interface TacticSchedule {
+  primary: TacticSlot;
+  secondary: TacticSlot;
+  optional: TacticSlot;
+}

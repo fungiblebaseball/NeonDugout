@@ -331,7 +331,8 @@ export async function registerRoutes(
   });
 
   app.post("/api/tactics", async (req, res) => {
-    const { teamId, attackStyle, infieldPosition, outfieldPosition, batterApproach, offensiveAttack, defenseSetup } = req.body;
+    const { teamId, attackStyle, infieldPosition, outfieldPosition, batterApproach, offensiveAttack, defenseSetup,
+      batterApproachSchedule, attackStyleSchedule, offensiveAttackSchedule } = req.body;
     if (!teamId) return res.status(400).json({ message: "teamId required" });
 
     const tac = await storage.upsertTactics({
@@ -342,8 +343,43 @@ export async function registerRoutes(
       batterApproach: batterApproach || "contact",
       offensiveAttack: offensiveAttack || "balanced",
       defenseSetup: defenseSetup || "balanced",
+      batterApproachSchedule: batterApproachSchedule || undefined,
+      attackStyleSchedule: attackStyleSchedule || undefined,
+      offensiveAttackSchedule: offensiveAttackSchedule || undefined,
     });
     res.json(tac);
+  });
+
+  app.get("/api/admin/tactic-coefficients", async (req, res) => {
+    const adminData = await requireAdmin(req, res);
+    if (!adminData) return;
+    const coefficients = await storage.getAllTacticCoefficients();
+    res.json(coefficients);
+  });
+
+  app.put("/api/admin/tactic-coefficients/:layer/:tacticValue", async (req, res) => {
+    const adminData = await requireAdmin(req, res);
+    if (!adminData) return;
+    const { layer, tacticValue } = req.params;
+    const { hr, xbh, single, bb, so, go, fo } = req.body;
+    if ([hr, xbh, single, bb, so, go, fo].some(v => typeof v !== 'number')) {
+      return res.status(400).json({ message: "All coefficient fields (hr, xbh, single, bb, so, go, fo) must be numbers" });
+    }
+    const updated = await storage.updateTacticCoefficient(layer, tacticValue, { hr, xbh, single, bb, so, go, fo });
+    res.json(updated);
+  });
+
+  app.post("/api/admin/reset-tactic-coefficients", async (req, res) => {
+    const adminData = await requireAdmin(req, res);
+    if (!adminData) return;
+    await storage.resetTacticCoefficients();
+    const coefficients = await storage.getAllTacticCoefficients();
+    res.json({ message: "Tactic coefficients reset to defaults", coefficients });
+  });
+
+  app.get("/api/tactic-coefficients", async (_req, res) => {
+    const coefficients = await storage.getAllTacticCoefficients();
+    res.json(coefficients);
   });
 
   app.post("/api/simulate-day", async (req, res) => {

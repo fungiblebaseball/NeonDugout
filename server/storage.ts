@@ -2,7 +2,7 @@ import { db } from "./db";
 import { eq, and, sql, desc } from "drizzle-orm";
 import {
   users, teams, players, matches, lineups, pitcherRotations, tactics, matchDetails, playerSeasonStats, teamSnapshots,
-  trainingResults, trainingConfig, userTokens, tokenConfig,
+  trainingResults, trainingConfig, userTokens, tokenConfig, tacticCoefficients,
   type User, type InsertUser, type Team, type InsertTeam,
   type Player, type Match, type Lineup, type InsertLineup,
   type PitcherRotation, type InsertPitcherRotation,
@@ -12,6 +12,7 @@ import {
   type TrainingResult, type InsertTrainingResult,
   type TrainingConfig, type InsertTrainingConfig,
   type UserTokens, type TokenConfig,
+  type TacticCoefficient, type InsertTacticCoefficients,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -46,6 +47,11 @@ export interface IStorage {
 
   getTactics(teamId: number): Promise<Tactics | undefined>;
   upsertTactics(data: InsertTactics): Promise<Tactics>;
+
+  getAllTacticCoefficients(): Promise<TacticCoefficient[]>;
+  updateTacticCoefficient(layer: string, tacticValue: string, data: { hr: number; xbh: number; single: number; bb: number; so: number; go: number; fo: number }): Promise<TacticCoefficient>;
+  seedDefaultTacticCoefficients(): Promise<void>;
+  resetTacticCoefficients(): Promise<void>;
 
   createMatchDetails(data: InsertMatchDetails): Promise<MatchDetails>;
   getMatchDetails(matchId: number): Promise<MatchDetails | undefined>;
@@ -118,6 +124,7 @@ export class DatabaseStorage implements IStorage {
     await db.delete(userTokens);
     await db.delete(tokenConfig);
     await db.delete(trainingConfig);
+    await db.delete(tacticCoefficients);
     await db.delete(lineups);
     await db.delete(pitcherRotations);
     await db.delete(tactics);
@@ -596,6 +603,50 @@ export class DatabaseStorage implements IStorage {
       .values({ claimAmount, claimIntervalHours })
       .returning();
     return created;
+  }
+  async getAllTacticCoefficients(): Promise<TacticCoefficient[]> {
+    return db.select().from(tacticCoefficients);
+  }
+
+  async updateTacticCoefficient(layer: string, tacticValue: string, data: { hr: number; xbh: number; single: number; bb: number; so: number; go: number; fo: number }): Promise<TacticCoefficient> {
+    const [existing] = await db.select().from(tacticCoefficients)
+      .where(and(eq(tacticCoefficients.layer, layer), eq(tacticCoefficients.tacticValue, tacticValue)));
+    if (existing) {
+      const [updated] = await db.update(tacticCoefficients).set(data)
+        .where(eq(tacticCoefficients.id, existing.id)).returning();
+      return updated;
+    }
+    const [created] = await db.insert(tacticCoefficients)
+      .values({ layer, tacticValue, ...data }).returning();
+    return created;
+  }
+
+  async seedDefaultTacticCoefficients(): Promise<void> {
+    const existing = await db.select().from(tacticCoefficients).limit(1);
+    if (existing.length > 0) return;
+
+    const defaults: InsertTacticCoefficients[] = [
+      { layer: 'batter_approach', tacticValue: 'power', hr: 12, xbh: 10, single: 0, bb: 0, so: 0, go: -5, fo: -5 },
+      { layer: 'batter_approach', tacticValue: 'contact', hr: 0, xbh: 5, single: 12, bb: 5, so: -10, go: 0, fo: 0 },
+      { layer: 'batter_approach', tacticValue: 'patient', hr: 0, xbh: 6, single: 8, bb: 10, so: -8, go: -4, fo: 0 },
+      { layer: 'pitcher_style', tacticValue: 'velocity', hr: -8, xbh: -6, single: 0, bb: 0, so: 12, go: 0, fo: 5 },
+      { layer: 'pitcher_style', tacticValue: 'movement', hr: -5, xbh: -8, single: -4, bb: 0, so: 5, go: 10, fo: 5 },
+      { layer: 'pitcher_style', tacticValue: 'command', hr: -6, xbh: -5, single: -5, bb: -8, so: 8, go: 6, fo: 6 },
+      { layer: 'offensive_attack', tacticValue: 'aggressive', hr: 5, xbh: 8, single: 0, bb: 0, so: 0, go: -6, fo: -4 },
+      { layer: 'offensive_attack', tacticValue: 'balanced', hr: 0, xbh: 4, single: 6, bb: 4, so: -4, go: -4, fo: 0 },
+      { layer: 'offensive_attack', tacticValue: 'conservative', hr: 0, xbh: 0, single: 8, bb: 6, so: -6, go: 0, fo: 4 },
+      { layer: 'defense_setup', tacticValue: 'aggressive', hr: -6, xbh: -5, single: -4, bb: 0, so: 8, go: 8, fo: 0 },
+      { layer: 'defense_setup', tacticValue: 'balanced', hr: -3, xbh: -3, single: 0, bb: 0, so: 4, go: 4, fo: 4 },
+      { layer: 'defense_setup', tacticValue: 'protective', hr: -8, xbh: -6, single: 0, bb: 4, so: 0, go: 0, fo: 10 },
+    ];
+
+    await db.insert(tacticCoefficients).values(defaults);
+    console.log('Seeded 12 default tactic coefficients');
+  }
+
+  async resetTacticCoefficients(): Promise<void> {
+    await db.delete(tacticCoefficients);
+    await this.seedDefaultTacticCoefficients();
   }
 }
 

@@ -29,7 +29,8 @@ Dashboard principale del manager. Punto di ingresso dopo il wallet connect. Esal
    - GAME DAY: mostra giorno, avversario, sector preview (ATK/DEF/PIT)
    - SEASON COMPLETE: mostra stato fine stagione
    - Nessun bottone di simulazione — match auto-simulati a mezzanotte CET
-   - Testo informativo: "Next match auto-simulated at 00:00 CET" / "Admin will start next season"
+   - Nuova stagione generata automaticamente dallo scheduler quando tutti i match sono giocati
+   - Testo informativo: "Next match auto-simulated at 00:00 CET"
 9. **Navigation Cards** — TEST MATCH, PLAY LOG, MY TEAM, SCHEDULE, STANDINGS
 10. **Recent Results** — Lista scrollabile di tutte le gare disputate dall'utente
 11. **Owner Registry** — Mostra wallet address, posizionato in fondo alla pagina

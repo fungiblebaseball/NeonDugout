@@ -47,8 +47,9 @@ Wallets implementing the Solana Wallet Standard are auto-detected by `@solana/wa
   3. Consumes the nonce (one-time use)
 - On success:
   - Creates user record if first login (wallet_address → new user)
-  - Assigns an unowned team to the user
-  - If no unowned teams exist → triggers Dynamic League Expansion
+  - Se è il primo utente in assoluto (database vuoto) → auto-promosso a admin (`is_admin = true`)
+  - Assigns an unowned team to the user (dalle 4 leghe L1-L4)
+  - If no unowned teams exist → assegnazione fallisce (max 4 leghe, nessuna espansione oltre L4)
   - Returns `{ user, team }` with session token
 
 ### 5. Session Management
@@ -133,10 +134,12 @@ Wallets implementing the Solana Wallet Standard are auto-detected by `@solana/wa
 - No teams available → Triggers dynamic league expansion, then retries assignment
 
 ## Dynamic League Expansion Trigger
-When a new user verifies and no unowned teams exist:
-1. Backend counts existing leagues (L1, L2, ...)
-2. Creates next league (L3, L4, etc.) with SerieA + SerieB (20 teams)
-3. Generates 400 players (20 per team)
-4. Creates 14-day match schedule (228 matches)
-5. Assigns first available team from new league to user
-6. Returns normally with the assigned team
+Quando un nuovo utente si registra e non ci sono team liberi:
+1. Backend verifica se esistono meno di 4 leghe (max L1-L4)
+2. Se < 4 leghe: crea nuova lega con SerieA + SerieB (20 team, 400 giocatori, schedule 14 giorni)
+3. Se già 4 leghe: nessuna espansione, utente non può registrarsi (80 team = 80 utenti max)
+4. Assegna primo team disponibile dalla lega più bassa
+
+## Primo Utente = Admin
+- Su database vuoto (dopo seed iniziale o dopo wipe da admin), il primo wallet a completare il flusso di autenticazione riceve automaticamente `is_admin = true`
+- Questo avviene nel route POST /api/auth/verify: se `getAllUsers()` ritorna 0 utenti, il nuovo utente è admin

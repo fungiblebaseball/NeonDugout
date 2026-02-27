@@ -22,12 +22,29 @@ Hub centrale per il sistema di allenamento. Presenta 3 minigame come card intera
 - **Pitch Control** (/training/pitch-control) — Precisione: tap zona corretta nella griglia 3x3, 10 round → CTL boost
 
 ## Flusso per minigame
-Start screen → Gameplay (10 round) → Result screen (score, ranking globale, reward attributo)
+1. Start screen → Gameplay (10 round) → Result screen (score, ranking globale, reward info)
+2. Se score >= minScoreForReward: risultato salvato con `confirmed = false`, boost NON ancora applicato
+3. Pulsante "CERTIFY TRAINING" → wallet firma challenge message
+4. Firma inviata a `POST /api/training/confirm` → verifica, applica boost, marca `confirmed = true`
+5. Roster ricaricato automaticamente (invalidate queries)
+6. Se utente rifiuta firma: boost non applicato, messaggio "Training not certified"
+
+## Target del Boost (configurabile da admin)
+- **Random**: boost applicato a 1 giocatore casuale del roster
+- **Role**: boost applicato a 1 giocatore casuale con posizione specifica (es. solo P, solo SS)
+- **Team**: boost applicato a TUTTI i giocatori del roster
+- Tutti gli attributi configurati vengono applicati contemporaneamente (non uno random)
+
+## Cap Stagionale
+- `maxBoostPerSeason` conta solo i risultati confermati (`confirmed = true`)
+- Risultati non confermati (firma rifiutata) non consumano il cap
 
 ## Dati
 - API: `GET /api/training/rankings/:gameType` — classifica globale
 - API: `GET /api/training/history/:gameType` — storico personale
-- API: `POST /api/training/result` — salvataggio risultato + boost
+- API: `POST /api/training/result` — salvataggio risultato (boost differito fino a conferma wallet)
+- API: `POST /api/training/confirm` — conferma con firma wallet, applica boost (auth richiesta)
+- API: `GET /api/training-configs` — configurazioni pubbliche per label dinamiche
 
 ## Navigazione
 - Accessibile da: Home (card TRAINING CENTER), Bottom nav (icona Train/Dumbbell)

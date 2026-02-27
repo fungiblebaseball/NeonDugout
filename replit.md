@@ -20,10 +20,10 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 
 ## Key Files
 - `shared/schema.ts` - Drizzle schema: users (with isAdmin), teams, players (with _add boost columns), matches, match_details, lineups, pitcher_rotations, tactics, training_results, training_config, user_tokens, token_config
-- `server/routes.ts` - API routes (/api/auth/*, /api/teams, /api/matches, /api/player/:id, /api/training/*, /api/tokens/*, /api/admin/training-config, /api/admin/token-config, /api/admin/reset-tokens, /api/lineup, /api/pitcher-rotation, /api/tactics)
+- `server/routes.ts` - API routes (/api/auth/*, /api/teams, /api/matches, /api/player/:id, /api/training/*, /api/tokens/*, /api/admin/training-config, /api/admin/token-config, /api/admin/reset-tokens, /api/admin/reset-season, /api/admin/wipe-database, /api/simulate-day, /api/new-season, /api/lineup, /api/pitcher-rotation, /api/tactics)
 - `server/auth.ts` - JWT token creation/verification, ed25519 signature validation, challenge nonce management, claim challenge/verify, training challenge/verify
 - `server/scheduler.ts` - Game day cron scheduler (00:00 CET / 23:00 UTC daily via node-cron)
-- `server/expansion.ts` - Dynamic league expansion: auto-creates new league with 20 teams + 400 players + 228 matches when all teams are owned
+- `server/expansion.ts` - Dynamic league expansion (capped at MAX_LEAGUES=4): auto-creates new league with 20 teams + 400 players + 228 matches when all teams are owned, blocks expansion beyond L4
 - `server/storage.ts` - DatabaseStorage class implementing IStorage interface
 - `server/seed.ts` - Seeds 80 teams (4 leagues × 2 series × 10 teams), 1600 players, 14-day schedule per league (regular + interleague + playoff + promotion)
 - `server/simulation.ts` - Server-side batch simulation for match days
@@ -38,7 +38,7 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 
 ## Database Tables
 - `users` - wallet-based auth (id, wallet_address, team_id, is_admin)
-- `teams` - 20 teams in divisions A & B (id, name, division, owner_wallet, season_id)
+- `teams` - 80 teams in 4 leagues × 2 series (id, name, division, league, series, owner_wallet, season_id)
 - `players` - 20 per team with 9 base stats + 9 _add boost columns (pow, con, spd, eye, vel, ctl, mov, sta, def + pow_add, con_add, etc.)
 - `matches` - round-robin schedule with scores (90 per division, 18 days)
 - `match_details` - full game data per match (box_score, flavor_texts, mvp, home_lineup, away_lineup, home_batters, away_batters, home_pitcher, away_pitcher, home_pitchers, away_pitchers, play_log)
@@ -46,14 +46,14 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 - `pitcher_rotations` - roles JSONB {sp, r1, closer, nextSp} + rotation_order + SP switch conditions (maxPitches/maxInnings/maxBb/maxEr) + R1 conditions (r1MaxPitches/r1MaxEr) + Closer conditions (closerMaxPitches/closerMaxEr)
 - `tactics` - 7 tactical fields (attackStyle, infieldPosition, outfieldPosition, batterApproach, pitcherStyle, offensiveAttack, defenseSetup)
 - `team_snapshots` - historical team state per season (team_id, season_id, name, division, league, series, primary_color, owner_wallet, wins, losses, runs_for, runs_against)
-- `training_results` - minigame scores and rewards (user_id, team_id, game_type, score, raw_data, reward_attribute, reward_player_id, reward_amount)
-- `training_config` - admin-configurable reward rules per game type (game_type, reward_attributes[], reward_amount, min_score_for_reward, max_boost_per_season)
+- `training_results` - minigame scores and rewards (user_id, team_id, game_type, score, raw_data, reward_attribute, reward_player_id, reward_amount, confirmed, reward_player_ids, reward_attributes)
+- `training_config` - admin-configurable reward rules per game type (game_type, reward_attributes[], reward_amount, min_score_for_reward, max_boost_per_season, reward_target, reward_target_role)
 - `user_tokens` - token balance per utente (user_id unique, balance, last_claim_at) — claim certificato con firma wallet
 - `token_config` - configurazione admin token economy (claim_amount, claim_interval_hours)
 
 ## Pages
 0. **Login** (/login) - Solana wallet authentication: select wallet (Phantom/Solflare/Backpack/Seeker), sign challenge message, verify signature
-1. **Home** (/) - Team dashboard, nav grid, play next league match button with "View Match Report" link, redirect to login if not authenticated
+1. **Home** (/) - Team dashboard, nav grid, game day info (read-only, no play button), training center always visible with dynamic labels, redirect to login if not authenticated
 2. **Lineup** (/lineup) - Assign field positions (SP read-only from pitching, C,1B...RF), DH toggle, reorder batting order 1-9 (SP moveable)
 3. **Pitchers** (/pitchers) - Assign pitcher roles: SP, R1, C, 2P. SP/R1/Closer switch conditions via sliders (pitches, innings, BB, ER). Pitcher Style RPS (velocity/movement/command vs batter approach)
 4. **Attack** (/attack) - 3 tactical sections: Attack Style (bunt/h&r/neutral/sos with probability modifiers), Batter Approach (power/contact/patient RPS vs pitcher), Offensive Attack (aggressive/balanced/conservative RPS vs defense)
@@ -69,7 +69,7 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 14. **Batting Practice** (/training/batting) - Timing minigame: swing at the sweet spot, 10 pitches, rewards CON/POW boost
 15. **Pitch Control** (/training/pitch-control) - Accuracy minigame: tap correct zone in 3x3 grid, 10 rounds, rewards CTL boost
 16. **Team** (/team) - Team overview: user info (wallet, registration), team info (name, color, league), token balance with claim button, full roster table with base + bonus attributes
-17. **Admin** (/admin) - Admin-only panel: token economy config (X tokens per Y hours, reset treasury), training reward rules (attributes, amounts, min scores, caps). Access via is_admin flag on user
+17. **Admin** (/admin) - Admin-only panel: match day control (simulate/new season/reset season/wipe DB), token economy config (X tokens per Y hours, reset treasury), training reward rules (attributes, amounts, min scores, caps, reward target). First user on empty DB = auto admin
 
 ## Deep Navigation Flow
 - Home → Play Match → View Match Report → Player Detail
@@ -130,10 +130,11 @@ All modifiers are multiplicative percentages applied to base probability table i
 
 ## Dynamic League Expansion
 - Triggered automatically when a new user registers and all existing teams have owners
-- Creates next league (L3, L4, ...) with SerieA + SerieB (10 teams each)
-- Generates 400 players (20 per team) with gaussian stat distribution
-- Creates full 14-day schedule (regular + interleague + playoff placeholders)
-- New team from expansion is automatically assigned to the registering user
+- **Capped at MAX_LEAGUES = 4** (L1-L4): nessuna espansione oltre L4
+- Se < 4 leghe: crea nuova lega con SerieA + SerieB (20 team, 400 giocatori, schedule 14 giorni)
+- Se già 4 leghe: `expandLeague()` ritorna early, `ensureExtraLeague()` skip
+- Nuovi utenti assegnati a team liberi nelle 4 leghe esistenti
+- Seed iniziale crea 4 leghe (L1-L4): 80 team, 1600 giocatori
 
 ## Page Documentation
 Each page has a dedicated .md file in root: PAGE_LOGIN.md, PAGE_HOME.md, PAGE_LINEUP.md, PAGE_PITCHERS.md, PAGE_ATTACK.md, PAGE_DEFENSE.md, PAGE_SIMULATE.md, PAGE_SCHEDULE.md, PAGE_STANDINGS.md, PAGE_PLAYER_DETAIL.md, PAGE_MATCH_DETAIL.md, PAGE_PLAY_LOG.md, PAGE_TEAM.md, PAGE_ADMIN.md

@@ -19,7 +19,7 @@ Il matchup rating + tattiche determinano le probabilità di ogni esito dalla tab
 - **GO** / **FO** → palla in gioco verso la difesa (passa alla Fase 3)
 
 La tabella ha 7 fasce (very_negative → very_positive) basate sul MR.
-Modificatori tattici (attacco, difesa, RPS battitore/lanciatore, RPS offesa/difesa) vengono applicati in modo moltiplicativo.
+Modificatori tattici (attacco, difesa, RPS battitore/lanciatore, RPS offesa/difesa) vengono applicati/.
 
 ### Fase 3 — Direzione e risoluzione difensiva (PlayI / PlayO)
 
@@ -67,7 +67,7 @@ L'errore viene valutato sulla qualità difensiva dei difensori coinvolti:
 
 ### 2B (Doppio)
 - Corridore in 3B segna, corridore in 2B segna
-- Corridore in 1B: segna se velocità sufficiente (prob = 0.6 + spd/200), altrimenti avanza in 3B
+- Corridore in 1B: segna se velocità sufficiente (prob = 0.6 + spd/200),valuta come opportunità di rubata, altrimenti avanza in 3B
 
 ### 1B (Singolo)
 - Corridore in 3B segna
@@ -86,6 +86,8 @@ L'errore viene valutato sulla qualità difensiva dei difensori coinvolti:
 ## Matchup Rating
 
 `MR = batterScore - pitcherScore`
+ma deve essere influenzato da tattica lanciatore vs battitore.
+Implementare e marcare come implementato. 
 
 - batterScore = pow×0.25 + con×0.30 + eye×0.20 + spd×0.15
 - pitcherScore = vel×0.30 + ctl×0.25 + mov×0.25 + fatiguePenalty
@@ -104,10 +106,14 @@ Valutata prima di ogni at-bat. Catena: SP → R1 → Closer.
 
 **R1 esce se:**
 - pitchCount ≥ r1MaxPitches (15-80)
+- inningsPitched ≥ maxInnings (1-9)
+- bbAllowed ≥ maxBb (1-10)
 - erAllowed ≥ r1MaxEr (1-6)
 
 **Closer esce se:**
 - pitchCount ≥ closerMaxPitches (10-60)
+- inningsPitched ≥ maxInnings (1-9)
+- bbAllowed ≥ maxBb (1-10)
 - erAllowed ≥ closerMaxEr (1-5)
 
 ## Tactics System (RPS Layer)
@@ -136,27 +142,9 @@ Valutata prima di ogni at-bat. Catena: SP → R1 → Closer.
 ### RPS Offense vs Defense
 | | Aggressive | Balanced | Protective |
 |---|------------|----------|------------|
-| Aggressive | Lose | Tie | Win |
+| Aggressive | Lose | Win | Tie |
 | Balanced | Win | Tie | Lose |
-| Conservative | Lose | Tie | Tie |
-
-## Pitcher Substitution
-
-Valutata prima di ogni at-bat. Catena: SP → R1 → Closer.
-
-**SP esce se:**
-- pitchCount ≥ maxPitches (50-150)
-- inningsPitched ≥ maxInnings (1-9)
-- bbAllowed ≥ maxBb (1-10)
-- erAllowed ≥ maxEr (1-10)
-
-**R1 esce se:**
-- pitchCount ≥ r1MaxPitches (15-80)
-- erAllowed ≥ r1MaxEr (1-6)
-
-**Closer esce se:**
-- pitchCount ≥ closerMaxPitches (10-60)
-- erAllowed ≥ closerMaxEr (1-5)
+| Conservative | Tie | Lose | Win |
 
 ## DH Rule
 

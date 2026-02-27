@@ -21,14 +21,24 @@ Questo documento definisce le specifiche tecniche e le regole di gioco. Serve co
 
 ## Attributi giocatori (scala 1–100, invariati)
 Offensive (batter): POW, CON, SPD, EYE  
-Pitching: VEL, CTL, MOV, STA  
-Aggiunti per beta (possono essere derivati o separati):
+Pitching Pitchers: VEL, CTL, MOV
+Fielding: DEF, RNG, ARM
+Shared: EYE, STA
+
 - DEF_pos → attributo difensivo specifico per posizione (es. INF per SS/2B/3B, OF per esterni, C per catcher, 1B per prima base)
-  - Per semplicità MVP: media squadra per INF/OF/C/1B, o per giocatore se vuoi profondità futura
+  
+## Bonus_Attributi Buffs/Perks giocatori (da calcolare pregeme, ingame ogni cambio lanciatore)
+- Bonus_Attributi in database per ogni attributo.
+-scritto da bonus allenamento minigame o acquisto, addizionato al valore precedente
+-a fine stagione, il 25% del bonus attributo viene addizionato perennemente all'attributo di riferimento del player e successivamente il campo azzerato per nuova stagione.
+- Per semplicità MVP: media squadra per INF/OF/C/1B.
 
 ## Conteggio balls/strikes e pitches totali (nuovo per beta)
 - Inizia ogni PA: 0-0
-- Per ogni at-bat simulato:
+- confronta RPS Tattiche lanciatoreVSbatter per setup coefficenti tattica 
+- Prepara i coefficenti delle tattiche del lanciatore e/o battitore se Necessario
+- prepara somma attributi+bonus giocatori schierati lineup per confronti
+- Per ogni at-bat simulato: et
   - Calcola strikes_prob = f(matchup_rating)  → es. strikes_prob = 0.45 + (pitcher_VEL - batter_CON)/400
   - balls_prob   = 0.20 + (batter_EYE - pitcher_CTL)/400   (clamped 0.05–0.40)
   - foul_prob    = 0.25 + (batter_CON - pitcher_VEL)/300   (foul prolunga count senza out)

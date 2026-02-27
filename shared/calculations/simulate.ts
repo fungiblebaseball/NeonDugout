@@ -9,18 +9,21 @@ import type {
 
 const HOME_ADVANTAGE = 8;
 
-export interface PitchingConfig {
-  sp: SimPlayer | null;
-  r1: SimPlayer | null;
-  closer: SimPlayer | null;
+export interface PitcherRoleSimConfig {
   maxPitches: number;
   maxInnings: number;
   maxBb: number;
   maxEr: number;
-  r1MaxPitches: number;
-  r1MaxEr: number;
-  closerMaxPitches: number;
-  closerMaxEr: number;
+  pitcherStyle: string;
+}
+
+export interface PitchingConfig {
+  sp: SimPlayer | null;
+  r1: SimPlayer | null;
+  closer: SimPlayer | null;
+  spConfig: PitcherRoleSimConfig;
+  r1Config: PitcherRoleSimConfig;
+  closerConfig: PitcherRoleSimConfig;
 }
 
 export interface SimConfig {
@@ -79,6 +82,7 @@ function simulateAtBat(
   isHome: boolean,
   tactics?: TacticsModifiers,
   opponentTactics?: TacticsModifiers,
+  activePitcherStyle?: string,
 ): AtBatResult {
   const mr = matchupRating(batter, pitcher, inning) + (isHome ? HOME_ADVANTAGE : 0);
   const r = rng();
@@ -106,7 +110,7 @@ function simulateAtBat(
     };
   }
 
-  const outcome = rollOutcome(mr, r.next(), tactics, opponentTactics);
+  const outcome = rollOutcome(mr, r.next(), tactics, opponentTactics, activePitcherStyle);
 
   return {
     outcome,
@@ -234,32 +238,24 @@ function advanceRunners(
   }
 }
 
+function getRoleConfig(role: 'sp' | 'r1' | 'closer', config: PitchingConfig): PitcherRoleSimConfig {
+  if (role === 'sp') return config.spConfig;
+  if (role === 'r1') return config.r1Config;
+  return config.closerConfig;
+}
+
 function shouldSubstitutePitcher(
   active: ActivePitcher,
   config: PitchingConfig,
   inning: number,
 ): boolean {
-  if (active.role === 'sp') {
-    return (
-      active.pitchCount >= config.maxPitches ||
-      active.inningsPitched >= config.maxInnings ||
-      active.bbAllowed >= config.maxBb ||
-      active.erAllowed >= config.maxEr
-    );
-  }
-  if (active.role === 'r1') {
-    return (
-      active.pitchCount >= config.r1MaxPitches ||
-      active.erAllowed >= config.r1MaxEr
-    );
-  }
-  if (active.role === 'closer') {
-    return (
-      active.pitchCount >= config.closerMaxPitches ||
-      active.erAllowed >= config.closerMaxEr
-    );
-  }
-  return false;
+  const rc = getRoleConfig(active.role, config);
+  return (
+    active.pitchCount >= rc.maxPitches ||
+    active.inningsPitched >= rc.maxInnings ||
+    active.bbAllowed >= rc.maxBb ||
+    active.erAllowed >= rc.maxEr
+  );
 }
 
 function getNextPitcher(current: ActivePitcher, config: PitchingConfig): ActivePitcher | null {
@@ -291,20 +287,11 @@ interface HalfInningResult {
 }
 
 function getSubstitutionReason(active: ActivePitcher, config: PitchingConfig): string {
-  if (active.role === 'sp') {
-    if (active.pitchCount >= config.maxPitches) return `${active.pitchCount} lanci`;
-    if (active.inningsPitched >= config.maxInnings) return `${active.inningsPitched} inning`;
-    if (active.bbAllowed >= config.maxBb) return `${active.bbAllowed} BB`;
-    if (active.erAllowed >= config.maxEr) return `${active.erAllowed} ER`;
-  }
-  if (active.role === 'r1') {
-    if (active.pitchCount >= config.r1MaxPitches) return `${active.pitchCount} lanci`;
-    if (active.erAllowed >= config.r1MaxEr) return `${active.erAllowed} ER`;
-  }
-  if (active.role === 'closer') {
-    if (active.pitchCount >= config.closerMaxPitches) return `${active.pitchCount} lanci`;
-    if (active.erAllowed >= config.closerMaxEr) return `${active.erAllowed} ER`;
-  }
+  const rc = getRoleConfig(active.role, config);
+  if (active.pitchCount >= rc.maxPitches) return `${active.pitchCount} lanci`;
+  if (active.inningsPitched >= rc.maxInnings) return `${active.inningsPitched} inning`;
+  if (active.bbAllowed >= rc.maxBb) return `${active.bbAllowed} BB`;
+  if (active.erAllowed >= rc.maxEr) return `${active.erAllowed} ER`;
   return '';
 }
 
@@ -354,7 +341,8 @@ function simulateHalfInning(
 
     const batter = battingLineup[currentBatter % battingLineup.length];
     const mr = matchupRating(batter, activePitcher.player, inning) + (isHome ? HOME_ADVANTAGE : 0);
-    const result = simulateAtBat(batter, activePitcher.player, inning, isHome, battingTactics, defenseTactics);
+    const currentPitcherStyle = pitchingConfig ? getRoleConfig(activePitcher.role, pitchingConfig).pitcherStyle : undefined;
+    const result = simulateAtBat(batter, activePitcher.player, inning, isHome, battingTactics, defenseTactics, currentPitcherStyle);
     pitchesUsed += result.pitchCount;
     activePitcher.pitchCount += result.pitchCount;
 
@@ -551,6 +539,10 @@ function getStartingPitcher(players: SimPlayer[]): SimPlayer {
   );
 }
 
+const DEFAULT_SP_CONFIG: PitcherRoleSimConfig = { maxPitches: 100, maxInnings: 7, maxBb: 4, maxEr: 4, pitcherStyle: 'command' };
+const DEFAULT_R1_CONFIG: PitcherRoleSimConfig = { maxPitches: 40, maxInnings: 9, maxBb: 4, maxEr: 3, pitcherStyle: 'command' };
+const DEFAULT_CLOSER_CONFIG: PitcherRoleSimConfig = { maxPitches: 30, maxInnings: 9, maxBb: 4, maxEr: 2, pitcherStyle: 'command' };
+
 function buildPitchingConfigInternal(players: SimPlayer[], config?: PitchingConfig): { pitcher: ActivePitcher; config: PitchingConfig } {
   if (config && config.sp) {
     return {
@@ -575,9 +567,9 @@ function buildPitchingConfigInternal(players: SimPlayer[], config?: PitchingConf
       sp,
       r1: pitchers[0] || null,
       closer: pitchers[1] || null,
-      maxPitches: 100, maxInnings: 7, maxBb: 4, maxEr: 4,
-      r1MaxPitches: 40, r1MaxEr: 3,
-      closerMaxPitches: 30, closerMaxEr: 2,
+      spConfig: { ...DEFAULT_SP_CONFIG },
+      r1Config: { ...DEFAULT_R1_CONFIG },
+      closerConfig: { ...DEFAULT_CLOSER_CONFIG },
     },
   };
 }

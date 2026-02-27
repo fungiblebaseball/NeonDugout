@@ -22,7 +22,7 @@ Questo documento definisce le specifiche tecniche e le regole di gioco. Serve co
 ## Attributi giocatori (scala 1–100, invariati)
 Offensive (batter): POW, CON, SPD, EYE  
 Pitching Pitchers: VEL, CTL, MOV
-Fielding: DEF, RNG, ARM
+Fielding: DEF
 Shared: EYE, STA
 
 - DEF_pos → attributo difensivo specifico per posizione (es. INF per SS/2B/3B, OF per esterni, C per catcher, 1B per prima base)
@@ -145,32 +145,34 @@ Se GIDP → 2 outs, batter out, runner out a 2B
 - Home advantage: +8 a tutti i matchup_rating offensivi casa — **IMPLEMENTATO**
 - Fatigue: pitcher STA penalty dopo inning 5–6 — **IMPLEMENTATO** (fatiguePenalty = (inning > 5) ? (inning - 5) × (100 - sta) × 0.04 : 0)
 
-## Pitcher Substitution (IMPLEMENTATO v1.0)
+## Pitcher Substitution (IMPLEMENTATO v1.0, refactored v1.13.0 — per-pitcher configs)
 Valutata prima di ogni at-bat. Catena: SP → R1 → Closer.
+Ogni ruolo ha le stesse 4 condizioni configurabili individualmente tramite `pitcherConfigs` JSONB in `pitcher_rotations`.
 
-**SP esce se:**
-- pitchCount ≥ maxPitches (50-150)
-- inningsPitched ≥ maxInnings (1-9)
+**Range uniformi per tutti i ruoli (SP, R1, Closer):**
+- pitchCount ≥ maxPitches (10-100)
+- inningsPitched ≥ maxInnings (0-9)
 - bbAllowed ≥ maxBb (1-10)
 - erAllowed ≥ maxEr (1-10)
 
-**R1 esce se:**
-- pitchCount ≥ r1MaxPitches (15-80)
-- erAllowed ≥ r1MaxEr (1-6)
+**Default:**
+- SP: { maxPitches: 100, maxInnings: 7, maxBb: 4, maxEr: 4, pitcherStyle: "command" }
+- R1: { maxPitches: 40, maxInnings: 9, maxBb: 4, maxEr: 3, pitcherStyle: "command" }
+- Closer: { maxPitches: 30, maxInnings: 9, maxBb: 4, maxEr: 2, pitcherStyle: "command" }
 
-**Closer esce se:**
-- pitchCount ≥ closerMaxPitches (10-60)
-- erAllowed ≥ closerMaxEr (1-5)
+Al cambio lanciatore, il `pitcherStyle` attivo viene aggiornato con lo stile del nuovo pitcher (ricalcolo RPS automatico).
 
 Senza DH: il rilievo prende lo slot di battuta del predecessore.
 Con DH: il rilievo non batte mai.
 
-## Tattiche — Sistema completo (IMPLEMENTATO v1.0–v1.3)
+## Tattiche — Sistema completo (IMPLEMENTATO v1.0–v1.3, pitcherStyle refactored v1.13.0)
 
-7 campi tattici salvati per team in tabella `tactics`:
-`attackStyle`, `infieldPosition`, `outfieldPosition`, `batterApproach`, `pitcherStyle`, `offensiveAttack`, `defenseSetup`
+6 campi tattici salvati per team in tabella `tactics`:
+`attackStyle`, `infieldPosition`, `outfieldPosition`, `batterApproach`, `offensiveAttack`, `defenseSetup`
 
-Configurati nelle pagine Attack (/attack) e Defense (/defense). Tutti i modificatori sono moltiplicativi sulla tabella probabilità in `shared/calculations/probability.ts`.
+`pitcherStyle` e' ora PER-PITCHER: salvato nel campo `pitcherConfigs` JSONB della tabella `pitcher_rotations` (non piu' in `tactics`).
+
+Configurati nelle pagine Attack (/attack), Defense (/defense) e Pitchers (/pitchers). Tutti i modificatori sono moltiplicativi sulla tabella probabilità in `shared/calculations/probability.ts`.
 
 ### 1. Attack Style (4 opzioni) — modificatori diretti
 | Stile | Effetto |

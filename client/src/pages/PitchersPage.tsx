@@ -8,6 +8,14 @@ import { useLocation } from "wouter";
 
 type PitcherRoles = { sp: number | null; r1: number | null; closer: number | null; nextSp: number | null };
 
+interface PitcherRoleConfig {
+  maxPitches: number;
+  maxInnings: number;
+  maxBb: number;
+  maxEr: number;
+  pitcherStyle: PitcherStyle;
+}
+
 interface SeasonStats {
   playerId: number;
   gamesPlayed: number;
@@ -29,38 +37,23 @@ interface SeasonStats {
 }
 
 const ROLE_CONFIG = [
-  { key: 'sp' as const, label: 'SP', fullLabel: 'STARTING PITCHER', color: 'pink', desc: 'Partente gara corrente' },
-  { key: 'r1' as const, label: 'R1', fullLabel: 'RELIEF 1', color: 'cyan', desc: 'Primo rilievo' },
-  { key: 'closer' as const, label: 'C', fullLabel: 'CLOSER', color: 'pink', desc: 'Chiusura / salvataggio' },
-  { key: 'nextSp' as const, label: '2P', fullLabel: 'NEXT STARTER', color: 'cyan', desc: 'Partente prossima gara (auto-rotato)' },
+  { key: 'sp' as const, label: 'SP', fullLabel: 'STARTING PITCHER', color: 'pink', desc: 'Partente gara corrente', configKey: 'sp' as const },
+  { key: 'r1' as const, label: 'R1', fullLabel: 'RELIEF 1', color: 'cyan', desc: 'Primo rilievo', configKey: 'r1' as const },
+  { key: 'closer' as const, label: 'C', fullLabel: 'CLOSER', color: 'pink', desc: 'Chiusura / salvataggio', configKey: 'closer' as const },
+  { key: 'nextSp' as const, label: '2P', fullLabel: 'NEXT STARTER', color: 'cyan', desc: 'Partente prossima gara (auto-rotato)', configKey: null },
 ];
 
-const PITCHER_STYLE_OPTIONS: { value: PitcherStyle; label: string; desc: string; icon: string; beats: string; losesTo: string }[] = [
-  {
-    value: 'velocity',
-    label: 'VELOCITY',
-    desc: 'Pure heat. Overpower batters with fastballs and hard stuff.',
-    icon: '🔥',
-    beats: 'Contact approach',
-    losesTo: 'Patient approach',
-  },
-  {
-    value: 'movement',
-    label: 'MOVEMENT',
-    desc: 'Spin and deception. Break and change-up to fool timing.',
-    icon: '🌀',
-    beats: 'Patient approach',
-    losesTo: 'Power approach',
-  },
-  {
-    value: 'command',
-    label: 'COMMAND',
-    desc: 'Surgical precision. Paint corners and exploit weaknesses.',
-    icon: '🎯',
-    beats: 'Power approach',
-    losesTo: 'Contact approach',
-  },
+const PITCHER_STYLE_OPTIONS: { value: PitcherStyle; label: string; icon: string; beats: string; losesTo: string }[] = [
+  { value: 'velocity', label: 'VELOCITY', icon: '🔥', beats: 'Contact', losesTo: 'Patient' },
+  { value: 'movement', label: 'MOVEMENT', icon: '🌀', beats: 'Patient', losesTo: 'Power' },
+  { value: 'command', label: 'COMMAND', icon: '🎯', beats: 'Power', losesTo: 'Contact' },
 ];
+
+const DEFAULT_CONFIGS: Record<string, PitcherRoleConfig> = {
+  sp: { maxPitches: 100, maxInnings: 7, maxBb: 4, maxEr: 4, pitcherStyle: 'command' },
+  r1: { maxPitches: 40, maxInnings: 9, maxBb: 4, maxEr: 3, pitcherStyle: 'command' },
+  closer: { maxPitches: 30, maxInnings: 9, maxBb: 4, maxEr: 2, pitcherStyle: 'command' },
+};
 
 function PitcherSeasonLine({ stats }: { stats: SeasonStats | undefined }) {
   if (!stats || stats.ip === 0) return <span className="text-[9px] font-mono text-gray-600 italic">No season data</span>;
@@ -74,6 +67,74 @@ function PitcherSeasonLine({ stats }: { stats: SeasonStats | undefined }) {
       <span className="text-[9px] font-mono text-gray-500">SO <span className="text-cyan-400">{stats.pitcherSo}</span></span>
       <span className="text-[9px] font-mono text-gray-500">WHIP <span className="text-pink-400">{whip}</span></span>
       <span className="text-[9px] font-mono text-gray-500">GS <span className="text-cyan-400">{stats.gamesStarted}</span></span>
+    </div>
+  );
+}
+
+function SwitchConditionsPanel({
+  config,
+  onChange,
+  roleLabel,
+}: {
+  config: PitcherRoleConfig;
+  onChange: (c: PitcherRoleConfig) => void;
+  roleLabel: string;
+}) {
+  return (
+    <div className="space-y-4 mt-3 pt-3 border-t border-gray-800/50">
+      <div className="space-y-1">
+        <div className="flex justify-between">
+          <label className="text-[10px] font-mono text-cyan-300 uppercase">Pitch Count</label>
+          <span data-testid={`text-${roleLabel}-max-pitches`} className="text-[10px] font-mono text-pink-400 font-bold">{config.maxPitches}</span>
+        </div>
+        <Slider data-testid={`slider-${roleLabel}-max-pitches`} value={[config.maxPitches]} onValueChange={([v]) => onChange({ ...config, maxPitches: v })} min={10} max={100} step={5} className="py-1" />
+      </div>
+      <div className="space-y-1">
+        <div className="flex justify-between">
+          <label className="text-[10px] font-mono text-cyan-300 uppercase">Innings Pitched</label>
+          <span data-testid={`text-${roleLabel}-max-innings`} className="text-[10px] font-mono text-pink-400 font-bold">{config.maxInnings}</span>
+        </div>
+        <Slider data-testid={`slider-${roleLabel}-max-innings`} value={[config.maxInnings]} onValueChange={([v]) => onChange({ ...config, maxInnings: v })} min={0} max={9} step={1} className="py-1" />
+      </div>
+      <div className="space-y-1">
+        <div className="flex justify-between">
+          <label className="text-[10px] font-mono text-cyan-300 uppercase">Base on Balls (BB)</label>
+          <span data-testid={`text-${roleLabel}-max-bb`} className="text-[10px] font-mono text-pink-400 font-bold">{config.maxBb}</span>
+        </div>
+        <Slider data-testid={`slider-${roleLabel}-max-bb`} value={[config.maxBb]} onValueChange={([v]) => onChange({ ...config, maxBb: v })} min={1} max={10} step={1} className="py-1" />
+      </div>
+      <div className="space-y-1">
+        <div className="flex justify-between">
+          <label className="text-[10px] font-mono text-cyan-300 uppercase">Earned Runs (ER)</label>
+          <span data-testid={`text-${roleLabel}-max-er`} className="text-[10px] font-mono text-pink-400 font-bold">{config.maxEr}</span>
+        </div>
+        <Slider data-testid={`slider-${roleLabel}-max-er`} value={[config.maxEr]} onValueChange={([v]) => onChange({ ...config, maxEr: v })} min={1} max={10} step={1} className="py-1" />
+      </div>
+
+      <div className="pt-2 border-t border-gray-800/30">
+        <p className="text-[9px] font-mono text-purple-400 uppercase mb-2">Pitcher Style (RPS)</p>
+        <div className="grid grid-cols-3 gap-2">
+          {PITCHER_STYLE_OPTIONS.map(opt => (
+            <button
+              key={opt.value}
+              data-testid={`button-${roleLabel}-style-${opt.value}`}
+              onClick={() => onChange({ ...config, pitcherStyle: opt.value })}
+              className={`p-2 rounded-lg border text-center transition-all ${
+                config.pitcherStyle === opt.value
+                  ? 'border-purple-400 bg-purple-950/30 shadow-[0_0_10px_rgba(168,85,247,0.15)]'
+                  : 'border-gray-800 bg-gray-950/30 hover:border-gray-600'
+              }`}
+            >
+              <span className="text-lg block">{opt.icon}</span>
+              <span className={`text-[8px] font-black block mt-1 ${config.pitcherStyle === opt.value ? 'text-purple-300' : 'text-gray-500'}`} style={{fontFamily: "'Orbitron', sans-serif"}}>
+                {opt.label}
+              </span>
+              <span className="text-[7px] font-mono text-green-500 block">▲{opt.beats}</span>
+              <span className="text-[7px] font-mono text-red-500 block">▼{opt.losesTo}</span>
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -107,25 +168,13 @@ export default function PitchersPage() {
     for (const s of teamStats) statsMap.set(s.playerId, s);
   }
 
-  const { data: savedTactics } = useQuery({
-    queryKey: ['tactics', team?.id],
-    queryFn: async () => {
-      const res = await fetch(`/api/tactics/${team!.id}`);
-      return res.json();
-    },
-    enabled: !!team,
-  });
-
   const [roles, setRoles] = useState<PitcherRoles>({ sp: null, r1: null, closer: null, nextSp: null });
-  const [pitcherStyle, setPitcherStyle] = useState<PitcherStyle>('command');
-  const [maxPitches, setMaxPitches] = useState(100);
-  const [maxInnings, setMaxInnings] = useState(7);
-  const [maxBb, setMaxBb] = useState(4);
-  const [maxEr, setMaxEr] = useState(4);
-  const [r1MaxPitches, setR1MaxPitches] = useState(40);
-  const [r1MaxEr, setR1MaxEr] = useState(3);
-  const [closerMaxPitches, setCloserMaxPitches] = useState(30);
-  const [closerMaxEr, setCloserMaxEr] = useState(2);
+  const [pitcherConfigs, setPitcherConfigs] = useState<Record<string, PitcherRoleConfig>>({
+    sp: { ...DEFAULT_CONFIGS.sp },
+    r1: { ...DEFAULT_CONFIGS.r1 },
+    closer: { ...DEFAULT_CONFIGS.closer },
+  });
+  const [expandedRoles, setExpandedRoles] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (saved) {
@@ -138,14 +187,14 @@ export default function PitchersPage() {
         savedRoles.nextSp = order[3] ?? null;
       }
       setRoles(savedRoles);
-      setMaxPitches(saved.maxPitches ?? 100);
-      setMaxInnings(saved.maxInnings ?? 7);
-      setMaxBb(saved.maxBb ?? 4);
-      setMaxEr(saved.maxEr ?? 4);
-      setR1MaxPitches(saved.r1MaxPitches ?? 40);
-      setR1MaxEr(saved.r1MaxEr ?? 3);
-      setCloserMaxPitches(saved.closerMaxPitches ?? 30);
-      setCloserMaxEr(saved.closerMaxEr ?? 2);
+
+      if (saved.pitcherConfigs) {
+        setPitcherConfigs({
+          sp: { ...DEFAULT_CONFIGS.sp, ...(saved.pitcherConfigs.sp || {}) },
+          r1: { ...DEFAULT_CONFIGS.r1, ...(saved.pitcherConfigs.r1 || {}) },
+          closer: { ...DEFAULT_CONFIGS.closer, ...(saved.pitcherConfigs.closer || {}) },
+        });
+      }
     } else if (pitchers.length > 0 && !roles.sp) {
       setRoles({
         sp: pitchers[0]?.id ?? null,
@@ -156,42 +205,19 @@ export default function PitchersPage() {
     }
   }, [saved, pitchers.length]);
 
-  useEffect(() => {
-    if (savedTactics?.pitcherStyle) {
-      setPitcherStyle(savedTactics.pitcherStyle as PitcherStyle);
-    }
-  }, [savedTactics]);
-
   const saveMutation = useMutation({
     mutationFn: async () => {
       const rotationOrder = [roles.sp, roles.r1, roles.closer, roles.nextSp].filter((id): id is number => id !== null);
-      const [rotRes, tacRes] = await Promise.all([
-        fetch('/api/pitcher-rotation', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ teamId: team!.id, rotationOrder, roles, maxPitches, maxInnings, maxBb, maxEr, r1MaxPitches, r1MaxEr, closerMaxPitches, closerMaxEr }),
-        }),
-        fetch('/api/tactics', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            teamId: team!.id,
-            pitcherStyle,
-            attackStyle: savedTactics?.attackStyle || 'neutral',
-            infieldPosition: savedTactics?.infieldPosition || 'neutral',
-            outfieldPosition: savedTactics?.outfieldPosition || 'neutral',
-            batterApproach: savedTactics?.batterApproach || 'contact',
-            offensiveAttack: savedTactics?.offensiveAttack || 'balanced',
-            defenseSetup: savedTactics?.defenseSetup || 'balanced',
-          }),
-        }),
-      ]);
-      return rotRes.json();
+      const res = await fetch('/api/pitcher-rotation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teamId: team!.id, rotationOrder, roles, pitcherConfigs }),
+      });
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pitcher-rotation'] });
       queryClient.invalidateQueries({ queryKey: ['lineup'] });
-      queryClient.invalidateQueries({ queryKey: ['tactics'] });
     },
   });
 
@@ -212,6 +238,15 @@ export default function PitchersPage() {
     setRoles(prev => ({ ...prev, [roleKey]: playerId }));
   };
 
+  const toggleExpanded = (key: string) => {
+    setExpandedRoles(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
   const bullpenPitchers = pitchers.filter(p => !assignedRoleIds.has(p.id));
 
   return (
@@ -223,35 +258,47 @@ export default function PitchersPage() {
         <p className="text-xs font-mono text-pink-200/60 mt-1">{team.name}</p>
       </header>
 
-      <main className="p-4 space-y-6">
-        <div className="space-y-4">
-          <h2 className="text-sm font-mono text-cyan-500 border-b border-cyan-500/30 pb-2">ROLE ASSIGNMENTS</h2>
+      <main className="p-4 space-y-4">
+        <h2 className="text-sm font-mono text-cyan-500 border-b border-cyan-500/30 pb-2">PITCHER SEQUENCE</h2>
 
-          {ROLE_CONFIG.map(({ key, label, fullLabel, color, desc }) => {
-            const assigned = getPlayer(roles[key]);
-            const available = getAvailablePitchers(key);
-            const borderColor = color === 'pink' ? 'border-pink-500/30' : 'border-cyan-500/30';
-            const bgColor = color === 'pink' ? 'bg-pink-950/10' : 'bg-cyan-950/10';
-            const badgeColor = color === 'pink' ? 'bg-pink-600 text-white' : 'bg-cyan-600 text-white';
-            const labelColor = color === 'pink' ? 'text-pink-400' : 'text-cyan-400';
+        {ROLE_CONFIG.map(({ key, label, fullLabel, color, desc, configKey }) => {
+          const assigned = getPlayer(roles[key]);
+          const available = getAvailablePitchers(key);
+          const borderColor = color === 'pink' ? 'border-pink-500/30' : 'border-cyan-500/30';
+          const bgColor = color === 'pink' ? 'bg-pink-950/10' : 'bg-cyan-950/10';
+          const badgeColor = color === 'pink' ? 'bg-pink-600 text-white' : 'bg-cyan-600 text-white';
+          const labelColor = color === 'pink' ? 'text-pink-400' : 'text-cyan-400';
+          const isExpanded = expandedRoles.has(key);
+          const hasConfig = configKey !== null;
 
-            return (
-              <div key={key} data-testid={`pitcher-role-${key}`} className={`p-4 rounded-xl border ${borderColor} ${bgColor}`}>
+          return (
+            <div key={key} data-testid={`pitcher-role-${key}`} className={`rounded-xl border ${borderColor} ${bgColor} overflow-hidden`}>
+              <div
+                className={`p-4 ${hasConfig ? 'cursor-pointer' : ''}`}
+                onClick={() => hasConfig && toggleExpanded(key)}
+              >
                 <div className="flex items-center gap-3 mb-3">
                   <span className={`px-2 py-1 rounded text-xs font-black ${badgeColor}`} style={{fontFamily: "'Press Start 2P', cursive", fontSize: '10px'}}>
                     {label}
                   </span>
-                  <div>
+                  <div className="flex-1">
                     <span className={`text-xs font-bold uppercase ${labelColor}`} style={{fontFamily: "'Orbitron', sans-serif"}}>{fullLabel}</span>
                     <p className="text-[10px] font-mono text-gray-500">{desc}</p>
                   </div>
+                  {hasConfig && (
+                    <span className={`text-gray-500 text-sm transition-transform ${isExpanded ? 'rotate-180' : ''}`}>▼</span>
+                  )}
                 </div>
 
                 <Select
                   value={roles[key]?.toString() || undefined}
-                  onValueChange={(val) => setRole(key, val)}
+                  onValueChange={(val) => { setRole(key, val); }}
                 >
-                  <SelectTrigger data-testid={`select-role-${key}`} className="w-full bg-black border-gray-800 text-cyan-50 font-mono text-sm h-10">
+                  <SelectTrigger
+                    data-testid={`select-role-${key}`}
+                    className="w-full bg-black border-gray-800 text-cyan-50 font-mono text-sm h-10"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <SelectValue placeholder="-- SELECT PITCHER --" />
                   </SelectTrigger>
                   <SelectContent className="bg-gray-950 border-cyan-500/30 text-cyan-50 max-h-64">
@@ -266,7 +313,7 @@ export default function PitchersPage() {
 
                 {assigned && (
                   <div className="mt-3 px-1">
-                    <button onClick={() => navigate(`/player/${assigned.id}`)} className="text-xs font-bold text-cyan-300 hover:text-cyan-100 underline underline-offset-2 mb-1 block">{assigned.name}</button>
+                    <button onClick={(e) => { e.stopPropagation(); navigate(`/player/${assigned.id}`); }} className="text-xs font-bold text-cyan-300 hover:text-cyan-100 underline underline-offset-2 mb-1 block">{assigned.name}</button>
                     <div className="flex gap-4">
                       <span className="text-[10px] font-mono text-gray-500">VEL <span className="text-pink-400 font-bold">{assigned.vel}</span></span>
                       <span className="text-[10px] font-mono text-gray-500">CTL <span className="text-cyan-400 font-bold">{assigned.ctl}</span></span>
@@ -275,12 +322,30 @@ export default function PitchersPage() {
                       <span className="text-[10px] font-mono text-gray-500">DEF <span className="text-cyan-400 font-bold">{assigned.def}</span></span>
                     </div>
                     <PitcherSeasonLine stats={statsMap.get(assigned.id)} />
+                    {hasConfig && pitcherConfigs[configKey] && (
+                      <div className="flex gap-2 mt-1">
+                        <span className="text-[8px] font-mono text-purple-400 bg-purple-400/10 px-1.5 py-0.5 rounded">
+                          {PITCHER_STYLE_OPTIONS.find(o => o.value === pitcherConfigs[configKey].pitcherStyle)?.icon} {pitcherConfigs[configKey].pitcherStyle.toUpperCase()}
+                        </span>
+                        <span className="text-[8px] font-mono text-gray-500">P:{pitcherConfigs[configKey].maxPitches} IP:{pitcherConfigs[configKey].maxInnings} BB:{pitcherConfigs[configKey].maxBb} ER:{pitcherConfigs[configKey].maxEr}</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-            );
-          })}
-        </div>
+
+              {hasConfig && isExpanded && configKey && (
+                <div className="px-4 pb-4">
+                  <SwitchConditionsPanel
+                    config={pitcherConfigs[configKey]}
+                    onChange={(c) => setPitcherConfigs(prev => ({ ...prev, [configKey]: c }))}
+                    roleLabel={configKey}
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })}
 
         {bullpenPitchers.length > 0 && (
           <div className="space-y-3">
@@ -301,118 +366,6 @@ export default function PitchersPage() {
             </div>
           </div>
         )}
-
-        <div className="space-y-4">
-          <h2 className="text-sm font-mono text-purple-400 border-b border-purple-500/30 pb-2">PITCHER STYLE</h2>
-          <p className="text-[10px] font-mono text-gray-500">RPS matchup vs opponent's Batter Approach — buffs/debuffs on pitch outcomes</p>
-
-          {PITCHER_STYLE_OPTIONS.map(opt => (
-            <button
-              key={opt.value}
-              data-testid={`button-pitcher-style-${opt.value}`}
-              onClick={() => setPitcherStyle(opt.value)}
-              className={`w-full text-left p-4 rounded-xl border transition-all ${
-                pitcherStyle === opt.value
-                  ? 'border-purple-400 bg-purple-950/30 shadow-[0_0_15px_rgba(168,85,247,0.2)]'
-                  : 'border-gray-800 bg-gray-950/30 hover:border-gray-600'
-              }`}
-            >
-              <div className="flex items-center gap-3 mb-2">
-                <span className="text-2xl">{opt.icon}</span>
-                <span className={`font-black text-lg ${pitcherStyle === opt.value ? 'text-purple-400' : 'text-gray-400'}`} style={{fontFamily: "'Orbitron', sans-serif"}}>
-                  {opt.label}
-                </span>
-                {pitcherStyle === opt.value && (
-                  <span className="ml-auto text-xs font-mono text-purple-400 bg-purple-400/10 px-2 py-1 rounded">ACTIVE</span>
-                )}
-              </div>
-              <p className="text-xs font-mono text-gray-500 leading-relaxed mb-2">{opt.desc}</p>
-              <div className="flex gap-4">
-                <span className="text-[10px] font-mono text-green-400">▲ Beats: {opt.beats}</span>
-                <span className="text-[10px] font-mono text-red-400">▼ Weak vs: {opt.losesTo}</span>
-              </div>
-            </button>
-          ))}
-        </div>
-
-        <div className="space-y-5">
-          <h2 className="text-sm font-mono text-pink-500 border-b border-pink-500/30 pb-2">SP SWITCH CONDITIONS</h2>
-          <p className="text-[10px] font-mono text-gray-500">SP replaced by R1 when ANY condition is met</p>
-
-          <div className="space-y-1">
-            <div className="flex justify-between">
-              <label className="text-xs font-mono text-cyan-300">MAX PITCHES</label>
-              <span data-testid="text-max-pitches" className="text-xs font-mono text-pink-400 font-bold">{maxPitches}</span>
-            </div>
-            <Slider data-testid="slider-max-pitches" value={[maxPitches]} onValueChange={([v]) => setMaxPitches(v)} min={50} max={150} step={5} className="py-2" />
-          </div>
-
-          <div className="space-y-1">
-            <div className="flex justify-between">
-              <label className="text-xs font-mono text-cyan-300">MAX INNINGS</label>
-              <span data-testid="text-max-innings" className="text-xs font-mono text-pink-400 font-bold">{maxInnings}</span>
-            </div>
-            <Slider data-testid="slider-max-innings" value={[maxInnings]} onValueChange={([v]) => setMaxInnings(v)} min={1} max={9} step={1} className="py-2" />
-          </div>
-
-          <div className="space-y-1">
-            <div className="flex justify-between">
-              <label className="text-xs font-mono text-cyan-300">MAX WALKS (BB)</label>
-              <span data-testid="text-max-bb" className="text-xs font-mono text-pink-400 font-bold">{maxBb}</span>
-            </div>
-            <Slider data-testid="slider-max-bb" value={[maxBb]} onValueChange={([v]) => setMaxBb(v)} min={1} max={10} step={1} className="py-2" />
-          </div>
-
-          <div className="space-y-1">
-            <div className="flex justify-between">
-              <label className="text-xs font-mono text-cyan-300">MAX EARNED RUNS (ER)</label>
-              <span data-testid="text-max-er" className="text-xs font-mono text-pink-400 font-bold">{maxEr}</span>
-            </div>
-            <Slider data-testid="slider-max-er" value={[maxEr]} onValueChange={([v]) => setMaxEr(v)} min={1} max={10} step={1} className="py-2" />
-          </div>
-        </div>
-
-        <div className="space-y-5">
-          <h2 className="text-sm font-mono text-cyan-500 border-b border-cyan-500/30 pb-2">R1 SWITCH CONDITIONS</h2>
-          <p className="text-[10px] font-mono text-gray-500">R1 replaced by Closer when ANY condition is met</p>
-
-          <div className="space-y-1">
-            <div className="flex justify-between">
-              <label className="text-xs font-mono text-cyan-300">R1 MAX PITCHES</label>
-              <span data-testid="text-r1-max-pitches" className="text-xs font-mono text-cyan-400 font-bold">{r1MaxPitches}</span>
-            </div>
-            <Slider data-testid="slider-r1-max-pitches" value={[r1MaxPitches]} onValueChange={([v]) => setR1MaxPitches(v)} min={15} max={80} step={5} className="py-2" />
-          </div>
-
-          <div className="space-y-1">
-            <div className="flex justify-between">
-              <label className="text-xs font-mono text-cyan-300">R1 MAX EARNED RUNS (ER)</label>
-              <span data-testid="text-r1-max-er" className="text-xs font-mono text-cyan-400 font-bold">{r1MaxEr}</span>
-            </div>
-            <Slider data-testid="slider-r1-max-er" value={[r1MaxEr]} onValueChange={([v]) => setR1MaxEr(v)} min={1} max={6} step={1} className="py-2" />
-          </div>
-        </div>
-
-        <div className="space-y-5">
-          <h2 className="text-sm font-mono text-pink-500 border-b border-pink-500/30 pb-2">CLOSER SWITCH CONDITIONS</h2>
-          <p className="text-[10px] font-mono text-gray-500">Closer limit conditions (game ends or bullpen takes over)</p>
-
-          <div className="space-y-1">
-            <div className="flex justify-between">
-              <label className="text-xs font-mono text-cyan-300">CLOSER MAX PITCHES</label>
-              <span data-testid="text-closer-max-pitches" className="text-xs font-mono text-pink-400 font-bold">{closerMaxPitches}</span>
-            </div>
-            <Slider data-testid="slider-closer-max-pitches" value={[closerMaxPitches]} onValueChange={([v]) => setCloserMaxPitches(v)} min={10} max={60} step={5} className="py-2" />
-          </div>
-
-          <div className="space-y-1">
-            <div className="flex justify-between">
-              <label className="text-xs font-mono text-cyan-300">CLOSER MAX EARNED RUNS (ER)</label>
-              <span data-testid="text-closer-max-er" className="text-xs font-mono text-pink-400 font-bold">{closerMaxEr}</span>
-            </div>
-            <Slider data-testid="slider-closer-max-er" value={[closerMaxEr]} onValueChange={([v]) => setCloserMaxEr(v)} min={1} max={5} step={1} className="py-2" />
-          </div>
-        </div>
 
         <button
           data-testid="button-save-rotation"

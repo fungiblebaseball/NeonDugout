@@ -142,7 +142,6 @@ export default function AttackPage() {
           offensiveAttack,
           infieldPosition: saved?.infieldPosition || 'neutral',
           outfieldPosition: saved?.outfieldPosition || 'neutral',
-          pitcherStyle: saved?.pitcherStyle || 'command',
           defenseSetup: saved?.defenseSetup || 'balanced',
         }),
       });

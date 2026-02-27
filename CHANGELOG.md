@@ -6,6 +6,36 @@ Formato:
   • Dettaglio 2 (file modificati)  
   • Trade-off / note (se rilevanti)
 
+## v1.13.0 – 27 febbraio 2026 – Per-Pitcher Pitching Staff Refactor
+
+- **Schema DB Refactored**:
+  * `pitcher_rotations`: nuovo campo `pitcherConfigs` JSONB con `{ sp, r1, closer }` dove ogni ruolo ha `{ maxPitches, maxInnings, maxBb, maxEr, pitcherStyle }`
+  * Rimosse 8 colonne separate (maxPitches, maxInnings, maxBb, maxEr, r1MaxPitches, r1MaxEr, closerMaxPitches, closerMaxEr)
+  * `pitcherStyle` rimosso dalla tabella `tactics` (ora per-pitcher, non per-team)
+  * Range uniformi per tutti i ruoli: Pitches 10-100, IP 0-9, BB 1-10, ER 1-10
+
+- **Simulazione Per-Pitcher**:
+  * `PitcherRoleSimConfig` interface con 4 condizioni uniformi per ruolo
+  * `getRoleConfig()` helper per estrarre config dal ruolo attivo
+  * `activePitcherStyle` passato per-at-bat: al cambio lanciatore il RPS si ricalcola con lo stile del nuovo pitcher
+  * `getOutcomeProbabilities()` riceve pitcherStyle dal pitcher attivo, non dalle tattiche team
+
+- **UI PitchersPage Redesign**:
+  * Card collassabili nella sequenza: SP → R1 → C → BP → 2P
+  * Ogni card ruolo (SP, R1, C): dropdown pitcher + stats inline + riepilogo compatto + body collassabile
+  * Body: 4 slider uniformi (Pitch Count, Innings Pitched, BB, ER) + selettore RPS per-pitcher (velocity/movement/command)
+  * Bullpen: griglia lanciatori non assegnati con mini stats
+  * Rimossa sezione globale "Pitcher Style" e sezioni separate per condizioni ruolo
+
+- **API Updates**:
+  * POST `/api/pitcher-rotation`: accetta `pitcherConfigs` JSONB
+  * POST `/api/tactics`: non gestisce più pitcherStyle
+  * DefensePage/AttackPage: ripulite dal passthrough pitcherStyle
+
+- **Exhibition (SimulationPage)**: aggiornata per nuova PitchingConfig con pitcherConfigs
+
+- **File Modificati**: shared/schema.ts, shared/calculations/simulate.ts, shared/calculations/probability.ts, server/simulation.ts, server/routes.ts, server/storage.ts, client/src/pages/PitchersPage.tsx, client/src/pages/SimulationPage.tsx, client/src/pages/AttackPage.tsx, client/src/pages/DefensePage.tsx, client/src/lib/calculations/simulate.ts, PAGE_PITCHERS.md, mechanic_spec.md, MECHANICS_SPEC.md, replit.md, CHANGELOG.md
+
 ## v1.12.0 – 27 febbraio 2026 – Name Generator Overhaul
 
 - **Pool Nomi Giocatori Espanso**:

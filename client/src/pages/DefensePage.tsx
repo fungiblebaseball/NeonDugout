@@ -79,7 +79,6 @@ export default function DefensePage() {
           outfieldPosition,
           defenseSetup,
           batterApproach: saved?.batterApproach || 'contact',
-          pitcherStyle: saved?.pitcherStyle || 'command',
           offensiveAttack: saved?.offensiveAttack || 'balanced',
         }),
       });

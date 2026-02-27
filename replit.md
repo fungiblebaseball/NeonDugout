@@ -4,7 +4,7 @@
 Text-based fantasy baseball manager game with retro 80s/90s cyberpunk aesthetic. Target platform: Solana Seeker mobile (Web3 integration planned). Zero MLB licenses - all fictional teams and players.
 
 ## Current State
-Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.12.0 — Season genesis: 4 leagues (L1-L4, 80 teams, 1600 players), max 4 leagues cap (no further expansion). Auto new season when all matches played. Admin: reset & regenerate season, erase all data (wipe DB + re-seed, first user = admin). First user to register on empty DB auto-promoted to admin.
+Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.13.0 — Season genesis: 4 leagues (L1-L4, 80 teams, 1600 players), max 4 leagues cap (no further expansion). Auto new season when all matches played. Admin: reset & regenerate season, erase all data (wipe DB + re-seed, first user = admin). First user to register on empty DB auto-promoted to admin. Per-pitcher pitching staff configs (v1.13.0).
 
 ## Branding
 - **Logo**: `client/src/assets/images/logo-neon-dugout.png` — Stylized baseball diamond (neon glow, transparent bg)
@@ -44,8 +44,8 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 - `matches` - round-robin schedule with scores (90 per division, 18 days)
 - `match_details` - full game data per match (box_score, flavor_texts, mvp, home_lineup, away_lineup, home_batters, away_batters, home_pitcher, away_pitcher, home_pitchers, away_pitchers, play_log)
 - `lineups` - field positions + batting order (JSON columns)
-- `pitcher_rotations` - roles JSONB {sp, r1, closer, nextSp} + rotation_order + SP switch conditions (maxPitches/maxInnings/maxBb/maxEr) + R1 conditions (r1MaxPitches/r1MaxEr) + Closer conditions (closerMaxPitches/closerMaxEr)
-- `tactics` - 7 tactical fields (attackStyle, infieldPosition, outfieldPosition, batterApproach, pitcherStyle, offensiveAttack, defenseSetup)
+- `pitcher_rotations` - roles JSONB {sp, r1, closer, nextSp} + rotation_order + pitcherConfigs JSONB { sp: PitcherRoleConfig, r1: PitcherRoleConfig, closer: PitcherRoleConfig } where PitcherRoleConfig = { maxPitches, maxInnings, maxBb, maxEr, pitcherStyle }
+- `tactics` - 6 tactical fields (attackStyle, infieldPosition, outfieldPosition, batterApproach, offensiveAttack, defenseSetup) — pitcherStyle moved to per-pitcher configs in pitcher_rotations (v1.13.0)
 - `team_snapshots` - historical team state per season (team_id, season_id, name, division, league, series, primary_color, owner_wallet, wins, losses, runs_for, runs_against)
 - `training_results` - minigame scores and rewards (user_id, team_id, game_type, score, raw_data, reward_attribute, reward_player_id, reward_amount, confirmed, reward_player_ids, reward_attributes)
 - `training_config` - admin-configurable reward rules per game type (game_type, reward_attributes[], reward_amount, min_score_for_reward, max_boost_per_season, reward_target, reward_target_role)
@@ -56,7 +56,7 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 0. **Login** (/login) - Solana wallet authentication: select wallet (Phantom/Solflare/Backpack/Seeker), sign challenge message, verify signature
 1. **Home** (/) - Team dashboard, nav grid, game day info (read-only, no play button), training center always visible with dynamic labels, redirect to login if not authenticated
 2. **Lineup** (/lineup) - Assign field positions (SP read-only from pitching, C,1B...RF), DH toggle, reorder batting order 1-9 (SP moveable)
-3. **Pitchers** (/pitchers) - Assign pitcher roles: SP, R1, C, 2P. SP/R1/Closer switch conditions via sliders (pitches, innings, BB, ER). Pitcher Style RPS (velocity/movement/command vs batter approach)
+3. **Pitchers** (/pitchers) - Assign pitcher roles: SP, R1, C, 2P with collapsible cards. Each role has 4 uniform switch condition sliders (Pitches 10-100, IP 0-9, BB 1-10, ER 1-10) + per-pitcher RPS style selector (velocity/movement/command). Bullpen section for unassigned pitchers
 4. **Attack** (/attack) - 3 tactical sections: Attack Style (bunt/h&r/neutral/sos with probability modifiers), Batter Approach (power/contact/patient RPS vs pitcher), Offensive Attack (aggressive/balanced/conservative RPS vs defense)
 5. **Defense** (/defense) - 3 tactical sections: Infield Position (short/neutral/deep counter), Outfield Position (short/neutral/deep counter), Defense Setup (aggressive/balanced/protective RPS vs offense)
 6. **Simulate** (/simulate) - Exhibition test match using saved lineup/tactics/rotation with box score, batter/pitcher stats, flavor text
@@ -80,18 +80,25 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 - Match Report → Schedule / Standings (bottom nav)
 - Match Report batter/pitcher names → Player Detail
 
-## Pitcher Roles System
+## Pitcher Roles System (v1.13.0 — per-pitcher configs)
 - SP: Starting Pitcher for current game (shown in Lineup as position "SP")
 - R1: Relief 1 (first reliever when SP is pulled)
 - C: Closer (9th inning / save situations)
 - 2P: Next game starter (auto-rotated after game)
-- SP switch conditions: maxPitches (50-150), maxInnings (1-9), maxBB (1-10), maxER (1-10)
-- R1 switch conditions: r1MaxPitches (15-80), r1MaxEr (1-6)
-- Closer switch conditions: closerMaxPitches (10-60), closerMaxEr (1-5)
+- BP: Bullpen (unassigned pitchers)
+- All roles (SP, R1, Closer) have UNIFORM switch conditions (4 each):
+  - Pitch Count: 10-100
+  - Innings Pitched: 0-9
+  - Base on Balls (BB): 1-10
+  - Earned Runs (ER): 1-10
+- Default: SP {100,7,4,4}, R1 {40,9,4,3}, Closer {30,9,4,2}
+- Per-pitcher pitcherStyle (velocity/movement/command) — stored in pitcherConfigs JSONB, not in tactics table
+- At pitcher change during simulation, RPS recalculates with new pitcher's style
 - Substitution chain: SP → R1 → Closer (automatic during simulation)
 
-## Tactics System (7 campi, 3 layer)
-7 campi tattici per team in tabella `tactics`: attackStyle, infieldPosition, outfieldPosition, batterApproach, pitcherStyle, offensiveAttack, defenseSetup
+## Tactics System (6 campi in tactics + per-pitcher pitcherStyle, 3 layer)
+6 campi tattici per team in tabella `tactics`: attackStyle, infieldPosition, outfieldPosition, batterApproach, offensiveAttack, defenseSetup
+pitcherStyle e' per-pitcher: salvato in `pitcherConfigs` JSONB nella tabella `pitcher_rotations` (v1.13.0)
 
 ### Layer 1 — Attack Style + Defense Counter (pagine Attack + Defense)
 - Attack styles (bunt, hit_and_run, neutral, swing_on_sight): modificatori diretti su probabilità at-bat

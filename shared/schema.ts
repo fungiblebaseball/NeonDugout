@@ -68,19 +68,32 @@ export const lineups = pgTable("lineups", {
   battingOrder: jsonb("batting_order").notNull().$type<number[]>(),
 });
 
+export interface PitcherRoleConfig {
+  maxPitches: number;
+  maxInnings: number;
+  maxBb: number;
+  maxEr: number;
+  pitcherStyle: string;
+}
+
+export interface PitcherConfigs {
+  sp: PitcherRoleConfig;
+  r1: PitcherRoleConfig;
+  closer: PitcherRoleConfig;
+}
+
+export const DEFAULT_PITCHER_CONFIGS: PitcherConfigs = {
+  sp: { maxPitches: 100, maxInnings: 7, maxBb: 4, maxEr: 4, pitcherStyle: 'command' },
+  r1: { maxPitches: 40, maxInnings: 9, maxBb: 4, maxEr: 3, pitcherStyle: 'command' },
+  closer: { maxPitches: 30, maxInnings: 9, maxBb: 4, maxEr: 2, pitcherStyle: 'command' },
+};
+
 export const pitcherRotations = pgTable("pitcher_rotations", {
   id: serial("id").primaryKey(),
   teamId: integer("team_id").notNull(),
   rotationOrder: jsonb("rotation_order").notNull().$type<number[]>(),
   roles: jsonb("roles").notNull().$type<{ sp: number | null; r1: number | null; closer: number | null; nextSp: number | null }>().default({ sp: null, r1: null, closer: null, nextSp: null }),
-  maxPitches: integer("max_pitches").notNull().default(100),
-  maxInnings: integer("max_innings").notNull().default(7),
-  maxBb: integer("max_bb").notNull().default(4),
-  maxEr: integer("max_er").notNull().default(4),
-  r1MaxPitches: integer("r1_max_pitches").notNull().default(40),
-  r1MaxEr: integer("r1_max_er").notNull().default(3),
-  closerMaxPitches: integer("closer_max_pitches").notNull().default(30),
-  closerMaxEr: integer("closer_max_er").notNull().default(2),
+  pitcherConfigs: jsonb("pitcher_configs").$type<PitcherConfigs>().default(DEFAULT_PITCHER_CONFIGS),
 });
 
 export const tactics = pgTable("tactics", {
@@ -90,7 +103,6 @@ export const tactics = pgTable("tactics", {
   infieldPosition: text("infield_position").notNull().default("neutral"),
   outfieldPosition: text("outfield_position").notNull().default("neutral"),
   batterApproach: text("batter_approach").notNull().default("contact"),
-  pitcherStyle: text("pitcher_style").notNull().default("command"),
   offensiveAttack: text("offensive_attack").notNull().default("balanced"),
   defenseSetup: text("defense_setup").notNull().default("balanced"),
 });

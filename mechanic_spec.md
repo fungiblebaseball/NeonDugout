@@ -94,27 +94,23 @@ Implementare e marcare come implementato.
 - fatiguePenalty = (inning > 5) ? (inning - 5) × (100 - sta) × 0.04 : 0
 - Home advantage: +8 al MR per la squadra di casa
 
-## Pitcher Substitution
+## Pitcher Substitution (v1.13.0 — per-pitcher configs)
 
 Valutata prima di ogni at-bat. Catena: SP → R1 → Closer.
+Ogni ruolo ha le stesse 4 condizioni configurabili individualmente tramite `pitcherConfigs` JSONB in `pitcher_rotations`.
 
-**SP esce se:**
-- pitchCount ≥ maxPitches (50-150)
-- inningsPitched ≥ maxInnings (1-9)
+**Range uniformi per tutti i ruoli (SP, R1, Closer):**
+- pitchCount ≥ maxPitches (10-100)
+- inningsPitched ≥ maxInnings (0-9)
 - bbAllowed ≥ maxBb (1-10)
 - erAllowed ≥ maxEr (1-10)
 
-**R1 esce se:**
-- pitchCount ≥ r1MaxPitches (15-80)
-- inningsPitched ≥ maxInnings (1-9)
-- bbAllowed ≥ maxBb (1-10)
-- erAllowed ≥ r1MaxEr (1-6)
+**Default:**
+- SP: { maxPitches: 100, maxInnings: 7, maxBb: 4, maxEr: 4 }
+- R1: { maxPitches: 40, maxInnings: 9, maxBb: 4, maxEr: 3 }
+- Closer: { maxPitches: 30, maxInnings: 9, maxBb: 4, maxEr: 2 }
 
-**Closer esce se:**
-- pitchCount ≥ closerMaxPitches (10-60)
-- inningsPitched ≥ maxInnings (1-9)
-- bbAllowed ≥ maxBb (1-10)
-- erAllowed ≥ closerMaxEr (1-5)
+Al cambio lanciatore, il pitcherStyle attivo viene aggiornato con lo stile del nuovo pitcher (ricalcolo RPS).
 
 ## Tactics System (RPS Layer)
 
@@ -132,7 +128,10 @@ Valutata prima di ogni at-bat. Catena: SP → R1 → Closer.
 - Infield deep countra swing on sight (-5% 1B, +5% GO)
 - Outfield deep countra power (-8% HR, -6% XBH, +8% FO)
 
-### RPS Batter vs Pitcher
+### RPS Batter vs Pitcher (pitcherStyle per-pitcher, v1.13.0)
+Il pitcherStyle (velocity/movement/command) e' configurato PER OGNI lanciatore (SP, R1, Closer) nel campo `pitcherConfigs` JSONB della tabella `pitcher_rotations`, non piu' globale in `tactics`.
+Al cambio lanciatore durante la simulazione, il pitcherStyle attivo viene aggiornato automaticamente.
+
 | | Velocity | Movement | Command |
 |---|----------|----------|---------|
 | Power | Tie | Win | Lose |

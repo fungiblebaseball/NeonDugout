@@ -4,41 +4,56 @@
 `client/src/pages/PitchersPage.tsx`
 
 ## Descrizione
-Gestione staff lanciatori con assegnazione ruoli e condizioni di sostituzione.
+Gestione staff lanciatori con assegnazione ruoli, condizioni di sostituzione per-pitcher e tattica di lancio per-pitcher. Ogni ruolo ha le sue regole e il suo stile RPS configurabili individualmente.
 
 ## Sezioni
-1. **Header** — Titolo "Pitching Staff"
-2. **Role Assignments** — 4 BOX ruoli con dropdown:
-   - SP (Starting Pitcher) — Partente corrente
-   - R1 (Relief 1) — Primo rilievo quando SP viene sostituito
-   - C (Closer) — Chiusore (9° inning / situazioni di salvataggio)
-   - 2P (Next Starter) — Prossimo partente (auto-rotato dopo la garia)
-   - Bullpen — Lanciatori non assegnati a ruoli
-3. **Stats Display** — Per ogni ruolo assegnato mostra VEL/CTL/MOV/STA/DEF 
-4. **Stats Season** - Per ogni ruolo vedo anche statistiche ERA.
-5. **Switch Conditions** — Ogni box ruolo lanciatore ha uno Slider selettore a vista collassabile in modo da poter determinare regole per ogni lanciatore e programmare la gara in modo granulare:
-   - Max Pitches (60-130)
-   - Max Innings (3-9)
-   - Max BB (1-8)
-   - Max ER (1-8)
+1. **Header** — Titolo "Pitching Staff" + nome team
+2. **Pitcher Sequence** — 5 card collassabili nella sequenza:
+   - **SP** (Starting Pitcher) — Partente gara corrente
+   - **R1** (Relief 1) — Primo rilievo quando SP viene sostituito
+   - **C** (Closer) — Chiusura / salvataggio
+   - **BP** (Bullpen) — Lanciatori non assegnati a ruoli (non collassabile)
+   - **2P** (Next Starter) — Prossimo partente (auto-rotato dopo la gara)
 
-6. **RPS Batter vs Pitcher** — Ogni box ruolo lanciatore ha una sezione tattoca che lo riguarda, selettore a vista collassabile in modo da poter determinare approcci di lancio.
-   
-| | Velocity | Movement | Command |
+3. **Ogni Card Ruolo (SP, R1, C)** contiene:
+   - **Header**: badge ruolo + dropdown selezione pitcher + freccia collassa/espandi
+   - **Stats Inline**: VEL/CTL/MOV/STA/DEF + stats stagionali (W/L, ERA, IP, SO, WHIP, GS)
+   - **Riepilogo**: mini badge con stile pitcher attivo + condizioni in formato compatto (P:100 IP:7 BB:4 ER:4)
+   - **Body Collassabile** (toggle click su card):
+     - **Switch Conditions** — 4 slider UNIFORMI per ogni ruolo:
+       - Pitch Count: 10-100
+       - Innings Pitched: 0-9
+       - Base on Balls (BB): 1-10
+       - Earned Runs (ER): 1-10
+     - **Pitcher Style (RPS)** — 3 opzioni per-pitcher:
+       - Velocity (beats Contact, loses to Patient)
+       - Movement (beats Patient, loses to Power)
+       - Command (beats Power, loses to Contact)
+
+4. **Card 2P** — Solo dropdown + stats (nessuna condizione/tattica)
+
+5. **Bullpen** — Griglia lanciatori non assegnati con mini stats
+
+6. **Save Button** — "SAVE PITCHING STAFF"
+
+## Matrice RPS Batter vs Pitcher Style
+
+| Batter \ Pitcher | Velocity | Movement | Command |
 |---|----------|----------|---------|
-| Power | Tie | Win | Lose |
-| Contact | Lose | Tie | Win |
-| Patient | Win | Lose | Tie |
-
-7. **Save Button**
+| **Power** | Tie | Batter wins | Pitcher wins |
+| **Contact** | Pitcher wins | Tie | Batter wins |
+| **Patient** | Batter wins | Pitcher wins | Tie |
 
 ## Dati
 - Store: team, players
 - API: `GET/POST /api/pitcher-rotation`
-- Schema: `roles` JSONB `{ sp, r1, closer, nextSp }`
+- Schema: `roles` JSONB `{ sp, r1, closer, nextSp }`, `pitcherConfigs` JSONB `{ sp: PitcherRoleConfig, r1: PitcherRoleConfig, closer: PitcherRoleConfig }`
+- `PitcherRoleConfig`: `{ maxPitches, maxInnings, maxBb, maxEr, pitcherStyle }`
 
 ## Note
 - Solo giocatori con posizione "P" appaiono nei dropdown ruoli
 - Lo SP selezionato qui appare automaticamente nel Lineup come posizione SP
-- Ogni volta che dirante la gara si cambia lanciatore si devono ricalcolare i buffs e perks imposti dalla nuova tattica e come questa influisce sugli esiti degli altri buffs e perks di battuta, attacco e difesa. 
-- ASSICURATI CHE APPAIANO ANCHE LE STATISCICHE DEI LANCIATORI DI RILIEVO A FINE GARA.
+- Il `pitcherStyle` e' PER-PITCHER (salvato in pitcherConfigs JSONB nella tabella pitcher_rotations), NON e' piu' globale nella tabella tactics
+- Ogni volta che durante la gara si cambia lanciatore, la simulazione ricalcola i coefficienti RPS usando lo stile del NUOVO lanciatore attivo
+- Le statistiche dei lanciatori di rilievo appaiono nei dettagli gara (homePitchers/awayPitchers array)
+- Range uniformi per tutti i ruoli: Pitch Count 10-100, Innings Pitched 0-9, BB 1-10, ER 1-10

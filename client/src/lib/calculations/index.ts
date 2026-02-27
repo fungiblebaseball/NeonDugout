@@ -1,6 +1,6 @@
 export { matchupRating, teamDefenseAvg, gidpChance, errorChance } from './matchup';
 export { simulateGame } from './simulate';
-export type { SimConfig, PitchingConfig } from './simulate';
+export type { SimConfig, PitchingConfig, PitcherRoleSimConfig } from './simulate';
 export { rollOutcome, getOutcomeProbabilities } from './probability';
 export type { TacticsModifiers } from './probability';
 export { resetRng, rng, SeededRNG } from './rng';

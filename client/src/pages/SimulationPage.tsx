@@ -82,14 +82,17 @@ export default function SimulationPage() {
     const buildPitching = (rot: any, allP: SimPlayer[]): PitchingConfig | undefined => {
       if (!rot?.roles) return undefined;
       const pm = new Map(allP.map(p => [p.id, p]));
+      const configs = rot.pitcherConfigs || {};
+      const spCfg = configs.sp || {};
+      const r1Cfg = configs.r1 || {};
+      const closerCfg = configs.closer || {};
       return {
         sp: rot.roles.sp ? pm.get(rot.roles.sp) || null : null,
         r1: rot.roles.r1 ? pm.get(rot.roles.r1) || null : null,
         closer: rot.roles.closer ? pm.get(rot.roles.closer) || null : null,
-        maxPitches: rot.maxPitches ?? 100, maxInnings: rot.maxInnings ?? 7,
-        maxBb: rot.maxBb ?? 4, maxEr: rot.maxEr ?? 4,
-        r1MaxPitches: rot.r1MaxPitches ?? 40, r1MaxEr: rot.r1MaxEr ?? 3,
-        closerMaxPitches: rot.closerMaxPitches ?? 30, closerMaxEr: rot.closerMaxEr ?? 2,
+        spConfig: { maxPitches: spCfg.maxPitches ?? 100, maxInnings: spCfg.maxInnings ?? 7, maxBb: spCfg.maxBb ?? 4, maxEr: spCfg.maxEr ?? 4, pitcherStyle: spCfg.pitcherStyle ?? 'command' },
+        r1Config: { maxPitches: r1Cfg.maxPitches ?? 40, maxInnings: r1Cfg.maxInnings ?? 9, maxBb: r1Cfg.maxBb ?? 4, maxEr: r1Cfg.maxEr ?? 3, pitcherStyle: r1Cfg.pitcherStyle ?? 'command' },
+        closerConfig: { maxPitches: closerCfg.maxPitches ?? 30, maxInnings: closerCfg.maxInnings ?? 9, maxBb: closerCfg.maxBb ?? 4, maxEr: closerCfg.maxEr ?? 2, pitcherStyle: closerCfg.pitcherStyle ?? 'command' },
       };
     };
 
@@ -100,7 +103,6 @@ export default function SimulationPage() {
         infieldPosition: tac.infieldPosition || 'neutral',
         outfieldPosition: tac.outfieldPosition || 'neutral',
         batterApproach: tac.batterApproach || 'contact',
-        pitcherStyle: tac.pitcherStyle || 'command',
         offensiveAttack: tac.offensiveAttack || 'balanced',
         defenseSetup: tac.defenseSetup || 'balanced',
       };

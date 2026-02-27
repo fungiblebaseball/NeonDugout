@@ -59,18 +59,35 @@ function buildLineupFromSaved(lineup: any, players: SimPlayer[], rotation: any):
 function buildPitchingConfig(rotation: any, players: SimPlayer[]): PitchingConfig | undefined {
   if (!rotation?.roles) return undefined;
   const findPlayer = (id: number | null) => id ? players.find(p => p.id === id) || null : null;
+  const configs = rotation.pitcherConfigs || {};
+  const spCfg = configs.sp || {};
+  const r1Cfg = configs.r1 || {};
+  const closerCfg = configs.closer || {};
   return {
     sp: findPlayer(rotation.roles.sp),
     r1: findPlayer(rotation.roles.r1),
     closer: findPlayer(rotation.roles.closer),
-    maxPitches: rotation.maxPitches ?? 100,
-    maxInnings: rotation.maxInnings ?? 7,
-    maxBb: rotation.maxBb ?? 4,
-    maxEr: rotation.maxEr ?? 4,
-    r1MaxPitches: rotation.r1MaxPitches ?? 40,
-    r1MaxEr: rotation.r1MaxEr ?? 3,
-    closerMaxPitches: rotation.closerMaxPitches ?? 30,
-    closerMaxEr: rotation.closerMaxEr ?? 2,
+    spConfig: {
+      maxPitches: spCfg.maxPitches ?? 100,
+      maxInnings: spCfg.maxInnings ?? 7,
+      maxBb: spCfg.maxBb ?? 4,
+      maxEr: spCfg.maxEr ?? 4,
+      pitcherStyle: spCfg.pitcherStyle ?? 'command',
+    },
+    r1Config: {
+      maxPitches: r1Cfg.maxPitches ?? 40,
+      maxInnings: r1Cfg.maxInnings ?? 9,
+      maxBb: r1Cfg.maxBb ?? 4,
+      maxEr: r1Cfg.maxEr ?? 3,
+      pitcherStyle: r1Cfg.pitcherStyle ?? 'command',
+    },
+    closerConfig: {
+      maxPitches: closerCfg.maxPitches ?? 30,
+      maxInnings: closerCfg.maxInnings ?? 9,
+      maxBb: closerCfg.maxBb ?? 4,
+      maxEr: closerCfg.maxEr ?? 2,
+      pitcherStyle: closerCfg.pitcherStyle ?? 'command',
+    },
   };
 }
 
@@ -81,7 +98,6 @@ function buildTactics(tac: any): TacticsModifiers | undefined {
     infieldPosition: tac.infieldPosition || 'neutral',
     outfieldPosition: tac.outfieldPosition || 'neutral',
     batterApproach: tac.batterApproach || 'contact',
-    pitcherStyle: tac.pitcherStyle || 'command',
     offensiveAttack: tac.offensiveAttack || 'balanced',
     defenseSetup: tac.defenseSetup || 'balanced',
   };

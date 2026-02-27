@@ -305,21 +305,21 @@ export async function registerRoutes(
   });
 
   app.post("/api/pitcher-rotation", async (req, res) => {
-    const { teamId, rotationOrder, roles, maxPitches, maxInnings, maxBb, maxEr, r1MaxPitches, r1MaxEr, closerMaxPitches, closerMaxEr } = req.body;
+    const { teamId, rotationOrder, roles, pitcherConfigs } = req.body;
     if (!teamId) return res.status(400).json({ message: "teamId required" });
+
+    const { DEFAULT_PITCHER_CONFIGS } = await import("@shared/schema");
+    const mergedConfigs = {
+      sp: { ...DEFAULT_PITCHER_CONFIGS.sp, ...(pitcherConfigs?.sp || {}) },
+      r1: { ...DEFAULT_PITCHER_CONFIGS.r1, ...(pitcherConfigs?.r1 || {}) },
+      closer: { ...DEFAULT_PITCHER_CONFIGS.closer, ...(pitcherConfigs?.closer || {}) },
+    };
 
     const rotation = await storage.upsertPitcherRotation({
       teamId,
       rotationOrder: rotationOrder || [],
       roles: roles || { sp: null, r1: null, closer: null, nextSp: null },
-      maxPitches: maxPitches ?? 100,
-      maxInnings: maxInnings ?? 7,
-      maxBb: maxBb ?? 4,
-      maxEr: maxEr ?? 4,
-      r1MaxPitches: r1MaxPitches ?? 40,
-      r1MaxEr: r1MaxEr ?? 3,
-      closerMaxPitches: closerMaxPitches ?? 30,
-      closerMaxEr: closerMaxEr ?? 2,
+      pitcherConfigs: mergedConfigs,
     });
     res.json(rotation);
   });
@@ -331,7 +331,7 @@ export async function registerRoutes(
   });
 
   app.post("/api/tactics", async (req, res) => {
-    const { teamId, attackStyle, infieldPosition, outfieldPosition, batterApproach, pitcherStyle, offensiveAttack, defenseSetup } = req.body;
+    const { teamId, attackStyle, infieldPosition, outfieldPosition, batterApproach, offensiveAttack, defenseSetup } = req.body;
     if (!teamId) return res.status(400).json({ message: "teamId required" });
 
     const tac = await storage.upsertTactics({
@@ -340,7 +340,6 @@ export async function registerRoutes(
       infieldPosition: infieldPosition || "neutral",
       outfieldPosition: outfieldPosition || "neutral",
       batterApproach: batterApproach || "contact",
-      pitcherStyle: pitcherStyle || "command",
       offensiveAttack: offensiveAttack || "balanced",
       defenseSetup: defenseSetup || "balanced",
     });

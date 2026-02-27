@@ -164,7 +164,7 @@ function applyModifiers(base: OutcomeProbabilities, mods: Partial<OutcomeProbabi
   return result;
 }
 
-export function getOutcomeProbabilities(matchupRating: number, tactics?: TacticsModifiers, opponentTactics?: TacticsModifiers): OutcomeProbabilities {
+export function getOutcomeProbabilities(matchupRating: number, tactics?: TacticsModifiers, opponentTactics?: TacticsModifiers, activePitcherStyle?: string): OutcomeProbabilities {
   let probs = interpolateBrackets(matchupRating);
 
   if (tactics) {
@@ -175,7 +175,8 @@ export function getOutcomeProbabilities(matchupRating: number, tactics?: Tactics
     probs = applyModifiers(probs, defMods);
   }
 
-  const rpsBatterMods = getRpsBatterModifiers(tactics?.batterApproach, opponentTactics?.pitcherStyle);
+  const effectivePitcherStyle = (activePitcherStyle as PitcherStyle) || opponentTactics?.pitcherStyle;
+  const rpsBatterMods = getRpsBatterModifiers(tactics?.batterApproach, effectivePitcherStyle);
   probs = applyModifiers(probs, rpsBatterMods);
 
   const rpsOffenseMods = getRpsOffenseModifiers(tactics?.offensiveAttack, opponentTactics?.defenseSetup);
@@ -184,8 +185,8 @@ export function getOutcomeProbabilities(matchupRating: number, tactics?: Tactics
   return probs;
 }
 
-export function rollOutcome(matchupRating: number, roll: number, tactics?: TacticsModifiers, opponentTactics?: TacticsModifiers): AtBatOutcome {
-  const probs = getOutcomeProbabilities(matchupRating, tactics, opponentTactics);
+export function rollOutcome(matchupRating: number, roll: number, tactics?: TacticsModifiers, opponentTactics?: TacticsModifiers, activePitcherStyle?: string): AtBatOutcome {
+  const probs = getOutcomeProbabilities(matchupRating, tactics, opponentTactics, activePitcherStyle);
 
   let cumulative = 0;
   const entries: [AtBatOutcome, number][] = [

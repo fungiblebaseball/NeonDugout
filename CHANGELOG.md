@@ -6,6 +6,30 @@ Formato:
   • Dettaglio 2 (file modificati)  
   • Trade-off / note (se rilevanti)
 
+## v1.12.0 – 27 febbraio 2026 – Name Generator Overhaul
+
+- **Pool Nomi Giocatori Espanso**:
+  * FIRST_NAMES: da 80 a ~230 nomi tematici cyber-noir/retro-futurista/surf-punk
+  * LAST_NAMES: da 60 a ~200 cognomi composti cyberpunk
+  * Combinazioni: da 4.800 a ~46.000 (per 1.600 giocatori = zero collisioni)
+  * Stile coerente con PRODUCT_VISION.md: Jax, Wraith, Cipher, Plasma, Neonstrike, Bytestorm, Quantumleap...
+
+- **Pool Nomi Team Generati Dinamicamente**:
+  * Nomi team non più hardcoded (rimosso LEAGUE_TEAMS con 80 nomi fissi)
+  * Generati con formula: [PREFIX] [MIDDLE] [MASCOT]
+  * Serie A: prefissi premium (Stellar, Quantum, Imperial...), Serie B: prefissi underground (Rust, Gutter, Toxic...)
+  * ~50 prefissi × ~56 middles × ~80 mascotte = ~224.000 combinazioni
+  * Ogni seed/wipe genera nomi team completamente nuovi
+
+- **Modulo Condiviso `server/names.ts`**:
+  * Nuovo file con tutti i pool e funzioni di generazione
+  * `generateUniqueName(usedNames: Set)` — zero duplicati via Set tracking
+  * `generateUniqueTeamName(usedNames: Set, series)` — team unici con stile per serie
+  * Usato da seed.ts e expansion.ts (eliminata duplicazione codice)
+  * Expansion: pre-popola Set con nomi esistenti nel DB per unicità cross-lega
+
+- **File Modificati**: server/names.ts (nuovo), server/seed.ts, server/expansion.ts, Player_SEED.md, replit.md
+
 ## v1.11.0 – 27 febbraio 2026 – Season Genesis 4 Leagues + Admin DB Controls
 
 - **4 Leagues at Seed**:

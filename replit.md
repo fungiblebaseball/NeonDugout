@@ -4,7 +4,7 @@
 Text-based fantasy baseball manager game with retro 80s/90s cyberpunk aesthetic. Target platform: Solana Seeker mobile (Web3 integration planned). Zero MLB licenses - all fictional teams and players.
 
 ## Current State
-Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.11.0 — Season genesis: 4 leagues (L1-L4, 80 teams, 1600 players), max 4 leagues cap (no further expansion). Auto new season when all matches played. Admin: reset & regenerate season, erase all data (wipe DB + re-seed, first user = admin). First user to register on empty DB auto-promoted to admin.
+Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.12.0 — Season genesis: 4 leagues (L1-L4, 80 teams, 1600 players), max 4 leagues cap (no further expansion). Auto new season when all matches played. Admin: reset & regenerate season, erase all data (wipe DB + re-seed, first user = admin). First user to register on empty DB auto-promoted to admin.
 
 ## Branding
 - **Logo**: `client/src/assets/images/logo-neon-dugout.png` — Stylized baseball diamond (neon glow, transparent bg)
@@ -23,9 +23,10 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 - `server/routes.ts` - API routes (/api/auth/*, /api/teams, /api/matches, /api/player/:id, /api/training/*, /api/tokens/*, /api/admin/training-config, /api/admin/token-config, /api/admin/reset-tokens, /api/admin/reset-season, /api/admin/wipe-database, /api/simulate-day, /api/new-season, /api/lineup, /api/pitcher-rotation, /api/tactics)
 - `server/auth.ts` - JWT token creation/verification, ed25519 signature validation, challenge nonce management, claim challenge/verify, training challenge/verify
 - `server/scheduler.ts` - Game day cron scheduler (00:00 CET / 23:00 UTC daily via node-cron)
-- `server/expansion.ts` - Dynamic league expansion (capped at MAX_LEAGUES=4): auto-creates new league with 20 teams + 400 players + 228 matches when all teams are owned, blocks expansion beyond L4
+- `server/names.ts` - Shared name generation: ~230 first names, ~200 last names (cyberpunk), ~50+50 team prefixes (A/B series), ~56 middles, ~80 mascots, dedup functions via Set
+- `server/expansion.ts` - Dynamic league expansion (capped at MAX_LEAGUES=4): auto-creates new league with 20 teams + 400 players + 228 matches when all teams are owned, blocks expansion beyond L4, uses names.ts
 - `server/storage.ts` - DatabaseStorage class implementing IStorage interface
-- `server/seed.ts` - Seeds 80 teams (4 leagues × 2 series × 10 teams), 1600 players, 14-day schedule per league (regular + interleague + playoff + promotion)
+- `server/seed.ts` - Seeds 80 teams (4 leagues × 2 series × 10 teams), 1600 players, 14-day schedule per league — team/player names generated dynamically from names.ts (no hardcoded names)
 - `server/simulation.ts` - Server-side batch simulation for match days
 - `server/season.ts` - Playoff matchup resolution + new season generation with promotion/relegation
 - `server/db.ts` - Database connection pool

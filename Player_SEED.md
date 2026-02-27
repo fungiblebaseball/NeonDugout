@@ -70,11 +70,37 @@ SPD and STA are **crossing attributes** — they affect all three categories (of
 
 **Matchup formula**: `batterScore − pitcherScore + fatiguePenalty + homeAdvantage(8)`
 
+## Name Generation
+
+| Pool | Count | Stile |
+|------|-------|-------|
+| `FIRST_NAMES` | ~230 | Cyber-noir, retro-futurista, surf-punk (Jax, Roxy, Onyx, Wraith, Cipher, Plasma...) |
+| `LAST_NAMES` | ~200 | Cognomi composti cyberpunk (Neonstrike, Voltbat, Steelclaw, Bytestorm, Quantumleap...) |
+
+- Modulo condiviso: `server/names.ts` — usato da seed.ts e expansion.ts
+- Funzione `generateUniqueName(usedNames: Set<string>)` — zero duplicati garantiti via Set
+- Pool: ~230 × ~200 = ~46.000 combinazioni per 1.600 giocatori (0% collisioni)
+- Stile da PRODUCT_VISION.md: "mix tra vibe cyber-noir, retro-futurista, surf-punk, nomi che suonano cool ma assurdi"
+
+## Team Name Generation
+
+| Pool | Count | Stile |
+|------|-------|-------|
+| `TEAM_PREFIXES_A` | ~50 | Serie A premium (Neon, Chrome, Quantum, Stellar, Imperial...) |
+| `TEAM_PREFIXES_B` | ~50 | Serie B underground (Acid, Rust, Gutter, Punk, Toxic...) |
+| `TEAM_MIDDLES` | ~56 | Parole ponte (Vortex, Circuit, Forge, Sprawl, Junction...) |
+| `TEAM_MASCOTS` | ~80 | Mascotte (Rays, Wolves, Dragons, Spartans, Pulsars...) |
+
+- Funzione `generateUniqueTeamName(usedNames: Set<string>, series: "A"|"B")` — nomi team generati dinamicamente, non più hardcoded
+- Serie A: prefissi imponenti (Stellar, Apex, Sovereign), Serie B: prefissi street/grunge (Rust, Gutter, Toxic)
+- Pool: ~50 × ~56 × ~80 = ~224.000 combinazioni per 80 team
+
 ## Source Files
 
 | File | Role |
 |------|------|
-| `server/seed.ts` | Initial seed (L1 + L2, 40 teams, 800 players) |
-| `server/expansion.ts` | Dynamic leagues (L3+, identical algorithm) |
+| `server/names.ts` | Pool nomi condiviso (FIRST_NAMES, LAST_NAMES, TEAM_PREFIXES, TEAM_MIDDLES, TEAM_MASCOTS) + funzioni dedup |
+| `server/seed.ts` | Initial seed (L1-L4, 80 teams, 1600 players) — usa names.ts |
+| `server/expansion.ts` | Dynamic leagues (capped L4) — usa names.ts, query nomi esistenti per dedup cross-lega |
 | `client/src/lib/calculations/matchup.ts` | Matchup rating formula, DP/defense calculations |
 | `shared/schema.ts` | `players` table schema (9 integer attributes) |

@@ -1,71 +1,7 @@
 import { db } from "./db";
 import { teams, players, matches } from "@shared/schema";
 import { eq } from "drizzle-orm";
-
-const FIRST_NAMES = [
-  "Jax", "Roxy", "Zane", "Nova", "Dash", "Blade", "Rex", "Viper", "Echo", "Rip",
-  "Duke", "Spike", "Ace", "Jett", "Axel", "Luna", "Blitz", "Flux", "Kira", "Storm",
-  "Nyx", "Orion", "Cyrus", "Hex", "Volt", "Marco", "Ren", "Sable", "Kai", "Ash",
-  "Drake", "Finn", "Nash", "Cruz", "Mako", "Ryker", "Ty", "Cal", "Thorn", "Knox",
-  "Dex", "Troy", "Wolf", "Blaze", "Talon", "Colt", "Stone", "Haze", "Zen", "Phoenix",
-  "Rocco", "Bruno", "Grit", "Pax", "Brick", "Flint", "Banks", "Miles", "Leon", "Slate",
-  "Dom", "Otto", "Clay", "Gage", "Reed", "Kit", "Hank", "Brock", "Chase", "Luca",
-  "Dante", "Vance", "Dirk", "Lance", "Kane", "Shane", "Wade", "Cole", "Jet", "Sly"
-];
-const LAST_NAMES = [
-  "Neonstrike", "Voltbat", "Chromedrift", "Synthwave", "Cyberthrow", "Laserpitch",
-  "Hologlove", "Turbo", "Stark", "Vanguard", "Plasma", "Pulse", "Mirage", "Redline",
-  "Blackout", "Frostbyte", "Nitro", "Ironfield", "Steelhands", "Warhammer", "Burnside",
-  "Darkpitch", "Coldsteel", "Ashford", "Galvani", "Stormborn", "Highvolt", "Shockwave",
-  "Bladerunner", "Chromatic", "Wavecrest", "Thundergap", "Firewall", "Gridlock", "Deadbolt",
-  "Copperfield", "Sunstrike", "Moonshot", "Silverarm", "Nightfall", "Skybreak", "Longshot",
-  "Hardline", "Crossfire", "Sledge", "Broadside", "Sandstorm", "Razorback", "Backdraft",
-  "Quicksilver", "Darkwave", "Overcast", "Wildcard", "Powergrid", "Hotshot", "Pitchfork",
-  "Voltaire", "Uppercut", "Knuckleball", "Fastbreak"
-];
-
-const LEAGUE_TEAMS: Record<string, Record<string, string[]>> = {
-  L1: {
-    A: [
-      "Neon Vortex Rays", "Volt City Thunder", "Chrome Ionizers", "Acid Palm Bombers", "Roxy Quantum Hawks",
-      "Jax Plasma Kings", "Luna Cyber Sox", "Blitz Neon Knights", "Echo Pulse Giants", "Flux Mirage Crushers"
-    ],
-    B: [
-      "Rusty Neon Rebels", "Chrome Alley Outlaws", "Volt Trash Pandas", "Acid Drop Dusters", "Roxy Street Sharks",
-      "Jax Backlot Bandits", "Luna Midnight Misfits", "Blitz Scrapyard Dogs", "Echo Junkyard Jokers", "Flux Shadow Stingers"
-    ],
-  },
-  L2: {
-    A: [
-      "Nova Astro Titans", "Storm Circuit Blazers", "Hex Grid Wolves", "Orion Darkfield Vipers", "Cyrus Warp Dragons",
-      "Kira Neon Samurai", "Nyx Shadowrun Aces", "Dash Turbo Stallions", "Duke Ion Raptors", "Spike Overdrive Cobras"
-    ],
-    B: [
-      "Zane Alley Rats", "Rex Rust Runners", "Blade Backstreet Brawlers", "Rip Current Drifters", "Ace Junkyard Jets",
-      "Axel Neon Nomads", "Volt Gutter Punks", "Storm Scrap Coyotes", "Hex Street Phantoms", "Orion Ash Crawlers"
-    ],
-  },
-  L3: {
-    A: [
-      "Plasma Surge Titans", "Warp Drive Wolves", "Iron Grid Crushers", "Astro Blaze Hawks", "Turbo Pulse Vipers",
-      "Shadow Circuit Knights", "Neon Drift Rebels", "Chrome Flux Dragons", "Volt Storm Aces", "Echo Warp Raptors"
-    ],
-    B: [
-      "Laser Alley Outlaws", "Cyber Street Sharks", "Hex Junkyard Misfits", "Nova Backstreet Punks", "Storm Rust Nomads",
-      "Blitz Shadow Cobras", "Flux Midnight Runners", "Pulse Scrapyard Phantoms", "Orion Gutter Brawlers", "Acid Trash Bandits"
-    ],
-  },
-  L4: {
-    A: [
-      "Warp Neon Stallions", "Chrome Overdrive Cobras", "Turbo Darkfield Jets", "Plasma Nightfall Blazers", "Iron Astro Samurai",
-      "Volt Hex Wolves", "Storm Surge Giants", "Laser Grid Titans", "Cyber Flux Raptors", "Shadow Drift Hawks"
-    ],
-    B: [
-      "Neon Rust Brawlers", "Echo Backlot Stingers", "Flux Gutter Phantoms", "Nova Scrapyard Dogs", "Blitz Alley Rats",
-      "Pulse Street Punks", "Orion Junkyard Rebels", "Acid Midnight Jokers", "Hex Trash Nomads", "Chrome Shadow Drifters"
-    ],
-  },
-};
+import { generateUniqueName, generateUniqueTeamName } from "./names";
 
 const rand = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
 
@@ -81,7 +17,7 @@ function gaussianRand(min: number, max: number): number {
 
 type Position = 'P' | 'C' | '1B' | '2B' | '3B' | 'SS' | 'LF' | 'CF' | 'RF' | 'DH';
 
-function generatePlayersForTeam(teamId: number) {
+function generatePlayersForTeam(teamId: number, usedNames: Set<string>) {
   const positionSets: Position[][] = [
     ['P'], ['P'], ['P'], ['P'], ['P'],
     ['C'], ['C', '1B'],
@@ -98,7 +34,7 @@ function generatePlayersForTeam(teamId: number) {
     const getStat = () => Math.max(1, Math.min(100, gaussianRand(30, 85) + modifier));
 
     return {
-      name: `${FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)]} ${LAST_NAMES[Math.floor(Math.random() * LAST_NAMES.length)]}`,
+      name: generateUniqueName(usedNames),
       teamId,
       positions: pos,
       pow: getStat(),
@@ -247,6 +183,9 @@ function generateSeedPlayoffs(leagues: string[], startDate: Date): any[] {
   return allMatches;
 }
 
+const LEAGUE_KEYS = ["L1", "L2", "L3", "L4"];
+const TEAMS_PER_SERIES = 10;
+
 export async function seedDatabase() {
   const existingTeams = await db.select().from(teams).limit(1);
   if (existingTeams.length > 0) {
@@ -254,19 +193,20 @@ export async function seedDatabase() {
     return;
   }
 
-  const leagueKeys = Object.keys(LEAGUE_TEAMS).sort();
-  console.log(`Seeding database with ${leagueKeys.length} leagues × 2 series...`);
+  console.log(`Seeding database with ${LEAGUE_KEYS.length} leagues × 2 series...`);
 
+  const usedTeamNames = new Set<string>();
+  const usedPlayerNames = new Set<string>();
   const createdTeams: Record<string, Record<string, any[]>> = {};
 
-  for (const league of leagueKeys) {
+  for (const league of LEAGUE_KEYS) {
     createdTeams[league] = { A: [], B: [] };
-    for (const series of ["A", "B"]) {
-      const teamNames = LEAGUE_TEAMS[league][series];
+    for (const series of ["A", "B"] as const) {
       const division = `${league}${series}`;
       const color = series === "A" ? "#06b6d4" : "#ec4899";
 
-      for (const name of teamNames) {
+      for (let i = 0; i < TEAMS_PER_SERIES; i++) {
+        const name = generateUniqueTeamName(usedTeamNames, series);
         const [t] = await db.insert(teams).values({
           name,
           primaryColor: color,
@@ -281,10 +221,10 @@ export async function seedDatabase() {
   }
 
   let totalPlayers = 0;
-  for (const league of leagueKeys) {
+  for (const league of LEAGUE_KEYS) {
     for (const series of ["A", "B"]) {
       for (const team of createdTeams[league][series]) {
-        const roster = generatePlayersForTeam(team.id);
+        const roster = generatePlayersForTeam(team.id, usedPlayerNames);
         await db.insert(players).values(roster);
         totalPlayers += roster.length;
       }
@@ -294,7 +234,7 @@ export async function seedDatabase() {
   const allScheduleMatches: any[] = [];
   const startDate = new Date("2026-03-01");
 
-  for (const league of leagueKeys) {
+  for (const league of LEAGUE_KEYS) {
     for (const series of ["A", "B"]) {
       const division = `${league}${series}`;
       const teamIds = createdTeams[league][series].map((t: any) => t.id);
@@ -320,7 +260,7 @@ export async function seedDatabase() {
 
   const playoffStart = new Date(startDate);
   playoffStart.setDate(playoffStart.getDate() + 12);
-  allScheduleMatches.push(...generateSeedPlayoffs(leagueKeys, playoffStart));
+  allScheduleMatches.push(...generateSeedPlayoffs(LEAGUE_KEYS, playoffStart));
 
   for (let i = 0; i < allScheduleMatches.length; i += 50) {
     await db.insert(matches).values(allScheduleMatches.slice(i, i + 50));
@@ -328,4 +268,5 @@ export async function seedDatabase() {
 
   const totalTeams = Object.values(createdTeams).flatMap(l => Object.values(l).flat()).length;
   console.log(`Seeded: ${totalTeams} teams, ${totalPlayers} players, ${allScheduleMatches.length} matches (14 match days)`);
+  console.log(`Name pools: ${usedTeamNames.size} unique team names, ${usedPlayerNames.size} unique player names`);
 }

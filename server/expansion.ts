@@ -1,37 +1,7 @@
 import { db } from "./db";
 import { teams, players, matches } from "@shared/schema";
 import { sql } from "drizzle-orm";
-
-const FIRST_NAMES = [
-  "Jax", "Roxy", "Zane", "Nova", "Dash", "Blade", "Rex", "Viper", "Echo", "Rip",
-  "Duke", "Spike", "Ace", "Jett", "Axel", "Luna", "Blitz", "Flux", "Kira", "Storm",
-  "Nyx", "Orion", "Cyrus", "Hex", "Volt", "Marco", "Ren", "Sable", "Kai", "Ash",
-  "Drake", "Finn", "Nash", "Cruz", "Mako", "Ryker", "Ty", "Cal", "Thorn", "Knox",
-  "Dex", "Troy", "Wolf", "Blaze", "Talon", "Colt", "Stone", "Haze", "Zen", "Phoenix",
-  "Rocco", "Bruno", "Grit", "Pax", "Brick", "Flint", "Banks", "Miles", "Leon", "Slate",
-  "Dom", "Otto", "Clay", "Gage", "Reed", "Kit", "Hank", "Brock", "Chase", "Luca",
-  "Dante", "Vance", "Dirk", "Lance", "Kane", "Shane", "Wade", "Cole", "Jet", "Sly"
-];
-const LAST_NAMES = [
-  "Neonstrike", "Voltbat", "Chromedrift", "Synthwave", "Cyberthrow", "Laserpitch",
-  "Hologlove", "Turbo", "Stark", "Vanguard", "Plasma", "Pulse", "Mirage", "Redline",
-  "Blackout", "Frostbyte", "Nitro", "Ironfield", "Steelhands", "Warhammer", "Burnside",
-  "Darkpitch", "Coldsteel", "Ashford", "Galvani", "Stormborn", "Highvolt", "Shockwave",
-  "Bladerunner", "Chromatic", "Wavecrest", "Thundergap", "Firewall", "Gridlock", "Deadbolt",
-  "Copperfield", "Sunstrike", "Moonshot", "Silverarm", "Nightfall", "Skybreak", "Longshot",
-  "Hardline", "Crossfire", "Sledge", "Broadside", "Sandstorm", "Razorback", "Backdraft",
-  "Quicksilver", "Darkwave", "Overcast", "Wildcard", "Powergrid", "Hotshot", "Pitchfork",
-  "Voltaire", "Uppercut", "Knuckleball", "Fastbreak"
-];
-
-const TEAM_PREFIXES = [
-  "Neon", "Chrome", "Volt", "Acid", "Flux", "Storm", "Hex", "Orion", "Cyber", "Plasma",
-  "Nova", "Pulse", "Blitz", "Echo", "Shadow", "Turbo", "Iron", "Laser", "Astro", "Warp"
-];
-const TEAM_SUFFIXES = [
-  "Vipers", "Hawks", "Knights", "Crushers", "Titans", "Wolves", "Blazers", "Dragons", "Cobras", "Raptors",
-  "Rebels", "Outlaws", "Sharks", "Bandits", "Misfits", "Phantoms", "Nomads", "Punks", "Runners", "Brawlers"
-];
+import { generateUniqueName, generateUniqueTeamName } from "./names";
 
 const rand = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
 
@@ -47,7 +17,7 @@ function gaussianRand(min: number, max: number): number {
 
 type Position = 'P' | 'C' | '1B' | '2B' | '3B' | 'SS' | 'LF' | 'CF' | 'RF' | 'DH';
 
-function generatePlayersForTeam(teamId: number) {
+function generatePlayersForTeam(teamId: number, usedNames: Set<string>) {
   const positionSets: Position[][] = [
     ['P'], ['P'], ['P'], ['P'], ['P'],
     ['C'], ['C', '1B'],
@@ -64,7 +34,7 @@ function generatePlayersForTeam(teamId: number) {
     const getStat = () => Math.max(1, Math.min(100, gaussianRand(30, 85) + modifier));
 
     return {
-      name: `${FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)]} ${LAST_NAMES[Math.floor(Math.random() * LAST_NAMES.length)]}`,
+      name: generateUniqueName(usedNames),
       teamId,
       positions: pos,
       pow: getStat(),
@@ -80,25 +50,15 @@ function generatePlayersForTeam(teamId: number) {
   });
 }
 
-function generateTeamName(existingNames: Set<string>): string {
-  for (let attempt = 0; attempt < 100; attempt++) {
-    const prefix = TEAM_PREFIXES[Math.floor(Math.random() * TEAM_PREFIXES.length)];
-    const suffix = TEAM_SUFFIXES[Math.floor(Math.random() * TEAM_SUFFIXES.length)];
-    const name = `${prefix} ${suffix}`;
-    if (!existingNames.has(name)) {
-      existingNames.add(name);
-      return name;
-    }
-  }
-  return `Team ${Date.now()}`;
-}
-
 const MAX_LEAGUES = 4;
 
 export async function expandLeague(): Promise<{ league: string; teamsCreated: number; playersCreated: number; matchesCreated: number }> {
   const existingTeams = await db.select().from(teams);
   const existingLeagues = new Set(existingTeams.map(t => t.league));
-  const existingNames = new Set(existingTeams.map(t => t.name));
+  const usedTeamNames = new Set(existingTeams.map(t => t.name));
+
+  const existingPlayers = await db.select({ name: players.name }).from(players);
+  const usedPlayerNames = new Set(existingPlayers.map(p => p.name));
 
   let nextLeagueNum = 1;
   while (existingLeagues.has(`L${nextLeagueNum}`)) {
@@ -117,12 +77,12 @@ export async function expandLeague(): Promise<{ league: string; teamsCreated: nu
 
   const createdTeamIds: Record<string, number[]> = { A: [], B: [] };
 
-  for (const series of ["A", "B"]) {
+  for (const series of ["A", "B"] as const) {
     const division = `${newLeague}${series}`;
     const color = series === "A" ? "#06b6d4" : "#ec4899";
 
     for (let i = 0; i < 10; i++) {
-      const name = generateTeamName(existingNames);
+      const name = generateUniqueTeamName(usedTeamNames, series);
       const [t] = await db.insert(teams).values({
         name,
         primaryColor: color,
@@ -138,7 +98,7 @@ export async function expandLeague(): Promise<{ league: string; teamsCreated: nu
   let totalPlayers = 0;
   for (const series of ["A", "B"]) {
     for (const teamId of createdTeamIds[series]) {
-      const roster = generatePlayersForTeam(teamId);
+      const roster = generatePlayersForTeam(teamId, usedPlayerNames);
       await db.insert(players).values(roster);
       totalPlayers += roster.length;
     }
@@ -173,9 +133,6 @@ export async function expandLeague(): Promise<{ league: string; teamsCreated: nu
       }
       currentDate.setDate(currentDate.getDate() + 1);
     }
-
-    const interleagueStart = new Date(startDate);
-    interleagueStart.setDate(interleagueStart.getDate() + 5);
 
     const returnStart = new Date(startDate);
     returnStart.setDate(returnStart.getDate() + 7);
@@ -249,6 +206,7 @@ export async function expandLeague(): Promise<{ league: string; teamsCreated: nu
   }
 
   console.log(`League expansion: Created ${newLeague} with 20 teams, ${totalPlayers} players, ${allScheduleMatches.length} matches`);
+  console.log(`Name pools: ${usedTeamNames.size} unique team names, ${usedPlayerNames.size} unique player names`);
 
   return {
     league: newLeague,

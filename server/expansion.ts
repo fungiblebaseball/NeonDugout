@@ -93,6 +93,8 @@ function generateTeamName(existingNames: Set<string>): string {
   return `Team ${Date.now()}`;
 }
 
+const MAX_LEAGUES = 4;
+
 export async function expandLeague(): Promise<{ league: string; teamsCreated: number; playersCreated: number; matchesCreated: number }> {
   const existingTeams = await db.select().from(teams);
   const existingLeagues = new Set(existingTeams.map(t => t.league));
@@ -102,6 +104,12 @@ export async function expandLeague(): Promise<{ league: string; teamsCreated: nu
   while (existingLeagues.has(`L${nextLeagueNum}`)) {
     nextLeagueNum++;
   }
+
+  if (nextLeagueNum > MAX_LEAGUES) {
+    console.log(`League expansion blocked: already at max ${MAX_LEAGUES} leagues`);
+    return { league: `L${MAX_LEAGUES}`, teamsCreated: 0, playersCreated: 0, matchesCreated: 0 };
+  }
+
   const newLeague = `L${nextLeagueNum}`;
 
   const currentSeasonResult = await db.select({ maxSeason: sql<number>`COALESCE(MAX(${teams.seasonId}), 1)` }).from(teams);
@@ -252,6 +260,11 @@ export async function expandLeague(): Promise<{ league: string; teamsCreated: nu
 
 export async function ensureExtraLeague(): Promise<void> {
   const existingTeams = await db.select().from(teams);
+  const allLeagues = new Set(existingTeams.map(t => t.league));
+
+  if (allLeagues.size >= MAX_LEAGUES) {
+    return;
+  }
 
   const leaguesWithOwners = new Set<string>();
   for (const t of existingTeams) {
@@ -266,10 +279,9 @@ export async function ensureExtraLeague(): Promise<void> {
     ...Array.from(leaguesWithOwners).map(l => parseInt(l.replace('L', '')) || 0)
   );
 
-  const allLeagues = new Set(existingTeams.map(t => t.league));
   const nextLeagueId = `L${maxOccupiedNum + 1}`;
 
-  if (!allLeagues.has(nextLeagueId)) {
+  if (!allLeagues.has(nextLeagueId) && maxOccupiedNum < MAX_LEAGUES) {
     console.log(`ensureExtraLeague: Creating ${nextLeagueId} (max occupied: L${maxOccupiedNum})`);
     await expandLeague();
   }

@@ -6,6 +6,54 @@ Formato:
   • Dettaglio 2 (file modificati)  
   • Trade-off / note (se rilevanti)
 
+## v1.11.0 – 27 febbraio 2026 – Season Genesis 4 Leagues + Admin DB Controls
+
+- **4 Leagues at Seed**:
+  * Database seeds with 4 leagues (L1-L4) instead of 2: 80 teams, 1600 players
+  * Each league has SerieA + SerieB (10 teams each), full 14-day schedule
+  * L3 and L4 team names: generated procedurally (Plasma Surge Titans, Warp Neon Stallions, etc.)
+  * Promotion/relegation matches between all adjacent leagues (L1↔L2, L2↔L3, L3↔L4)
+
+- **League Expansion Capped at 4**:
+  * `MAX_LEAGUES = 4` in server/expansion.ts — no new leagues created beyond L4
+  * `expandLeague()` returns early if all 4 leagues exist
+  * `ensureExtraLeague()` skips if league count >= 4
+  * New users assigned to existing unowned teams within L1-L4
+
+- **Auto New Season**:
+  * Scheduler at 00:00 CET auto-generates new season when all matches are played
+  * No longer waits for admin manual trigger — season transitions are automatic
+  * Admin can still manually trigger "START NEW SEASON" from Admin panel
+
+- **Admin: Reset & Regenerate Season**:
+  * New button "RESET & REGENERATE SEASON" with double-click confirm (5s timeout)
+  * Deletes all current season matches, match details, snapshots, training results
+  * Resets all player _add boost columns to 0
+  * Generates fresh season schedule immediately
+
+- **Admin: Erase All Data**:
+  * Red button "ERASE ALL DATA & RESET APP" with double-click confirm
+  * Wipes ALL tables: users, teams, players, matches, configs, tokens — everything
+  * Re-seeds database with fresh 4-league structure
+  * Re-creates default training and token configs
+  * Redirects to /login — first user to register becomes admin automatically
+
+- **First User = Admin**:
+  * On empty database, first wallet to register via /api/auth/verify auto-promoted to admin
+  * `is_admin = true` set immediately after user creation
+  * Works after DB wipe or on fresh deployment
+
+- **Admin API Auth Fix**:
+  * Fixed missing Authorization headers on admin panel API calls
+  * `/api/simulate-day`, `/api/update-playoff-matchups`, `/api/new-season` now require admin
+  * All admin buttons now send Bearer token properly
+
+- **API Nuove**:
+  * `POST /api/admin/reset-season` — reset + regenerate current season (admin only)
+  * `POST /api/admin/wipe-database` — erase all data, re-seed, re-config (admin only)
+
+- **File Modificati**: server/seed.ts, server/expansion.ts, server/scheduler.ts, server/storage.ts, server/routes.ts, client/src/pages/AdminPage.tsx, replit.md
+
 ## v1.10.0 – 26 febbraio 2026 – Training Upgrade + Game Day Scheduler + Admin Controls
 
 - **Training Center — Always Visible**:

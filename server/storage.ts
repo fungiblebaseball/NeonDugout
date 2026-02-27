@@ -19,6 +19,10 @@ export interface IStorage {
   getUserByWallet(walletAddress: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUserTeam(userId: number, teamId: number): Promise<void>;
+  getAllUsers(): Promise<User[]>;
+  setUserAdmin(userId: number, isAdmin: boolean): Promise<void>;
+  wipeAllData(): Promise<void>;
+  resetCurrentSeason(): Promise<void>;
 
   getTeams(division?: string): Promise<Team[]>;
   getTeamsByLeagueSeries(league: string, series: string): Promise<Team[]>;
@@ -97,6 +101,53 @@ export class DatabaseStorage implements IStorage {
 
   async updateUserTeam(userId: number, teamId: number): Promise<void> {
     await db.update(users).set({ teamId }).where(eq(users.id, userId));
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return db.select().from(users);
+  }
+
+  async setUserAdmin(userId: number, isAdmin: boolean): Promise<void> {
+    await db.update(users).set({ isAdmin }).where(eq(users.id, userId));
+  }
+
+  async wipeAllData(): Promise<void> {
+    await db.delete(matchDetails);
+    await db.delete(playerSeasonStats);
+    await db.delete(trainingResults);
+    await db.delete(userTokens);
+    await db.delete(tokenConfig);
+    await db.delete(trainingConfig);
+    await db.delete(lineups);
+    await db.delete(pitcherRotations);
+    await db.delete(tactics);
+    await db.delete(matches);
+    await db.delete(teamSnapshots);
+    await db.delete(players);
+    await db.delete(teams);
+    await db.delete(users);
+  }
+
+  async resetCurrentSeason(): Promise<void> {
+    const allTeams = await db.select().from(teams);
+    if (allTeams.length === 0) return;
+    const currentSeasonId = Math.max(...allTeams.map(t => t.seasonId));
+    const currentSeasonMatchIds = (await db.select({ id: matches.id }).from(matches).where(eq(matches.seasonId, currentSeasonId))).map(m => m.id);
+    if (currentSeasonMatchIds.length > 0) {
+      for (let i = 0; i < currentSeasonMatchIds.length; i += 100) {
+        const batch = currentSeasonMatchIds.slice(i, i + 100);
+        await db.delete(matchDetails).where(sql`${matchDetails.matchId} IN (${sql.join(batch.map(id => sql`${id}`), sql`, `)})`);
+      }
+    }
+    await db.delete(matches).where(eq(matches.seasonId, currentSeasonId));
+    await db.delete(teamSnapshots).where(eq(teamSnapshots.seasonId, currentSeasonId));
+    await db.delete(trainingResults);
+    for (const team of allTeams) {
+      await db.update(players).set({
+        powAdd: 0, conAdd: 0, spdAdd: 0, eyeAdd: 0,
+        velAdd: 0, ctlAdd: 0, movAdd: 0, staAdd: 0, defAdd: 0,
+      }).where(eq(players.teamId, team.id));
+    }
   }
 
   async getTeams(division?: string): Promise<Team[]> {

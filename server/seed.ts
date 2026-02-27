@@ -45,6 +45,26 @@ const LEAGUE_TEAMS: Record<string, Record<string, string[]>> = {
       "Axel Neon Nomads", "Volt Gutter Punks", "Storm Scrap Coyotes", "Hex Street Phantoms", "Orion Ash Crawlers"
     ],
   },
+  L3: {
+    A: [
+      "Plasma Surge Titans", "Warp Drive Wolves", "Iron Grid Crushers", "Astro Blaze Hawks", "Turbo Pulse Vipers",
+      "Shadow Circuit Knights", "Neon Drift Rebels", "Chrome Flux Dragons", "Volt Storm Aces", "Echo Warp Raptors"
+    ],
+    B: [
+      "Laser Alley Outlaws", "Cyber Street Sharks", "Hex Junkyard Misfits", "Nova Backstreet Punks", "Storm Rust Nomads",
+      "Blitz Shadow Cobras", "Flux Midnight Runners", "Pulse Scrapyard Phantoms", "Orion Gutter Brawlers", "Acid Trash Bandits"
+    ],
+  },
+  L4: {
+    A: [
+      "Warp Neon Stallions", "Chrome Overdrive Cobras", "Turbo Darkfield Jets", "Plasma Nightfall Blazers", "Iron Astro Samurai",
+      "Volt Hex Wolves", "Storm Surge Giants", "Laser Grid Titans", "Cyber Flux Raptors", "Shadow Drift Hawks"
+    ],
+    B: [
+      "Neon Rust Brawlers", "Echo Backlot Stingers", "Flux Gutter Phantoms", "Nova Scrapyard Dogs", "Blitz Alley Rats",
+      "Pulse Street Punks", "Orion Junkyard Rebels", "Acid Midnight Jokers", "Hex Trash Nomads", "Chrome Shadow Drifters"
+    ],
+  },
 };
 
 const rand = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
@@ -155,71 +175,50 @@ function generateReturnSchedule(teamIds: number[], division: string, regularMatc
   return { matches: allMatches, nextDate: currentDate };
 }
 
-function generateInterleagueSchedule(
-  seriesATeamsL1: number[], seriesATeamsL2: number[],
-  seriesBTeamsL1: number[], seriesBTeamsL2: number[],
+function generateSeedInterleague(
+  league: string,
+  teamsA: number[],
+  teamsB: number[],
   startDate: Date
-): { matches: any[], nextDate: Date } {
+): any[] {
   const allMatches: any[] = [];
-  const currentDate = new Date(startDate);
-
   for (let leg = 0; leg < 2; leg++) {
     const day = 6 + leg;
-
-    for (let i = 0; i < 5; i++) {
-      const idxA = i % seriesATeamsL1.length;
-      const idxB = (i + leg) % seriesATeamsL2.length;
-      const home = leg === 0 ? seriesATeamsL1[idxA] : seriesATeamsL2[idxB];
-      const away = leg === 0 ? seriesATeamsL2[idxB] : seriesATeamsL1[idxA];
+    const dateStr = new Date(startDate.getTime() + leg * 86400000).toISOString().split('T')[0];
+    const matchCount = Math.min(teamsA.length, teamsB.length, 5);
+    for (let i = 0; i < matchCount; i++) {
+      const idxA = i % teamsA.length;
+      const idxB = (i + leg) % teamsB.length;
+      const home = leg === 0 ? teamsA[idxA] : teamsB[idxB];
+      const away = leg === 0 ? teamsB[idxB] : teamsA[idxA];
       allMatches.push({
         seasonId: 1,
-        division: "interleague_A",
+        division: `interleague_${league}_AB`,
         day,
-        matchDate: currentDate.toISOString().split('T')[0],
+        matchDate: dateStr,
         homeTeamId: home,
         awayTeamId: away,
         played: false,
         matchType: "interleague",
       });
     }
-
-    for (let i = 0; i < 5; i++) {
-      const idxA = i % seriesBTeamsL1.length;
-      const idxB = (i + leg) % seriesBTeamsL2.length;
-      const home = leg === 0 ? seriesBTeamsL1[idxA] : seriesBTeamsL2[idxB];
-      const away = leg === 0 ? seriesBTeamsL2[idxB] : seriesBTeamsL1[idxA];
-      allMatches.push({
-        seasonId: 1,
-        division: "interleague_B",
-        day,
-        matchDate: currentDate.toISOString().split('T')[0],
-        homeTeamId: home,
-        awayTeamId: away,
-        played: false,
-        matchType: "interleague",
-      });
-    }
-
-    currentDate.setDate(currentDate.getDate() + 1);
   }
-
-  return { matches: allMatches, nextDate: currentDate };
+  return allMatches;
 }
 
-function generatePlayoffPlaceholders(startDate: Date): { matches: any[], nextDate: Date } {
+function generateSeedPlayoffs(leagues: string[], startDate: Date): any[] {
   const allMatches: any[] = [];
-  const currentDate = new Date(startDate);
-
   for (let leg = 0; leg < 2; leg++) {
     const day = 13 + leg;
+    const dateStr = new Date(startDate.getTime() + leg * 86400000).toISOString().split('T')[0];
 
-    for (const league of ["L1", "L2"]) {
+    for (const league of leagues) {
       for (let i = 0; i < 2; i++) {
         allMatches.push({
           seasonId: 1,
           division: `playoff_${league}`,
           day,
-          matchDate: currentDate.toISOString().split('T')[0],
+          matchDate: dateStr,
           homeTeamId: 0,
           awayTeamId: 0,
           played: false,
@@ -228,10 +227,24 @@ function generatePlayoffPlaceholders(startDate: Date): { matches: any[], nextDat
       }
     }
 
-    currentDate.setDate(currentDate.getDate() + 1);
+    for (let li = 0; li < leagues.length - 1; li++) {
+      const upper = leagues[li];
+      const lower = leagues[li + 1];
+      for (let i = 0; i < 2; i++) {
+        allMatches.push({
+          seasonId: 1,
+          division: `promo_${lower}_to_${upper}`,
+          day,
+          matchDate: dateStr,
+          homeTeamId: 0,
+          awayTeamId: 0,
+          played: false,
+          matchType: "promotion",
+        });
+      }
+    }
   }
-
-  return { matches: allMatches, nextDate: currentDate };
+  return allMatches;
 }
 
 export async function seedDatabase() {
@@ -241,11 +254,13 @@ export async function seedDatabase() {
     return;
   }
 
-  console.log("Seeding database with 2 leagues × 2 series...");
+  const leagueKeys = Object.keys(LEAGUE_TEAMS).sort();
+  console.log(`Seeding database with ${leagueKeys.length} leagues × 2 series...`);
 
-  const createdTeams: Record<string, Record<string, any[]>> = { L1: { A: [], B: [] }, L2: { A: [], B: [] } };
+  const createdTeams: Record<string, Record<string, any[]>> = {};
 
-  for (const league of ["L1", "L2"]) {
+  for (const league of leagueKeys) {
+    createdTeams[league] = { A: [], B: [] };
     for (const series of ["A", "B"]) {
       const teamNames = LEAGUE_TEAMS[league][series];
       const division = `${league}${series}`;
@@ -266,7 +281,7 @@ export async function seedDatabase() {
   }
 
   let totalPlayers = 0;
-  for (const league of ["L1", "L2"]) {
+  for (const league of leagueKeys) {
     for (const series of ["A", "B"]) {
       for (const team of createdTeams[league][series]) {
         const roster = generatePlayersForTeam(team.id);
@@ -279,34 +294,33 @@ export async function seedDatabase() {
   const allScheduleMatches: any[] = [];
   const startDate = new Date("2026-03-01");
 
-  for (const league of ["L1", "L2"]) {
+  for (const league of leagueKeys) {
     for (const series of ["A", "B"]) {
       const division = `${league}${series}`;
       const teamIds = createdTeams[league][series].map((t: any) => t.id);
 
-      const { matches: regularMatches, nextDate: afterAndata } = generateRegularSchedule(teamIds, division, startDate) as any;
+      const { matches: regularMatches } = generateRegularSchedule(teamIds, division, startDate);
       allScheduleMatches.push(...regularMatches);
 
       const returnStart = new Date(startDate);
       returnStart.setDate(returnStart.getDate() + 7);
-      const { matches: returnMatches } = generateReturnSchedule(teamIds, division, regularMatches, returnStart) as any;
+      const { matches: returnMatches } = generateReturnSchedule(teamIds, division, regularMatches, returnStart);
       allScheduleMatches.push(...returnMatches);
     }
-  }
 
-  const interleagueStart = new Date(startDate);
-  interleagueStart.setDate(interleagueStart.getDate() + 5);
-  const { matches: interleagueMatches } = generateInterleagueSchedule(
-    createdTeams.L1.A.map((t: any) => t.id), createdTeams.L2.A.map((t: any) => t.id),
-    createdTeams.L1.B.map((t: any) => t.id), createdTeams.L2.B.map((t: any) => t.id),
-    interleagueStart
-  ) as any;
-  allScheduleMatches.push(...interleagueMatches);
+    const interleagueStart = new Date(startDate);
+    interleagueStart.setDate(interleagueStart.getDate() + 5);
+    allScheduleMatches.push(...generateSeedInterleague(
+      league,
+      createdTeams[league].A.map((t: any) => t.id),
+      createdTeams[league].B.map((t: any) => t.id),
+      interleagueStart
+    ));
+  }
 
   const playoffStart = new Date(startDate);
   playoffStart.setDate(playoffStart.getDate() + 12);
-  const { matches: playoffMatches } = generatePlayoffPlaceholders(playoffStart);
-  allScheduleMatches.push(...playoffMatches);
+  allScheduleMatches.push(...generateSeedPlayoffs(leagueKeys, playoffStart));
 
   for (let i = 0; i < allScheduleMatches.length; i += 50) {
     await db.insert(matches).values(allScheduleMatches.slice(i, i + 50));

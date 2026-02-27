@@ -32,7 +32,14 @@ export async function registerRoutes(
 
     let user = await storage.getUserByWallet(walletAddress);
     if (!user) {
+      const allUsers = await storage.getAllUsers();
+      const isFirstUser = allUsers.length === 0;
       user = await storage.createUser({ walletAddress });
+      if (isFirstUser) {
+        await storage.setUserAdmin(user.id, true);
+        user = await storage.getUser(user.id) as typeof user;
+        console.log(`First user ${walletAddress} auto-promoted to admin`);
+      }
     }
 
     if (!user.teamId) {
@@ -655,17 +662,48 @@ export async function registerRoutes(
     if (!adminData) return;
     try {
       const result = await generateNewSeason();
-
-      try {
-        await ensureExtraLeague();
-      } catch (err) {
-        console.error("ensureExtraLeague after new season failed:", err);
-      }
-
       res.json(result);
     } catch (err) {
       console.error('New season generation failed:', err);
       res.status(500).json({ message: "Failed to generate new season" });
+    }
+  });
+
+  app.post("/api/admin/reset-season", async (req, res) => {
+    const adminData = await requireAdmin(req, res);
+    if (!adminData) return;
+    try {
+      await storage.resetCurrentSeason();
+      const result = await generateNewSeason();
+      res.json({ message: "Season reset and regenerated", seasonId: result.seasonId, matchCount: result.matchCount });
+    } catch (err) {
+      console.error('Reset season failed:', err);
+      res.status(500).json({ message: "Failed to reset season" });
+    }
+  });
+
+  app.post("/api/admin/wipe-database", async (req, res) => {
+    const adminData = await requireAdmin(req, res);
+    if (!adminData) return;
+    try {
+      await storage.wipeAllData();
+      const { seedDatabase } = await import("./seed");
+      await seedDatabase();
+
+      const defaultConfigs = [
+        { gameType: "eye_drill", rewardAttributes: ["eye"], rewardAmount: 1, minScoreForReward: 200, maxBoostPerSeason: 10 },
+        { gameType: "batting_practice", rewardAttributes: ["con", "pow"], rewardAmount: 1, minScoreForReward: 200, maxBoostPerSeason: 10 },
+        { gameType: "pitch_control", rewardAttributes: ["ctl"], rewardAmount: 1, minScoreForReward: 200, maxBoostPerSeason: 10 },
+      ];
+      for (const cfg of defaultConfigs) {
+        await storage.upsertTrainingConfig(cfg);
+      }
+      await storage.updateTokenConfig(10, 24);
+
+      res.json({ message: "Database wiped and re-seeded. First user to login will be admin." });
+    } catch (err) {
+      console.error('Database wipe failed:', err);
+      res.status(500).json({ message: "Failed to wipe database" });
     }
   });
 

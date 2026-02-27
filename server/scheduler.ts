@@ -1,5 +1,6 @@
 import cron from "node-cron";
 import { simulateMatchDay, updatePlayoffMatchups } from "./simulation";
+import { generateNewSeason } from "./season";
 import { storage } from "./storage";
 import { log } from "./index";
 
@@ -17,7 +18,14 @@ export function startGameDayScheduler() {
       const unplayedDays = [...new Set(allMatches.filter(m => !m.played).map(m => m.day))].sort((a, b) => a - b);
 
       if (unplayedDays.length === 0) {
-        log("No unplayed days remaining — waiting for admin to start new season", "scheduler");
+        log("Season complete — auto-generating new season...", "scheduler");
+        try {
+          const result = await generateNewSeason();
+          log(`New season ${result.seasonId} auto-generated: ${result.matchCount} matches`, "scheduler");
+        } catch (err) {
+          log(`Auto new season failed: ${err}`, "scheduler");
+          console.error("Auto new season error:", err);
+        }
         return;
       }
 

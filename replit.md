@@ -4,7 +4,7 @@
 Text-based fantasy baseball manager game with retro 80s/90s cyberpunk aesthetic. Target platform: Solana Seeker mobile (Web3 integration planned). Zero MLB licenses - all fictional teams and players.
 
 ## Current State
-Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.10.0 — Training upgrade: always-visible mini cards with dynamic attribute labels, wallet signature required to certify training boosts, admin-configurable reward target (random/role/team). Game day auto-scheduled at 00:00 CET via node-cron, manual controls moved to Admin panel. Token economy with wallet-signed claims.
+Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.11.0 — Season genesis: 4 leagues (L1-L4, 80 teams, 1600 players), max 4 leagues cap (no further expansion). Auto new season when all matches played. Admin: reset & regenerate season, erase all data (wipe DB + re-seed, first user = admin). First user to register on empty DB auto-promoted to admin.
 
 ## Branding
 - **Logo**: `client/src/assets/images/logo-neon-dugout.png` — Stylized baseball diamond (neon glow, transparent bg)
@@ -25,7 +25,7 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 - `server/scheduler.ts` - Game day cron scheduler (00:00 CET / 23:00 UTC daily via node-cron)
 - `server/expansion.ts` - Dynamic league expansion: auto-creates new league with 20 teams + 400 players + 228 matches when all teams are owned
 - `server/storage.ts` - DatabaseStorage class implementing IStorage interface
-- `server/seed.ts` - Seeds 40 teams (2 leagues × 2 series × 10 teams), 800 players, 14-day schedule (regular + interleague + playoff)
+- `server/seed.ts` - Seeds 80 teams (4 leagues × 2 series × 10 teams), 1600 players, 14-day schedule per league (regular + interleague + playoff + promotion)
 - `server/simulation.ts` - Server-side batch simulation for match days
 - `server/season.ts` - Playoff matchup resolution + new season generation with promotion/relegation
 - `server/db.ts` - Database connection pool
@@ -111,9 +111,12 @@ All modifiers are multiplicative percentages applied to base probability table i
 - Meritocratic divisions: all teams generated with same attribute ranges (30-85 gaussian)
 - Zustand with localStorage persistence for dev convenience, API calls for real data
 - Bottom nav with 7 items: Hub, Lineup, Pitch, ATK, DEF, Sched, Rank
-- Batch processor planned for daily match simulation at 00:00 CET
+- Game day auto-simulated daily at 00:00 CET via node-cron scheduler
+- When season ends (all matches played), scheduler auto-generates new season
+- League expansion capped at 4 leagues max (L1-L4)
+- First user to register on empty DB is auto-promoted to admin
+- Admin can reset & regenerate current season, or wipe entire DB
 - Pitcher position in Lineup is read-only, driven by Pitching Staff page
-- League matches can be played manually from Home (results + full details saved to DB)
 - Match details stored in DB for later review (lineup, batter stats, pitcher stats, box score, flavor text, MVP)
 
 ## Authentication Flow

@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useGameStore } from "@/lib/store";
 import { useLocation } from "wouter";
-import { ArrowLeft, Save, Coins, Trash2, Play, Trophy } from "lucide-react";
+import { ArrowLeft, Save, Coins, Trash2, Play, Trophy, RotateCcw, AlertTriangle } from "lucide-react";
 import { useState, useEffect } from "react";
 
 interface TrainingConfig {
@@ -142,21 +142,31 @@ function GameDayCard({
   const matchesForNextDay = nextDay ? allMatches.filter(m => m.day === nextDay && !m.played).length : 0;
   const seasonFinished = allMatches.length > 0 && unplayedDays.length === 0;
 
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmWipe, setConfirmWipe] = useState(false);
+
   const simulateDay = async () => {
     if (!nextDay) return;
     setSimulating(true);
     setSimResult(null);
     try {
       if (nextDay >= 13) {
-        await fetch("/api/update-playoff-matchups", { method: "POST" });
+        await fetch("/api/update-playoff-matchups", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        });
       }
       const res = await fetch("/api/simulate-day", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ day: nextDay }),
       });
       const data = await res.json();
-      setSimResult(`Day ${nextDay}: ${data.matchesSimulated} matches simulated`);
+      if (res.ok) {
+        setSimResult(`Day ${nextDay}: ${data.matchesSimulated} matches simulated`);
+      } else {
+        setSimResult(data.message || "Simulation failed");
+      }
       queryClient.invalidateQueries({ queryKey: ["matches-all"] });
       queryClient.invalidateQueries({ queryKey: ["teams-all"] });
     } catch (err) {
@@ -169,16 +179,77 @@ function GameDayCard({
     setSimulating(true);
     setSimResult(null);
     try {
-      const res = await fetch("/api/new-season", { method: "POST" });
+      const res = await fetch("/api/new-season", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const data = await res.json();
-      if (data.seasonId) {
+      if (res.ok && data.seasonId) {
         setSimResult(`New season ${data.seasonId} started!`);
         queryClient.invalidateQueries({ queryKey: ["matches-all"] });
         queryClient.invalidateQueries({ queryKey: ["teams-all"] });
         queryClient.invalidateQueries({ queryKey: ["current-season"] });
+      } else {
+        setSimResult(data.message || "Failed to start new season");
       }
     } catch (err) {
       setSimResult("Failed to start new season");
+    }
+    setSimulating(false);
+  };
+
+  const resetSeason = async () => {
+    if (!confirmReset) {
+      setConfirmReset(true);
+      setTimeout(() => setConfirmReset(false), 5000);
+      return;
+    }
+    setSimulating(true);
+    setSimResult(null);
+    setConfirmReset(false);
+    try {
+      const res = await fetch("/api/admin/reset-season", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSimResult(data.message || "Season reset!");
+        queryClient.invalidateQueries({ queryKey: ["matches-all"] });
+        queryClient.invalidateQueries({ queryKey: ["teams-all"] });
+        queryClient.invalidateQueries({ queryKey: ["current-season"] });
+      } else {
+        setSimResult(data.message || "Reset failed");
+      }
+    } catch (err) {
+      setSimResult("Reset failed");
+    }
+    setSimulating(false);
+  };
+
+  const wipeDatabase = async () => {
+    if (!confirmWipe) {
+      setConfirmWipe(true);
+      setTimeout(() => setConfirmWipe(false), 5000);
+      return;
+    }
+    setSimulating(true);
+    setSimResult(null);
+    setConfirmWipe(false);
+    try {
+      const res = await fetch("/api/admin/wipe-database", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSimResult(data.message || "Database wiped!");
+        window.location.href = "/login";
+      } else {
+        setSimResult(data.message || "Wipe failed");
+      }
+    } catch (err) {
+      setSimResult("Wipe failed");
     }
     setSimulating(false);
   };
@@ -235,6 +306,40 @@ function GameDayCard({
           {simResult}
         </p>
       )}
+
+      <div className="border-t border-gray-700 pt-3 space-y-2">
+        <button
+          onClick={resetSeason}
+          disabled={simulating}
+          data-testid="button-admin-reset-season"
+          className={`w-full py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all disabled:opacity-50 ${
+            confirmReset
+              ? "bg-orange-600 hover:bg-orange-500 text-white animate-pulse"
+              : "bg-orange-900/30 hover:bg-orange-900/50 text-orange-400 border border-orange-500/30"
+          }`}
+        >
+          <div className="flex items-center justify-center gap-2">
+            <RotateCcw className="w-3 h-3" />
+            {simulating ? "RESETTING..." : confirmReset ? "CONFIRM RESET SEASON" : "RESET & REGENERATE SEASON"}
+          </div>
+        </button>
+
+        <button
+          onClick={wipeDatabase}
+          disabled={simulating}
+          data-testid="button-admin-wipe-db"
+          className={`w-full py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all disabled:opacity-50 ${
+            confirmWipe
+              ? "bg-red-600 hover:bg-red-500 text-white animate-pulse"
+              : "bg-red-900/30 hover:bg-red-900/50 text-red-400 border border-red-500/30"
+          }`}
+        >
+          <div className="flex items-center justify-center gap-2">
+            <AlertTriangle className="w-3 h-3" />
+            {simulating ? "WIPING..." : confirmWipe ? "CONFIRM — ERASE ALL DATA" : "ERASE ALL DATA & RESET APP"}
+          </div>
+        </button>
+      </div>
     </div>
   );
 }

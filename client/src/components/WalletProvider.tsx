@@ -4,6 +4,11 @@ import { WalletAdapterNetwork } from "@solana/wallet-adapter-base";
 import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
 import { SolflareWalletAdapter } from "@solana/wallet-adapter-solflare";
 import { BackpackWalletAdapter } from "@solana/wallet-adapter-backpack";
+import {
+  SolanaMobileWalletAdapter,
+  createDefaultAddressSelector,
+  createDefaultAuthorizationResultCache,
+} from "@solana-mobile/wallet-adapter-mobile";
 import { clusterApiUrl } from "@solana/web3.js";
 
 interface Props {
@@ -16,11 +21,23 @@ export default function WalletProvider({ children }: Props) {
 
   const wallets = useMemo(
     () => [
+      new SolanaMobileWalletAdapter({
+        addressSelector: createDefaultAddressSelector(),
+        appIdentity: {
+          name: "Neon Dugout",
+          uri: typeof window !== "undefined" ? window.location.origin : undefined,
+          icon: typeof window !== "undefined"
+            ? new URL("/logo-neon-dugout.png", window.location.origin).toString()
+            : undefined,
+        },
+        authorizationResultCache: createDefaultAuthorizationResultCache(),
+        cluster: network,
+      }),
       new PhantomWalletAdapter(),
       new SolflareWalletAdapter(),
       new BackpackWalletAdapter(),
     ],
-    []
+    [network]
   );
 
   return (

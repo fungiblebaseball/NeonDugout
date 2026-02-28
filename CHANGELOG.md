@@ -6,6 +6,21 @@ Formato:
   • Dettaglio 2 (file modificati)  
   • Trade-off / note (se rilevanti)
 
+## v1.14.2 – 28 febbraio 2026 – Seeker Wallet MWA Support
+
+- **Mobile Wallet Adapter (MWA)**:
+  * Installato `@solana-mobile/wallet-adapter-mobile` per il supporto al protocollo MWA usato dal Seeker per esporre il wallet integrato al browser Chrome
+  * `WalletProvider.tsx`: aggiunto `SolanaMobileWalletAdapter` con appIdentity (nome, URI, icona) e cluster config
+  * L'adapter viene inserito come primo nella lista wallet (priorità su mobile)
+
+- **Login Page migliorata**:
+  * Wallet matching migliorato: ogni opzione ha un array `matchNames` per cercare l'adapter con più nomi possibili (es. "mobile wallet adapter", "seeker", "solana mobile")
+  * Badge "DETECTED" verde accanto ai wallet effettivamente rilevati nel browser
+  * Wallet non rilevati mostrati con opacità ridotta (ma comunque cliccabili)
+  * Messaggio di errore specifico per Seeker se non rilevato
+
+- **File Modificati**: client/src/components/WalletProvider.tsx, client/src/pages/LoginPage.tsx, CHANGELOG.md, replit.md
+
 ## v1.14.1 – 28 febbraio 2026 – Home & Team Page UI/UX Improvements
 
 - **Home Page**:

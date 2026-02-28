@@ -19,6 +19,12 @@ Formato:
   * Wallet non rilevati mostrati con opacità ridotta (ma comunque cliccabili)
   * Messaggio di errore specifico per Seeker se non rilevato
 
+- **Fix connessione wallet (standby bug)**:
+  * Risolto race condition: `select()` aggiorna stato React, ma `connect()` veniva chiamato prima che React propagasse la selezione
+  * Ora `select()` imposta il wallet, un `useEffect` osserva il cambio e chiama `connect()` solo quando il wallet è effettivamente selezionato
+  * Aggiunto timeout 30s sulla connessione per evitare che resti in standby infinito — mostra messaggio di errore se scade
+  * Disconnessione automatica dal wallet precedente prima di selezionarne uno nuovo
+
 - **File Modificati**: client/src/components/WalletProvider.tsx, client/src/pages/LoginPage.tsx, CHANGELOG.md, replit.md
 
 ## v1.14.1 – 28 febbraio 2026 – Home & Team Page UI/UX Improvements

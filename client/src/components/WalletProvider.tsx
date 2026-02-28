@@ -26,9 +26,7 @@ export default function WalletProvider({ children }: Props) {
         appIdentity: {
           name: "Neon Dugout",
           uri: typeof window !== "undefined" ? window.location.origin : undefined,
-          icon: typeof window !== "undefined"
-            ? new URL("/logo-neon-dugout.png", window.location.origin).toString()
-            : undefined,
+          icon: "/logo-neon-dugout.png",
         },
         authorizationResultCache: createDefaultAuthorizationResultCache(),
         cluster: network,

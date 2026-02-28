@@ -1,5 +1,5 @@
 import { useWallet } from "@solana/wallet-adapter-react";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useGameStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
@@ -16,12 +16,14 @@ const WALLET_OPTIONS = [
 type LoginStatus = "disconnected" | "connecting" | "connected" | "signing" | "verifying" | "error";
 
 export default function LoginPage() {
-  const { publicKey, signMessage, select, wallets, connect, connected, connecting } = useWallet();
+  const { publicKey, signMessage, select, wallets, connect, connected, connecting, wallet, disconnect } = useWallet();
   const { walletAddress, loginWithSignature } = useGameStore();
   const [, navigate] = useLocation();
   const [status, setStatus] = useState<LoginStatus>("disconnected");
   const [error, setError] = useState<string | null>(null);
   const [selectedWallet, setSelectedWallet] = useState<string | null>(null);
+  const attemptIdRef = useRef(0);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const detectedWalletIds = useMemo(() => {
     const detected = new Set<string>();
@@ -36,6 +38,13 @@ export default function LoginPage() {
     return detected;
   }, [wallets]);
 
+  const clearPendingTimeout = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  }, []);
+
   useEffect(() => {
     if (walletAddress) {
       navigate("/");
@@ -43,7 +52,41 @@ export default function LoginPage() {
   }, [walletAddress, navigate]);
 
   useEffect(() => {
+    if (!wallet || status !== "connecting" || connected || connecting) return;
+
+    const currentAttempt = attemptIdRef.current;
+    clearPendingTimeout();
+
+    timeoutRef.current = setTimeout(() => {
+      if (attemptIdRef.current === currentAttempt) {
+        setError("Connection timed out. The wallet did not respond. Make sure the wallet app is open and try again.");
+        setStatus("error");
+      }
+    }, 30000);
+
+    connect()
+      .then(() => {
+        if (attemptIdRef.current === currentAttempt) {
+          clearPendingTimeout();
+        }
+      })
+      .catch((err: any) => {
+        if (attemptIdRef.current !== currentAttempt) return;
+        clearPendingTimeout();
+        if (err?.message?.includes("rejected")) {
+          setError("Connection cancelled. Try again.");
+        } else {
+          setError(err?.message || "Failed to connect wallet.");
+        }
+        setStatus("error");
+      });
+
+    return () => clearPendingTimeout();
+  }, [wallet, status, connected, connecting]);
+
+  useEffect(() => {
     if (connected && publicKey && status === "connecting") {
+      clearPendingTimeout();
       handleSign();
     }
   }, [connected, publicKey, status]);
@@ -60,11 +103,13 @@ export default function LoginPage() {
   const handleWalletSelect = async (walletId: string) => {
     setError(null);
     setSelectedWallet(walletId);
+    attemptIdRef.current += 1;
+    clearPendingTimeout();
     setStatus("connecting");
 
-    const wallet = findAdapter(walletId);
+    const found = findAdapter(walletId);
 
-    if (!wallet) {
+    if (!found) {
       if (walletId === "seeker") {
         setError("Seeker wallet not detected. Make sure you're using the Seeker's built-in browser or have the Seeker wallet app installed.");
       } else {
@@ -75,16 +120,12 @@ export default function LoginPage() {
     }
 
     try {
-      select(wallet.adapter.name);
-      await connect();
-    } catch (err: any) {
-      if (err?.message?.includes("rejected")) {
-        setError("Connection cancelled. Try again.");
-      } else {
-        setError(err?.message || "Failed to connect wallet.");
+      if (connected) {
+        await disconnect();
       }
-      setStatus("error");
-    }
+    } catch {}
+
+    select(found.adapter.name);
   };
 
   const handleSign = async () => {

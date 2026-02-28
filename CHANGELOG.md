@@ -6,6 +6,51 @@ Formato:
   • Dettaglio 2 (file modificati)  
   • Trade-off / note (se rilevanti)
 
+## v1.15.0 – 28 febbraio 2026 – Season Progression, Bot Setup, Tattiche nel Gameplay
+
+- **Preparazione roster nuova stagione (T001)**:
+  * Alla creazione nuova stagione, metà dei bonus _add (arrotondamento per difetto) viene sommata permanentemente agli attributi base del giocatore
+  * `consolidatePlayerBonuses()` in storage esegue `pow = pow + floor(pow_add/2)` etc., poi azzera tutti _add
+  * Il reset admin continua ad azzerare senza consolidare
+
+- **Playoff preview nello schedule (T002)**:
+  * I match playoff/promotion (day 13-14) appaiono nello schedule con badge colorati (PLAYOFF rosso, PROMOTION arancione)
+  * Match TBD mostrano "TBD vs TBD" con label "PENDING"; match assegnati mostrano nomi e link PREVIEW/VIEW
+
+- **Schedule da standings (T003)**:
+  * Sezione espandibile "SCHEDULE" in ogni divisione della pagina Standings
+  * Mostra tutti i match del girone: Day, Home vs Away, risultato o TBD, con link a match detail
+
+- **Auto-setup squadre bot (T004)**:
+  * Alla nuova stagione, tutte le squadre senza ownerWallet ricevono lineup automatica, rotazione lanciatori e tattiche casuali
+  * Helper `generateBotSetup()` assegna posizioni difensive per attributi, batting order, ruoli pitcher, e tattiche random
+  * Le squadre degli utenti non vengono toccate
+
+- **Tattiche nel gameplay / play log (T005)**:
+  * Play log inizia con entry `tactic_initial` che elenca le tattiche di partenza di entrambe le squadre
+  * Entry `tactic_change` generate automaticamente quando una tattica cambia durante la partita (via schedule)
+  * Renderizzate in MatchDetailPage e PlayLogPage con stile amber distinto
+
+- **Anteprima tattiche avversarie (T006)**:
+  * Nel match preview della Home page, sezione espandibile mostra le tattiche impostate dall'avversario
+  * Fetch da `/api/tactics/:teamId` (nessuna restrizione ownership)
+
+- **Countdown rosso incorniciato (T007)**:
+  * Countdown timer cambiato da cyan a rosso con bordo prominente e glow
+  * `border-2 border-red-500/40`, `bg-red-950/20`, `box-shadow: 0 0 15px rgba(239,68,68,0.3)`
+
+- **Colore team personalizzabile (T008)**:
+  * Color picker nella TeamPage per cambiare il colore primario del team
+  * Nuovo endpoint `PATCH /api/team/:id/color` con validazione hex e ownership check
+
+- **TeamPage compatta (T009)**:
+  * User Info ridotto a una riga (wallet + data registrazione)
+  * Team Info: nome + color picker + league/series/division in una riga
+  * Token Balance integrato nello stesso box
+  * Roster table: padding ridotto, font più piccoli
+
+- **File Modificati**: server/season.ts, server/storage.ts, server/routes.ts, shared/calculations/types.ts, shared/calculations/simulate.ts, client/src/lib/calculations/types.ts, client/src/lib/calculations/simulate.ts, client/src/pages/Home.tsx, client/src/pages/TeamPage.tsx, client/src/pages/SchedulePage.tsx, client/src/pages/StandingsPage.tsx, client/src/pages/MatchDetailPage.tsx, client/src/pages/PlayLogPage.tsx, client/src/pages/SimulationPage.tsx, CHANGELOG.md, replit.md
+
 ## v1.14.2 – 28 febbraio 2026 – Seeker Wallet MWA Support
 
 - **Mobile Wallet Adapter (MWA)**:

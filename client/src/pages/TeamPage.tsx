@@ -1,5 +1,5 @@
 import { useGameStore } from "@/lib/store";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { ArrowLeft, Coins, Users, RotateCcw } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useState, useMemo } from "react";
@@ -66,6 +66,23 @@ export default function TeamPage() {
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [pendingColor, setPendingColor] = useState<string | null>(null);
+
+  const colorMutation = useMutation({
+    mutationFn: async (color: string) => {
+      const res = await fetch(`/api/team/${team!.id}/color`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ color }),
+      });
+      if (!res.ok) throw new Error('Failed to update color');
+      return res.json();
+    },
+    onSuccess: (updatedTeam) => {
+      useGameStore.setState({ team: { ...team!, primaryColor: updatedTeam.primaryColor } });
+      setPendingColor(null);
+    },
+  });
 
   const { data: rosterPlayers = [] } = useQuery<PlayerData[]>({
     queryKey: ['team-players', team?.id],
@@ -176,88 +193,81 @@ export default function TeamPage() {
       </header>
 
       <main className="p-4 space-y-4">
-        <div className="p-4 rounded-2xl border border-pink-500/30 bg-gradient-to-br from-pink-500/10 to-transparent space-y-3">
-          <h3 className="font-mono text-sm text-pink-300 uppercase">User Info</h3>
-          <div className="space-y-2">
-            <div>
-              <span className="text-[10px] font-mono text-gray-500 uppercase">Wallet Address</span>
-              <p data-testid="text-wallet-address" className="text-xs break-all text-gray-400 bg-black/50 p-2 rounded font-mono border border-gray-800 mt-1">
-                {walletAddress}
-              </p>
-            </div>
+        <div className="p-2.5 rounded-xl border border-pink-500/30 bg-gradient-to-br from-pink-500/10 to-transparent">
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] font-mono text-gray-500 uppercase shrink-0">Wallet</span>
+            <p data-testid="text-wallet-address" className="text-[10px] break-all text-gray-400 bg-black/50 px-2 py-1 rounded font-mono border border-gray-800 flex-1 truncate">
+              {walletAddress}
+            </p>
             {(user as any)?.createdAt && (
-              <div>
-                <span className="text-[10px] font-mono text-gray-500 uppercase">Registered</span>
-                <p data-testid="text-registered-date" className="text-xs text-gray-400 font-mono mt-1">
-                  {new Date((user as any).createdAt).toLocaleDateString()}
-                </p>
-              </div>
+              <span data-testid="text-registered-date" className="text-[9px] text-gray-500 font-mono shrink-0">
+                {new Date((user as any).createdAt).toLocaleDateString()}
+              </span>
             )}
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-cyan-500/10 to-transparent space-y-3">
-          <h3 className="font-mono text-sm text-cyan-300 uppercase">Team Info</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <span className="text-[10px] font-mono text-gray-500 uppercase">Team Name</span>
-              <p data-testid="text-team-name" className="text-sm font-black text-pink-400 mt-1" style={{ fontFamily: "'Orbitron', sans-serif" }}>
+        <div className="p-3 rounded-xl border border-cyan-500/30 bg-gradient-to-br from-cyan-500/10 to-transparent space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <p data-testid="text-team-name" className="text-sm font-black text-pink-400" style={{ fontFamily: "'Orbitron', sans-serif" }}>
                 {team.name}
               </p>
+              <label className="relative cursor-pointer">
+                <input
+                  data-testid="input-team-color"
+                  type="color"
+                  value={pendingColor ?? team.primaryColor}
+                  onChange={(e) => setPendingColor(e.target.value)}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                />
+                <div className="w-5 h-5 rounded-full border-2 border-gray-600 hover:border-cyan-400 transition-colors" style={{ backgroundColor: pendingColor ?? team.primaryColor }} />
+              </label>
+              {pendingColor && pendingColor !== team.primaryColor && (
+                <button
+                  data-testid="button-save-color"
+                  onClick={() => colorMutation.mutate(pendingColor)}
+                  disabled={colorMutation.isPending}
+                  className="px-2 py-0.5 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 font-mono text-[9px] uppercase tracking-wider rounded transition-all disabled:opacity-50"
+                >
+                  {colorMutation.isPending ? '...' : 'SAVE'}
+                </button>
+              )}
             </div>
-            <div>
-              <span className="text-[10px] font-mono text-gray-500 uppercase">Primary Color</span>
-              <div className="flex items-center gap-2 mt-1">
-                <div className="w-4 h-4 rounded-full border border-gray-700" style={{ backgroundColor: team.primaryColor }} />
-                <span className="text-xs font-mono text-gray-400">{team.primaryColor}</span>
-              </div>
-            </div>
-            <div>
-              <span className="text-[10px] font-mono text-gray-500 uppercase">League</span>
-              <p data-testid="text-league" className="text-xs font-mono text-cyan-300 mt-1">{team.league}</p>
-            </div>
-            <div>
-              <span className="text-[10px] font-mono text-gray-500 uppercase">Series</span>
-              <p data-testid="text-series" className="text-xs font-mono text-cyan-300 mt-1">Serie {team.series}</p>
-            </div>
-            <div>
-              <span className="text-[10px] font-mono text-gray-500 uppercase">Division</span>
-              <p data-testid="text-division" className="text-xs font-mono text-cyan-300 mt-1">Div {team.division}</p>
+            <div className="flex items-center gap-1.5 text-[10px] font-mono text-cyan-300">
+              <span data-testid="text-league">{team.league}</span>
+              <span className="text-gray-600">·</span>
+              <span data-testid="text-series">S{team.series}</span>
+              <span className="text-gray-600">·</span>
+              <span data-testid="text-division">D{team.division}</span>
             </div>
           </div>
-        </div>
-
-        <div className="p-4 rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 to-transparent space-y-3">
-          <h3 className="font-mono text-sm text-amber-300 uppercase flex items-center gap-2">
-            <Coins className="w-4 h-4" />
-            Token Balance
-          </h3>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center justify-between pt-1 border-t border-cyan-500/10">
             <div className="flex items-center gap-2">
-              <span className="text-2xl">🪙</span>
-              <span data-testid="text-token-balance" className="text-2xl font-black text-amber-400" style={{ fontFamily: "'Orbitron', sans-serif" }}>
+              <span className="text-lg">🪙</span>
+              <span data-testid="text-token-balance" className="text-lg font-black text-amber-400" style={{ fontFamily: "'Orbitron', sans-serif" }}>
                 {tokenData?.balance ?? 0}
               </span>
+              {tokenData?.canClaim && (
+                <Link href="/">
+                  <button data-testid="button-claim-tokens" className="px-3 py-1 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-mono text-[9px] uppercase tracking-wider rounded transition-all">
+                    CLAIM
+                  </button>
+                </Link>
+              )}
+              {tokenData?.nextClaimAt && !tokenData.canClaim && (
+                <span data-testid="text-next-claim" className="text-[9px] font-mono text-gray-500">
+                  Next: {new Date(tokenData.nextClaimAt).toLocaleDateString()}
+                </span>
+              )}
             </div>
-            {tokenData?.canClaim && (
-              <Link href="/">
-                <button data-testid="button-claim-tokens" className="px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-mono text-xs uppercase tracking-wider rounded-lg transition-all">
-                  CLAIM TOKENS
-                </button>
-              </Link>
-            )}
           </div>
-          {tokenData?.nextClaimAt && !tokenData.canClaim && (
-            <p data-testid="text-next-claim" className="text-[10px] font-mono text-gray-500">
-              Next claim available: {new Date(tokenData.nextClaimAt).toLocaleString()}
-            </p>
-          )}
         </div>
 
-        <div className="rounded-2xl border border-cyan-500/30 bg-black/40 overflow-hidden">
-          <div className="p-4 border-b border-cyan-500/20 flex items-center gap-2">
-            <Users className="w-4 h-4 text-cyan-400" />
-            <h3 className="font-mono text-sm text-cyan-300 uppercase">Roster ({rosterPlayers.length} players)</h3>
+        <div className="rounded-xl border border-cyan-500/30 bg-black/40 overflow-hidden">
+          <div className="px-3 py-2 border-b border-cyan-500/20 flex items-center gap-2">
+            <Users className="w-3.5 h-3.5 text-cyan-400" />
+            <h3 className="font-mono text-xs text-cyan-300 uppercase">Roster ({rosterPlayers.length})</h3>
             <button
               data-testid="button-refresh-roster"
               onClick={handleRefresh}
@@ -272,16 +282,16 @@ export default function TeamPage() {
             <table className="w-full text-left">
               <thead>
                 <tr className="border-b border-gray-800">
-                  <th className="px-3 py-2 text-[9px] font-mono text-gray-500 uppercase sticky left-0 bg-black/90 z-10">Player</th>
-                  <th className="px-2 py-2 text-[9px] font-mono text-gray-500 uppercase">Pos</th>
-                  <th className="px-1.5 py-2 text-[9px] font-mono text-green-500/70 uppercase text-center min-w-[28px]">#</th>
-                  <th className="px-1.5 py-2 text-[9px] font-mono text-green-500/70 uppercase text-center min-w-[32px]">FLD</th>
+                  <th className="px-2 py-1.5 text-[9px] font-mono text-gray-500 uppercase sticky left-0 bg-black/90 z-10">Player</th>
+                  <th className="px-1.5 py-1.5 text-[9px] font-mono text-gray-500 uppercase">Pos</th>
+                  <th className="px-1 py-1.5 text-[9px] font-mono text-green-500/70 uppercase text-center min-w-[24px]">#</th>
+                  <th className="px-1 py-1.5 text-[9px] font-mono text-green-500/70 uppercase text-center min-w-[28px]">FLD</th>
                   {ATTRS.map(attr => (
                     <th
                       key={attr}
                       data-testid={`sort-header-${attr}`}
                       onClick={() => handleSort(attr)}
-                      className="px-1.5 py-2 text-[9px] font-mono text-gray-500 uppercase text-center min-w-[52px] cursor-pointer hover:text-cyan-400 transition-colors select-none"
+                      className="px-1 py-1.5 text-[9px] font-mono text-gray-500 uppercase text-center min-w-[44px] cursor-pointer hover:text-cyan-400 transition-colors select-none"
                     >
                       {ATTR_LABELS[attr]}
                       {sortKey === attr && (
@@ -302,21 +312,21 @@ export default function TeamPage() {
                       onClick={() => navigate(`/player/${player.id}`)}
                       className="border-b border-gray-800/50 hover:bg-cyan-900/10 cursor-pointer transition-colors"
                     >
-                      <td className="px-3 py-2 sticky left-0 bg-black/90 z-10">
-                        <Link href={`/player/${player.id}`} data-testid={`link-player-${player.id}`} className="text-xs font-bold text-cyan-300 hover:text-cyan-200 whitespace-nowrap">
+                      <td className="px-2 py-1 sticky left-0 bg-black/90 z-10">
+                        <Link href={`/player/${player.id}`} data-testid={`link-player-${player.id}`} className="text-[11px] font-bold text-cyan-300 hover:text-cyan-200 whitespace-nowrap">
                           {player.name}
                         </Link>
                       </td>
-                      <td className="px-2 py-2">
-                        <span className="text-[10px] font-mono text-pink-400">{player.positions.join('/')}</span>
+                      <td className="px-1.5 py-1">
+                        <span className="text-[9px] font-mono text-pink-400">{player.positions.join('/')}</span>
                       </td>
-                      <td className="px-1.5 py-2 text-center">
-                        <span data-testid={`text-bat-order-${player.id}`} className={`text-[10px] font-mono ${batOrder ? 'text-green-400 font-bold' : 'text-gray-700'}`}>
+                      <td className="px-1 py-1 text-center">
+                        <span data-testid={`text-bat-order-${player.id}`} className={`text-[9px] font-mono ${batOrder ? 'text-green-400 font-bold' : 'text-gray-700'}`}>
                           {batOrder ?? '—'}
                         </span>
                       </td>
-                      <td className="px-1.5 py-2 text-center">
-                        <span data-testid={`text-field-pos-${player.id}`} className={`text-[10px] font-mono ${fieldPos ? 'text-green-400' : 'text-gray-700'}`}>
+                      <td className="px-1 py-1 text-center">
+                        <span data-testid={`text-field-pos-${player.id}`} className={`text-[9px] font-mono ${fieldPos ? 'text-green-400' : 'text-gray-700'}`}>
                           {fieldPos ?? '—'}
                         </span>
                       </td>
@@ -325,13 +335,13 @@ export default function TeamPage() {
                         const add = getAdd(player, attr);
                         const total = getTotal(player, attr);
                         return (
-                          <td key={attr} className="px-1.5 py-2 text-center">
-                            <div className="flex flex-col items-center">
-                              <span className="text-xs font-black text-cyan-300" style={{ fontFamily: "'Orbitron', sans-serif" }}>
+                          <td key={attr} className="px-1 py-1 text-center">
+                            <div className="flex flex-col items-center leading-tight">
+                              <span className="text-[11px] font-black text-cyan-300" style={{ fontFamily: "'Orbitron', sans-serif" }}>
                                 {total}
                               </span>
                               {add > 0 && (
-                                <span className="text-[8px] font-mono text-amber-400">
+                                <span className="text-[7px] font-mono text-amber-400">
                                   {base}+{add}
                                 </span>
                               )}

@@ -58,9 +58,13 @@ export default function SchedulePage() {
   const seasonMatches = allMatchesRaw.filter(m => m.seasonId === currentSeason);
   const seasonTeams = allTeamsRaw.filter(t => t.seasonId === currentSeason);
   const divTeamIds = new Set(seasonTeams.filter(t => t.division === team?.division).map(t => t.id));
+
+  const userLeague = team?.league ?? '';
   const allMatches = seasonMatches.filter(m =>
     m.division === team?.division ||
-    divTeamIds.has(m.homeTeamId) || divTeamIds.has(m.awayTeamId)
+    divTeamIds.has(m.homeTeamId) || divTeamIds.has(m.awayTeamId) ||
+    (m.matchType === 'playoff' && m.division === `playoff_${userLeague}`) ||
+    (m.matchType === 'promotion' && (m.division.includes(`_${userLeague}`) || m.division.includes(`to_${userLeague}`)))
   );
   const divTeams = seasonTeams;
 
@@ -69,8 +73,15 @@ export default function SchedulePage() {
   }
 
   const teamMap = new Map(divTeams.map(t => [t.id, t]));
-  const getTeamName = (id: number) => teamMap.get(id)?.name ?? `Team #${id}`;
-  const isUserTeam = (id: number) => id === team.id;
+  const getTeamName = (id: number) => id === 0 ? 'TBD' : (teamMap.get(id)?.name ?? `Team #${id}`);
+  const isUserTeam = (id: number) => id !== 0 && id === team.id;
+  const isTBDMatch = (m: MatchData) => m.homeTeamId === 0 || m.awayTeamId === 0;
+
+  const getMatchTypeLabel = (m: MatchData): { label: string; color: string } | null => {
+    if (m.matchType === 'playoff') return { label: 'PLAYOFF', color: 'red' };
+    if (m.matchType === 'promotion') return { label: 'PROMOTION', color: 'orange' };
+    return null;
+  };
 
   const matchesByDay = new Map<number, MatchData[]>();
   for (const m of allMatches) {
@@ -160,11 +171,14 @@ export default function SchedulePage() {
                 <div className="px-3 py-2 border-b border-gray-800/50 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-mono text-gray-400">DAY {day}</span>
-                    {dayMatches[0]?.matchType === 'interleague' && (
+                    {dayMatches.some(m => m.matchType === 'interleague') && (
                       <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 text-[8px] font-mono rounded uppercase">Interleague</span>
                     )}
-                    {dayMatches[0]?.matchType === 'playoff' && (
+                    {dayMatches.some(m => m.matchType === 'playoff') && (
                       <span className="px-1.5 py-0.5 bg-red-500/20 text-red-400 text-[8px] font-mono rounded uppercase">Playoff</span>
+                    )}
+                    {dayMatches.some(m => m.matchType === 'promotion') && (
+                      <span className="px-1.5 py-0.5 bg-orange-500/20 text-orange-400 text-[8px] font-mono rounded uppercase">Promotion</span>
                     )}
                   </div>
                   <span className="text-[10px] font-mono text-gray-600">{dayDate}</span>
@@ -173,11 +187,25 @@ export default function SchedulePage() {
                 <div className="divide-y divide-gray-800/30">
                   {dayMatches.map(m => {
                     const isUser = m.homeTeamId === team.id || m.awayTeamId === team.id;
+                    const tbdMatch = isTBDMatch(m);
+                    const typeLabel = getMatchTypeLabel(m);
+                    const isClickable = m.played || (!tbdMatch && !m.played);
                     const matchContent = (
-                      <div data-testid={`match-${m.id}`} className={`px-3 py-2 flex items-center gap-2 ${isUser ? 'bg-cyan-950/10' : ''} ${m.played ? 'hover:bg-gray-900/40 transition-colors cursor-pointer' : ''}`}>
+                      <div data-testid={`match-${m.id}`} className={`px-3 py-2 flex items-center gap-2 ${isUser ? 'bg-cyan-950/10' : ''} ${isClickable ? 'hover:bg-gray-900/40 transition-colors cursor-pointer' : ''}`}>
+                        {typeLabel && (
+                          <span className={`px-1.5 py-0.5 text-[8px] font-black rounded uppercase shrink-0 ${
+                            typeLabel.color === 'red' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
+                            'bg-orange-500/20 text-orange-400 border border-orange-500/30'
+                          }`}>
+                            {typeLabel.label}
+                          </span>
+                        )}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between text-xs">
-                            <span className={`font-mono truncate ${isUserTeam(m.awayTeamId) ? 'text-cyan-400 font-bold' : 'text-gray-300'}`}>
+                            <span className={`font-mono truncate ${
+                              m.awayTeamId === 0 ? 'text-gray-500 italic' :
+                              isUserTeam(m.awayTeamId) ? 'text-cyan-400 font-bold' : 'text-gray-300'
+                            }`}>
                               {getTeamName(m.awayTeamId)}
                             </span>
                             {m.played ? (
@@ -187,7 +215,10 @@ export default function SchedulePage() {
                             ) : null}
                           </div>
                           <div className="flex items-center justify-between text-xs mt-0.5">
-                            <span className={`font-mono truncate ${isUserTeam(m.homeTeamId) ? 'text-cyan-400 font-bold' : 'text-gray-300'}`}>
+                            <span className={`font-mono truncate ${
+                              m.homeTeamId === 0 ? 'text-gray-500 italic' :
+                              isUserTeam(m.homeTeamId) ? 'text-cyan-400 font-bold' : 'text-gray-300'
+                            }`}>
                               {getTeamName(m.homeTeamId)}
                             </span>
                             {m.played ? (
@@ -197,8 +228,11 @@ export default function SchedulePage() {
                             ) : null}
                           </div>
                         </div>
-                        {!m.played && (
-                          <span className="text-[9px] font-mono text-gray-600 shrink-0">00:00 CET</span>
+                        {!m.played && tbdMatch && (
+                          <span className="text-[9px] font-mono text-gray-600 shrink-0 italic">PENDING</span>
+                        )}
+                        {!m.played && !tbdMatch && (
+                          <span className="text-[9px] font-mono text-gray-600 shrink-0">PREVIEW</span>
                         )}
                         {m.played && (
                           <div className="flex items-center gap-1 shrink-0">
@@ -208,11 +242,13 @@ export default function SchedulePage() {
                         )}
                       </div>
                     );
-                    return m.played ? (
-                      <Link key={m.id} href={`/match/${m.id}`}>{matchContent}</Link>
-                    ) : (
-                      <div key={m.id}>{matchContent}</div>
-                    );
+                    if (m.played) {
+                      return <Link key={m.id} href={`/match/${m.id}`}>{matchContent}</Link>;
+                    }
+                    if (!tbdMatch) {
+                      return <Link key={m.id} href={`/match/${m.id}`}>{matchContent}</Link>;
+                    }
+                    return <div key={m.id}>{matchContent}</div>;
                   })}
                 </div>
               </div>

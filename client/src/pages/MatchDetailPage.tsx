@@ -53,7 +53,7 @@ interface MatchDetailData {
 }
 
 interface PlayLogEntry {
-  type: 'at_bat' | 'pitcher_change';
+  type: 'at_bat' | 'pitcher_change' | 'tactic_change' | 'tactic_initial';
   inning: number;
   half: 'top' | 'bottom';
   outs: number;
@@ -74,6 +74,10 @@ interface PlayLogEntry {
   newPitcherName?: string;
   newPitcherRole?: string;
   changeReason?: string;
+  tacticField?: string;
+  oldValue?: string;
+  newValue?: string;
+  teamSide?: 'home' | 'away';
 }
 
 interface MatchData {
@@ -120,15 +124,52 @@ function basesDisplay(b?: { first: boolean; second: boolean; third: boolean }): 
   return parts.length > 0 ? parts.join(' ') : '—';
 }
 
+function TacticInitialBlock({ entries }: { entries: PlayLogEntry[] }) {
+  const homeEntries = entries.filter(e => e.type === 'tactic_initial' && e.teamSide === 'home');
+  const awayEntries = entries.filter(e => e.type === 'tactic_initial' && e.teamSide === 'away');
+  if (homeEntries.length === 0 && awayEntries.length === 0) return null;
+
+  return (
+    <div className="mb-3 p-2 rounded-lg border border-amber-500/20 bg-amber-950/10" data-testid="log-tactic-initial">
+      <div className="text-[9px] font-bold uppercase text-amber-400 mb-1">⚙ Starting Tactics</div>
+      <div className="grid grid-cols-2 gap-2">
+        {awayEntries.length > 0 && (
+          <div>
+            <div className="text-[9px] text-pink-400 font-bold mb-0.5">AWAY</div>
+            {awayEntries.map((e, i) => (
+              <div key={i} className="text-[9px] text-gray-400">
+                <span className="text-gray-500">{e.tacticField}:</span> <span className="text-amber-300">{e.newValue}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {homeEntries.length > 0 && (
+          <div>
+            <div className="text-[9px] text-cyan-400 font-bold mb-0.5">HOME</div>
+            {homeEntries.map((e, i) => (
+              <div key={i} className="text-[9px] text-gray-400">
+                <span className="text-gray-500">{e.tacticField}:</span> <span className="text-amber-300">{e.newValue}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function PlayLogViewer({ entries }: { entries: PlayLogEntry[] }) {
-  const innings = Array.from(new Set(entries.map(e => e.inning))).sort((a, b) => a - b);
+  const tacticInitials = entries.filter(e => e.type === 'tactic_initial');
+  const gameEntries = entries.filter(e => e.type !== 'tactic_initial');
+  const innings = Array.from(new Set(gameEntries.map(e => e.inning))).sort((a, b) => a - b);
 
   return (
     <div className="space-y-3 font-mono text-[10px]">
+      <TacticInitialBlock entries={tacticInitials} />
       {innings.map(inn => (
         <div key={inn}>
           {['top', 'bottom'].map(half => {
-            const halfEntries = entries.filter(e => e.inning === inn && e.half === half);
+            const halfEntries = gameEntries.filter(e => e.inning === inn && e.half === half);
             if (halfEntries.length === 0) return null;
             return (
               <div key={`${inn}-${half}`} className="mb-3">
@@ -139,6 +180,14 @@ function PlayLogViewer({ entries }: { entries: PlayLogEntry[] }) {
                 </div>
                 <div className="space-y-0.5 ml-2 border-l border-gray-800 pl-2">
                   {halfEntries.map((entry, idx) => {
+                    if (entry.type === 'tactic_change') {
+                      return (
+                        <div key={idx} data-testid={`log-tacticchange-${inn}-${half}-${idx}`} className="py-1 px-2 bg-amber-950/30 border border-amber-500/20 rounded text-amber-300">
+                          ⚙ <span className={entry.teamSide === 'home' ? 'text-cyan-400' : 'text-pink-400'}>{entry.teamSide === 'home' ? 'HOME' : 'AWAY'}</span>
+                          {' '}{entry.tacticField}: <span className="text-gray-500">{entry.oldValue}</span> → <span className="text-amber-200 font-bold">{entry.newValue}</span>
+                        </div>
+                      );
+                    }
                     if (entry.type === 'pitcher_change') {
                       return (
                         <div key={idx} data-testid={`log-pitcherchange-${inn}-${half}-${idx}`} className="py-1 px-2 bg-purple-950/30 border border-purple-500/20 rounded text-purple-300">

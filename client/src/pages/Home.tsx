@@ -270,6 +270,23 @@ export default function Home() {
     enabled: !!opponentId && opponentId !== 0 && showOppLineup,
   });
 
+  const { data: oppTactics } = useQuery<{
+    attackStyle: string;
+    batterApproach: string;
+    offensiveAttack: string;
+    infieldPosition: string;
+    outfieldPosition: string;
+    defenseSetup: string;
+  } | null>({
+    queryKey: ['opponent-tactics', opponentId],
+    queryFn: async () => {
+      const res = await fetch(`/api/tactics/${opponentId}`);
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!opponentId && opponentId !== 0,
+  });
+
   const realMatches = allMatchesRaw.filter(m => m.homeTeamId !== 0 && m.awayTeamId !== 0);
   const unfilledPlayoffs = allMatchesRaw.filter(m => (m.homeTeamId === 0 || m.awayTeamId === 0) && !m.played);
   const seasonFinished = realMatches.length > 0 && realMatches.every(m => m.played) && unfilledPlayoffs.length === 0;
@@ -432,10 +449,10 @@ export default function Home() {
         })()}
 
         {!seasonFinished && nextUnplayedDay && (
-          <div data-testid="countdown-next-game" className="flex items-center justify-center gap-2 py-2 px-4 rounded-xl border border-cyan-500/15 bg-cyan-950/10">
-            <Clock className="w-3 h-3 text-cyan-500/50" />
-            <span className="text-[10px] font-mono text-cyan-400/60 uppercase tracking-wider">NEXT GAME IN</span>
-            <span data-testid="text-countdown" className="text-xs font-black text-cyan-300/80 tracking-widest" style={{fontFamily: "'Orbitron', sans-serif"}}>{countdown}</span>
+          <div data-testid="countdown-next-game" className="flex items-center justify-center gap-2 py-2 px-4 rounded-xl border-2 border-red-500/40 bg-red-950/20" style={{boxShadow: '0 0 15px rgba(239,68,68,0.3)'}}>
+            <Clock className="w-3 h-3 text-red-500/50" />
+            <span className="text-[10px] font-mono text-red-400/60 uppercase tracking-wider">NEXT GAME IN</span>
+            <span data-testid="text-countdown" className="text-xs font-black text-red-400 tracking-widest" style={{fontFamily: "'Orbitron', sans-serif"}}>{countdown}</span>
           </div>
         )}
 
@@ -598,13 +615,44 @@ export default function Home() {
                       )}
                     </div>
                   )}
+                  {oppTactics && (
+                    <div data-testid="opp-tactics-preview" className="border border-pink-500/20 rounded-lg bg-black/40 p-2 space-y-1">
+                      <p className="text-[9px] font-mono text-pink-400 uppercase tracking-wider mb-1">OPP TACTICS</p>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+                        <div className="flex justify-between">
+                          <span data-testid="label-opp-attack-style" className="text-[9px] font-mono text-gray-500">Attack Style</span>
+                          <span data-testid="value-opp-attack-style" className="text-[9px] font-mono text-pink-300 uppercase">{oppTactics.attackStyle}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span data-testid="label-opp-batter-approach" className="text-[9px] font-mono text-gray-500">Batter Appr.</span>
+                          <span data-testid="value-opp-batter-approach" className="text-[9px] font-mono text-pink-300 uppercase">{oppTactics.batterApproach}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span data-testid="label-opp-offensive-attack" className="text-[9px] font-mono text-gray-500">Off. Attack</span>
+                          <span data-testid="value-opp-offensive-attack" className="text-[9px] font-mono text-pink-300 uppercase">{oppTactics.offensiveAttack}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span data-testid="label-opp-defense-setup" className="text-[9px] font-mono text-gray-500">Defense Setup</span>
+                          <span data-testid="value-opp-defense-setup" className="text-[9px] font-mono text-pink-300 uppercase">{oppTactics.defenseSetup}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span data-testid="label-opp-infield" className="text-[9px] font-mono text-gray-500">Infield Pos.</span>
+                          <span data-testid="value-opp-infield" className="text-[9px] font-mono text-pink-300 uppercase">{oppTactics.infieldPosition}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span data-testid="label-opp-outfield" className="text-[9px] font-mono text-gray-500">Outfield Pos.</span>
+                          <span data-testid="value-opp-outfield" className="text-[9px] font-mono text-pink-300 uppercase">{oppTactics.outfieldPosition}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
-              <div className="flex items-center justify-center gap-2">
-                <Clock className="w-3 h-3 text-cyan-500/40" />
-                <span className="text-[10px] font-mono text-gray-500">NEXT GAME IN </span>
-                <span data-testid="text-countdown-preview" className="text-[10px] font-black text-cyan-400/70 tracking-wider" style={{fontFamily: "'Orbitron', sans-serif"}}>{countdown}</span>
+              <div className="flex items-center justify-center gap-2 py-2 px-3 rounded-lg border-2 border-red-500/40 bg-red-950/20" style={{boxShadow: '0 0 15px rgba(239,68,68,0.3)'}}>
+                <Clock className="w-3 h-3 text-red-500/50" />
+                <span className="text-[10px] font-mono text-red-400/60">NEXT GAME IN </span>
+                <span data-testid="text-countdown-preview" className="text-[10px] font-black text-red-400 tracking-wider" style={{fontFamily: "'Orbitron', sans-serif"}}>{countdown}</span>
               </div>
             </div>
           ) : null}

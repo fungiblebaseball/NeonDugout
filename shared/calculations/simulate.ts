@@ -727,6 +727,62 @@ export function simulateGame(
   const homeGameState: GameState = { inning: 1, cumulativeStrikeouts: 0, cumulativeRunsAllowed: 0, cumulativeHitsAllowed: 0 };
   const coefficients = config?.tacticCoefficients;
 
+  const tacticFieldLabels: Record<string, string> = {
+    attackStyle: 'Attack Style',
+    batterApproach: 'Batter Approach',
+    offensiveAttack: 'Offensive Attack',
+    infieldPosition: 'Infield Position',
+    outfieldPosition: 'Outfield Position',
+    defenseSetup: 'Defense Setup',
+    pitcherStyle: 'Pitcher Style',
+  };
+
+  if (config?.homeTactics) {
+    const t = config.homeTactics;
+    for (const [field, value] of Object.entries(t)) {
+      if (value) {
+        allPlayLog.push({
+          type: 'tactic_initial',
+          inning: 1,
+          half: 'bottom',
+          outs: 0,
+          tacticField: tacticFieldLabels[field] || field,
+          newValue: String(value),
+          teamSide: 'home',
+        });
+      }
+    }
+  }
+  if (config?.awayTactics) {
+    const t = config.awayTactics;
+    for (const [field, value] of Object.entries(t)) {
+      if (value) {
+        allPlayLog.push({
+          type: 'tactic_initial',
+          inning: 1,
+          half: 'top',
+          outs: 0,
+          tacticField: tacticFieldLabels[field] || field,
+          newValue: String(value),
+          teamSide: 'away',
+        });
+      }
+    }
+  }
+
+  let prevAwayTactics: Record<string, string> = {};
+  let prevHomeTactics: Record<string, string> = {};
+  if (config?.awayTactics) {
+    for (const [k, v] of Object.entries(config.awayTactics)) {
+      if (v) prevAwayTactics[k] = String(v);
+    }
+  }
+  if (config?.homeTactics) {
+    for (const [k, v] of Object.entries(config.homeTactics)) {
+      if (v) prevHomeTactics[k] = String(v);
+    }
+  }
+
   for (let inning = 1; inning <= totalInnings; inning++) {
     innings.push(inning);
     awayGameState.inning = inning;
@@ -749,6 +805,49 @@ export function simulateGame(
     awayGameState.cumulativeStrikeouts += topHalf.half.events.filter(e => e.outcome === 'SO').length;
     awayGameState.cumulativeRunsAllowed += topHalf.half.runs;
     awayGameState.cumulativeHitsAllowed += topHalf.half.events.filter(e => ['HR', '3B', '2B', '1B'].includes(e.outcome)).length;
+
+    if (config?.awayTacticSchedules && config?.awayTactics) {
+      const currentAwayTactics = applyTacticSchedules(config.awayTactics, config.awayTacticSchedules, awayGameState);
+      if (currentAwayTactics) {
+        for (const [k, v] of Object.entries(currentAwayTactics)) {
+          const sv = String(v);
+          if (prevAwayTactics[k] !== sv) {
+            allPlayLog.push({
+              type: 'tactic_change',
+              inning,
+              half: 'top',
+              outs: 0,
+              tacticField: tacticFieldLabels[k] || k,
+              oldValue: prevAwayTactics[k] || '—',
+              newValue: sv,
+              teamSide: 'away',
+            });
+          }
+          prevAwayTactics[k] = sv;
+        }
+      }
+    }
+    if (config?.homeTacticSchedules && config?.homeTactics) {
+      const currentHomeTactics = applyTacticSchedules(config.homeTactics, config.homeTacticSchedules, homeGameState);
+      if (currentHomeTactics) {
+        for (const [k, v] of Object.entries(currentHomeTactics)) {
+          const sv = String(v);
+          if (prevHomeTactics[k] !== sv) {
+            allPlayLog.push({
+              type: 'tactic_change',
+              inning,
+              half: 'bottom',
+              outs: 0,
+              tacticField: tacticFieldLabels[k] || k,
+              oldValue: prevHomeTactics[k] || '—',
+              newValue: sv,
+              teamSide: 'home',
+            });
+          }
+          prevHomeTactics[k] = sv;
+        }
+      }
+    }
 
     if (topHalf.substitutions.length > 0 && !homeHasDH) {
       const prevPitcherId = homePitcherIdInLineup;

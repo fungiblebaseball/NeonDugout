@@ -1,7 +1,7 @@
 import { useGameStore } from "@/lib/store";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Trophy, Eye, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, X, FileText } from "lucide-react";
+import { Trophy, Eye, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, X, FileText, Calendar } from "lucide-react";
 import { Link } from "wouter";
 
 interface MatchData {
@@ -202,6 +202,7 @@ export default function StandingsPage() {
   const [previewMatchId, setPreviewMatchId] = useState<number | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
   const [viewingSeason, setViewingSeason] = useState<number | null>(null);
+  const [showSchedule, setShowSchedule] = useState<boolean>(false);
 
   const { data: seasonData } = useQuery<{ seasonId: number }>({
     queryKey: ['current-season'],
@@ -397,6 +398,97 @@ export default function StandingsPage() {
               })}
             </tbody>
           </table>
+        </div>
+
+        <div className="space-y-2">
+          <button
+            data-testid="button-toggle-schedule"
+            onClick={() => setShowSchedule(!showSchedule)}
+            className={`w-full py-3 px-4 rounded-xl border ${isUserDiv ? 'border-cyan-400/40' : 'border-pink-400/40'} bg-gradient-to-r ${isUserDiv ? 'from-cyan-950/30 to-black' : 'from-pink-950/30 to-black'} hover:from-gray-900/30 hover:to-gray-900/30 transition-all flex items-center justify-between`}
+          >
+            <div className="flex items-center gap-2">
+              <Calendar className={`w-4 h-4 ${isUserDiv ? 'text-cyan-400' : 'text-pink-400'}`} />
+              <span className={`text-sm font-black ${isUserDiv ? 'text-cyan-300' : 'text-pink-300'} uppercase`} style={{fontFamily: "'Orbitron', sans-serif"}}>Schedule</span>
+              <span className="text-[10px] font-mono text-gray-500">({divMatches.length} games)</span>
+            </div>
+            {showSchedule ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+          </button>
+
+          {showSchedule && (
+            <div className={`rounded-xl border ${isUserDiv ? 'border-cyan-500/20' : 'border-pink-500/20'} overflow-hidden divide-y divide-gray-800/30`}>
+              {divMatches.length === 0 ? (
+                <div className="p-4 text-center">
+                  <p className="text-xs font-mono text-gray-500">No matches scheduled yet</p>
+                </div>
+              ) : (
+                [...divMatches].sort((a, b) => a.day - b.day).map(m => {
+                  const homeName = m.homeTeamId > 0 ? (teamMap.get(m.homeTeamId)?.name ?? `#${m.homeTeamId}`) : 'TBD';
+                  const awayName = m.awayTeamId > 0 ? (teamMap.get(m.awayTeamId)?.name ?? `#${m.awayTeamId}`) : 'TBD';
+                  const isTbd = m.homeTeamId === 0 || m.awayTeamId === 0;
+                  const isPlayoff = m.day >= 13;
+
+                  if (m.played) {
+                    return (
+                      <Link key={m.id} href={`/match/${m.id}`}>
+                        <div data-testid={`schedule-match-${m.id}`} className="px-3 py-2 flex items-center gap-2 hover:bg-gray-900/40 transition-colors cursor-pointer">
+                          <span className="text-[9px] font-mono text-gray-600 w-10 shrink-0">Day {m.day}</span>
+                          {isPlayoff && <span className="text-[8px] font-black text-yellow-400 bg-yellow-500/10 border border-yellow-500/30 px-1 rounded">PLAYOFF</span>}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="font-mono truncate text-gray-300">{awayName}</span>
+                              <span className={`font-black px-1 ${(m.awayScore ?? 0) > (m.homeScore ?? 0) ? 'text-cyan-400' : 'text-gray-500'}`}>{m.awayScore}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-xs mt-0.5">
+                              <span className="font-mono truncate text-gray-300">{homeName}</span>
+                              <span className={`font-black px-1 ${(m.homeScore ?? 0) > (m.awayScore ?? 0) ? 'text-cyan-400' : 'text-gray-500'}`}>{m.homeScore}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <FileText className="w-3 h-3 text-cyan-500" />
+                            <span className="text-[9px] font-mono text-cyan-500">VIEW</span>
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  }
+
+                  if (isTbd) {
+                    return (
+                      <div key={m.id} data-testid={`schedule-match-${m.id}`} className="px-3 py-2 flex items-center gap-2 opacity-60">
+                        <span className="text-[9px] font-mono text-gray-600 w-10 shrink-0">Day {m.day}</span>
+                        {isPlayoff && <span className="text-[8px] font-black text-yellow-400 bg-yellow-500/10 border border-yellow-500/30 px-1 rounded">{m.day === 14 ? 'PROMOTION' : 'PLAYOFF'}</span>}
+                        <div className="flex-1 min-w-0 text-xs font-mono text-gray-500 text-center">
+                          TBD vs TBD
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={m.id}
+                      data-testid={`schedule-match-${m.id}`}
+                      className="px-3 py-2 flex items-center gap-2"
+                    >
+                      <span className="text-[9px] font-mono text-gray-600 w-10 shrink-0">Day {m.day}</span>
+                      {isPlayoff && <span className="text-[8px] font-black text-yellow-400 bg-yellow-500/10 border border-yellow-500/30 px-1 rounded">PLAYOFF</span>}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-mono truncate text-gray-400">{awayName}</span>
+                          <span className="text-[9px] font-mono text-gray-600">—</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs mt-0.5">
+                          <span className="font-mono truncate text-gray-400">{homeName}</span>
+                          <span className="text-[9px] font-mono text-gray-600">—</span>
+                        </div>
+                      </div>
+                      <span className="text-[9px] font-mono text-gray-600 shrink-0">TBD</span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
         </div>
 
         {selectedTeamId && (

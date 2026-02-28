@@ -87,6 +87,8 @@ export interface IStorage {
   resetAllTokens(): Promise<void>;
   getTokenConfig(): Promise<TokenConfig | undefined>;
   updateTokenConfig(claimAmount: number, claimIntervalHours: number): Promise<TokenConfig>;
+  updateTeamColor(teamId: number, color: string): Promise<Team>;
+  consolidatePlayerBonuses(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -604,6 +606,11 @@ export class DatabaseStorage implements IStorage {
       .returning();
     return created;
   }
+  async updateTeamColor(teamId: number, color: string): Promise<Team> {
+    const [updated] = await db.update(teams).set({ primaryColor: color }).where(eq(teams.id, teamId)).returning();
+    return updated;
+  }
+
   async getAllTacticCoefficients(): Promise<TacticCoefficient[]> {
     return db.select().from(tacticCoefficients);
   }
@@ -647,6 +654,30 @@ export class DatabaseStorage implements IStorage {
   async resetTacticCoefficients(): Promise<void> {
     await db.delete(tacticCoefficients);
     await this.seedDefaultTacticCoefficients();
+  }
+
+  async consolidatePlayerBonuses(): Promise<void> {
+    await db.update(players).set({
+      pow: sql`${players.pow} + floor(coalesce(${players.powAdd}, 0)::numeric / 2)`,
+      con: sql`${players.con} + floor(coalesce(${players.conAdd}, 0)::numeric / 2)`,
+      spd: sql`${players.spd} + floor(coalesce(${players.spdAdd}, 0)::numeric / 2)`,
+      eye: sql`${players.eye} + floor(coalesce(${players.eyeAdd}, 0)::numeric / 2)`,
+      vel: sql`${players.vel} + floor(coalesce(${players.velAdd}, 0)::numeric / 2)`,
+      ctl: sql`${players.ctl} + floor(coalesce(${players.ctlAdd}, 0)::numeric / 2)`,
+      mov: sql`${players.mov} + floor(coalesce(${players.movAdd}, 0)::numeric / 2)`,
+      sta: sql`${players.sta} + floor(coalesce(${players.staAdd}, 0)::numeric / 2)`,
+      def: sql`${players.def} + floor(coalesce(${players.defAdd}, 0)::numeric / 2)`,
+      powAdd: 0,
+      conAdd: 0,
+      spdAdd: 0,
+      eyeAdd: 0,
+      velAdd: 0,
+      ctlAdd: 0,
+      movAdd: 0,
+      staAdd: 0,
+      defAdd: 0,
+    } as any);
+    console.log('Consolidated player bonuses: floor(add/2) merged into base attributes, _add reset to 0');
   }
 }
 

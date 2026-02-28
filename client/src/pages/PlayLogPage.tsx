@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useGameStore } from "@/lib/store";
 
 interface PlayLogEntry {
-  type: 'at_bat' | 'pitcher_change';
+  type: 'at_bat' | 'pitcher_change' | 'tactic_change' | 'tactic_initial';
   inning: number;
   half: 'top' | 'bottom';
   outs: number;
@@ -26,6 +26,10 @@ interface PlayLogEntry {
   newPitcherName?: string;
   newPitcherRole?: string;
   changeReason?: string;
+  tacticField?: string;
+  oldValue?: string;
+  newValue?: string;
+  teamSide?: 'home' | 'away';
 }
 
 interface MatchWithLog {
@@ -82,10 +86,43 @@ function MatchLogAccordion({ match }: { match: MatchWithLog }) {
       </button>
       {open && (
         <div className="p-3 pt-0 border-t border-green-500/10 font-mono text-[10px] space-y-3">
+          {(() => {
+            const tacticInitials = match.playLog.filter(e => e.type === 'tactic_initial');
+            const homeInitials = tacticInitials.filter(e => e.teamSide === 'home');
+            const awayInitials = tacticInitials.filter(e => e.teamSide === 'away');
+            if (homeInitials.length === 0 && awayInitials.length === 0) return null;
+            return (
+              <div className="mb-2 p-2 rounded-lg border border-amber-500/20 bg-amber-950/10">
+                <div className="text-[9px] font-bold uppercase text-amber-400 mb-1">⚙ Starting Tactics</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {awayInitials.length > 0 && (
+                    <div>
+                      <div className="text-[9px] text-pink-400 font-bold mb-0.5">AWAY</div>
+                      {awayInitials.map((e, i) => (
+                        <div key={i} className="text-[9px] text-gray-400">
+                          <span className="text-gray-500">{e.tacticField}:</span> <span className="text-amber-300">{e.newValue}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {homeInitials.length > 0 && (
+                    <div>
+                      <div className="text-[9px] text-cyan-400 font-bold mb-0.5">HOME</div>
+                      {homeInitials.map((e, i) => (
+                        <div key={i} className="text-[9px] text-gray-400">
+                          <span className="text-gray-500">{e.tacticField}:</span> <span className="text-amber-300">{e.newValue}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
           {innings.map(inn => (
             <div key={inn}>
               {['top', 'bottom'].map(half => {
-                const halfEntries = match.playLog.filter(e => e.inning === inn && e.half === half);
+                const halfEntries = match.playLog.filter(e => e.inning === inn && e.half === half && e.type !== 'tactic_initial');
                 if (halfEntries.length === 0) return null;
                 return (
                   <div key={`${inn}-${half}`} className="mb-2">
@@ -96,6 +133,14 @@ function MatchLogAccordion({ match }: { match: MatchWithLog }) {
                     </div>
                     <div className="space-y-0.5 ml-2 border-l border-gray-800 pl-2">
                       {halfEntries.map((entry, idx) => {
+                        if (entry.type === 'tactic_change') {
+                          return (
+                            <div key={idx} className="py-1 px-2 bg-amber-950/30 border border-amber-500/20 rounded text-amber-300">
+                              ⚙ <span className={entry.teamSide === 'home' ? 'text-cyan-400' : 'text-pink-400'}>{entry.teamSide === 'home' ? 'HOME' : 'AWAY'}</span>
+                              {' '}{entry.tacticField}: <span className="text-gray-500">{entry.oldValue}</span> → <span className="text-amber-200 font-bold">{entry.newValue}</span>
+                            </div>
+                          );
+                        }
                         if (entry.type === 'pitcher_change') {
                           return (
                             <div key={idx} className="py-1 px-2 bg-purple-950/30 border border-purple-500/20 rounded text-purple-300">

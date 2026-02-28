@@ -137,6 +137,32 @@ export async function registerRoutes(
     }
   });
 
+  app.patch("/api/team/:id/color", async (req, res) => {
+    try {
+      const tokenData = await authenticateUser(req, res);
+      if (!tokenData) return;
+
+      const teamId = parseInt(req.params.id);
+      const { color } = req.body;
+      if (!color || typeof color !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(color)) {
+        return res.status(400).json({ message: "color must be a valid hex color (e.g. #ff0000)" });
+      }
+
+      const team = await storage.getTeam(teamId);
+      if (!team) return res.status(404).json({ message: "Team not found" });
+
+      const user = await storage.getUser(tokenData.userId);
+      if (!user || user.teamId !== teamId) {
+        return res.status(403).json({ message: "You don't own this team" });
+      }
+
+      const updated = await storage.updateTeamColor(teamId, color);
+      res.json(updated);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to update team color" });
+    }
+  });
+
   app.get("/api/team/:id/players", async (req, res) => {
     const teamId = parseInt(req.params.id);
     const playersList = await storage.getPlayersByTeam(teamId);

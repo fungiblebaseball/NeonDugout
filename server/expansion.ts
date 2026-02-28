@@ -1,7 +1,9 @@
-import { db } from "./db";
+import { db, pool } from "./db";
 import { teams, players, matches } from "@shared/schema";
 import { sql } from "drizzle-orm";
 import { generateUniqueName, generateUniqueTeamName } from "./names";
+
+const EXPANSION_LOCK_ID = 424242;
 
 const rand = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
 
@@ -53,6 +55,14 @@ function generatePlayersForTeam(teamId: number, usedNames: Set<string>) {
 const MAX_LEAGUES = 4;
 
 export async function expandLeague(): Promise<{ league: string; teamsCreated: number; playersCreated: number; matchesCreated: number }> {
+  const lockResult = await pool.query(`SELECT pg_try_advisory_lock($1) as locked`, [EXPANSION_LOCK_ID]);
+  const gotLock = lockResult.rows[0]?.locked === true;
+  if (!gotLock) {
+    console.log("expandLeague: another expansion in progress, skipping");
+    return { league: "pending", teamsCreated: 0, playersCreated: 0, matchesCreated: 0 };
+  }
+
+  try {
   const existingTeams = await db.select().from(teams);
   const existingLeagues = new Set(existingTeams.map(t => t.league));
   const usedTeamNames = new Set(existingTeams.map(t => t.name));
@@ -214,6 +224,9 @@ export async function expandLeague(): Promise<{ league: string; teamsCreated: nu
     playersCreated: totalPlayers,
     matchesCreated: allScheduleMatches.length,
   };
+  } finally {
+    await pool.query(`SELECT pg_advisory_unlock($1)`, [EXPANSION_LOCK_ID]);
+  }
 }
 
 export async function ensureExtraLeague(): Promise<void> {

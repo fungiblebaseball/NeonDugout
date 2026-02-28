@@ -61,16 +61,20 @@ export const useGameStore = create<GameState>()(
       loginWithSignature: async (walletAddress: string, signature: string, message: string) => {
         set({ loading: true });
 
-        try {
+        const doVerify = async (): Promise<{ success: boolean; error?: string }> => {
           const res = await fetch('/api/auth/verify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ walletAddress, signature, message }),
           });
 
+          const contentType = res.headers.get('content-type') || '';
+          if (!contentType.includes('application/json')) {
+            return { success: false, error: 'Server temporarily unavailable — please try again in a few seconds.' };
+          }
+
           if (!res.ok) {
             const err = await res.json();
-            set({ loading: false });
             return { success: false, error: err.message || 'Verification failed' };
           }
 
@@ -86,6 +90,20 @@ export const useGameStore = create<GameState>()(
           });
 
           return { success: true };
+        };
+
+        try {
+          let result = await doVerify();
+
+          if (!result.success && result.error?.includes('temporarily unavailable')) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            result = await doVerify();
+          }
+
+          if (!result.success) {
+            set({ loading: false });
+          }
+          return result;
         } catch (err: any) {
           console.error('Login failed:', err);
           set({ loading: false });

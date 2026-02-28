@@ -6,73 +6,86 @@ import { generateNewSeason } from "./season";
 import { generateChallenge, verifySignature, createToken, verifyToken, generateClaimChallenge, verifyClaimSignature, generateTrainingChallenge, verifyTrainingSignature } from "./auth";
 import { expandLeague, ensureExtraLeague } from "./expansion";
 
+type AsyncHandler = (req: Request, res: Response, next: NextFunction) => Promise<any>;
+
+function asyncHandler(fn: AsyncHandler) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
 
-  app.post("/api/auth/challenge", async (req, res) => {
+  app.post("/api/auth/challenge", asyncHandler(async (req, res) => {
     const { walletAddress } = req.body;
     if (!walletAddress) return res.status(400).json({ message: "walletAddress required" });
 
     const challenge = generateChallenge(walletAddress);
     res.json(challenge);
-  });
+  }));
 
-  app.post("/api/auth/verify", async (req, res) => {
+  app.post("/api/auth/verify", asyncHandler(async (req, res) => {
     const { walletAddress, signature, message } = req.body;
     if (!walletAddress || !signature || !message) {
       return res.status(400).json({ message: "walletAddress, signature, and message required" });
     }
 
+    console.log(`[auth] verify attempt for ${walletAddress.slice(0, 8)}...`);
+
     const valid = verifySignature(walletAddress, signature, message);
     if (!valid) {
+      console.log(`[auth] invalid signature for ${walletAddress.slice(0, 8)}...`);
       return res.status(401).json({ message: "Invalid signature" });
     }
 
-    let user = await storage.getUserByWallet(walletAddress);
-    if (!user) {
-      const allUsers = await storage.getAllUsers();
-      const isFirstUser = allUsers.length === 0;
-      user = await storage.createUser({ walletAddress });
-      if (isFirstUser) {
-        await storage.setUserAdmin(user.id, true);
-        user = await storage.getUser(user.id) as typeof user;
-        console.log(`First user ${walletAddress} auto-promoted to admin`);
-      }
+    console.log(`[auth] signature valid for ${walletAddress.slice(0, 8)}...`);
+
+    const allUsers = await storage.getAllUsers();
+    const isFirstUser = allUsers.length === 0;
+
+    let user = await storage.getOrCreateUser(walletAddress);
+    console.log(`[auth] user ${user.id} (new=${!user.teamId}, firstUser=${isFirstUser})`);
+
+    if (isFirstUser && !user.isAdmin) {
+      await storage.setUserAdmin(user.id, true);
+      user = await storage.getUser(user.id) as typeof user;
+      console.log(`[auth] first user ${walletAddress} auto-promoted to admin`);
     }
 
     if (!user.teamId) {
-      let unownedTeam = await storage.getUnownedTeam();
+      let claimedTeam = await storage.claimUnownedTeam(walletAddress);
 
-      if (!unownedTeam) {
+      if (!claimedTeam) {
         try {
           await ensureExtraLeague();
-          unownedTeam = await storage.getUnownedTeam();
+          claimedTeam = await storage.claimUnownedTeam(walletAddress);
         } catch (err) {
-          console.error("ensureExtraLeague pre-assign failed:", err);
+          console.error("[auth] ensureExtraLeague pre-assign failed:", err);
         }
       }
 
-      if (!unownedTeam) {
+      if (!claimedTeam) {
         try {
           const expansion = await expandLeague();
-          console.log(`Dynamic expansion triggered: ${expansion.league}`);
-          unownedTeam = await storage.getUnownedTeam();
+          console.log(`[auth] dynamic expansion triggered: ${expansion.league}`);
+          claimedTeam = await storage.claimUnownedTeam(walletAddress);
         } catch (err) {
-          console.error("League expansion failed:", err);
+          console.error("[auth] league expansion failed:", err);
         }
       }
 
-      if (unownedTeam) {
-        await storage.assignTeamOwner(unownedTeam.id, walletAddress);
-        await storage.updateUserTeam(user.id, unownedTeam.id);
+      if (claimedTeam) {
+        await storage.updateUserTeam(user.id, claimedTeam.id);
         user = await storage.getUser(user.id) as typeof user;
+        console.log(`[auth] team ${claimedTeam.id} (${claimedTeam.name}) claimed by ${walletAddress.slice(0, 8)}...`);
 
         try {
           await ensureExtraLeague();
         } catch (err) {
-          console.error("ensureExtraLeague failed:", err);
+          console.error("[auth] ensureExtraLeague post-assign failed:", err);
         }
       } else {
         return res.status(503).json({ message: "No teams available. League expansion failed." });
@@ -83,10 +96,11 @@ export async function registerRoutes(
     const team = user.teamId ? await storage.getTeam(user.teamId) : null;
     const playersList = team ? await storage.getPlayersByTeam(team.id) : [];
 
+    console.log(`[auth] login success for ${walletAddress.slice(0, 8)}... (team: ${team?.name || 'none'})`);
     res.json({ token, user: { ...user, isAdmin: user.isAdmin }, team, players: playersList });
-  });
+  }));
 
-  app.get("/api/auth/me", async (req, res) => {
+  app.get("/api/auth/me", asyncHandler(async (req, res) => {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({ message: "No token provided" });
@@ -106,24 +120,24 @@ export async function registerRoutes(
     const playersList = team ? await storage.getPlayersByTeam(team.id) : [];
 
     res.json({ user: { ...user, isAdmin: user.isAdmin }, team, players: playersList });
-  });
+  }));
 
-  app.get("/api/teams", async (_req, res) => {
+  app.get("/api/teams", asyncHandler(async (_req, res) => {
     const allTeams = await storage.getTeams();
     res.json(allTeams);
-  });
+  }));
 
-  app.get("/api/teams/league/:league/series/:series", async (req, res) => {
+  app.get("/api/teams/league/:league/series/:series", asyncHandler(async (req, res) => {
     const teamsList = await storage.getTeamsByLeagueSeries(req.params.league, req.params.series);
     res.json(teamsList);
-  });
+  }));
 
-  app.get("/api/teams/:division", async (req, res) => {
+  app.get("/api/teams/:division", asyncHandler(async (req, res) => {
     const teamsList = await storage.getTeams(req.params.division);
     res.json(teamsList);
-  });
+  }));
 
-  app.patch("/api/teams/:id/name", async (req, res) => {
+  app.patch("/api/teams/:id/name", asyncHandler(async (req, res) => {
     try {
       const teamId = parseInt(req.params.id);
       const { name } = req.body;
@@ -135,9 +149,9 @@ export async function registerRoutes(
     } catch (err) {
       res.status(500).json({ message: "Failed to rename team" });
     }
-  });
+  }));
 
-  app.patch("/api/team/:id/color", async (req, res) => {
+  app.patch("/api/team/:id/color", asyncHandler(async (req, res) => {
     try {
       const tokenData = await authenticateUser(req, res);
       if (!tokenData) return;
@@ -161,58 +175,58 @@ export async function registerRoutes(
     } catch (err) {
       res.status(500).json({ message: "Failed to update team color" });
     }
-  });
+  }));
 
-  app.get("/api/team/:id/players", async (req, res) => {
+  app.get("/api/team/:id/players", asyncHandler(async (req, res) => {
     const teamId = parseInt(req.params.id);
     const playersList = await storage.getPlayersByTeam(teamId);
     res.json(playersList);
-  });
+  }));
 
-  app.get("/api/matches", async (_req, res) => {
+  app.get("/api/matches", asyncHandler(async (_req, res) => {
     const allMatches = await storage.getAllMatches();
     res.json(allMatches);
-  });
+  }));
 
-  app.get("/api/matches/:division", async (req, res) => {
+  app.get("/api/matches/:division", asyncHandler(async (req, res) => {
     const matchesList = await storage.getMatchesByDivision(req.params.division);
     res.json(matchesList);
-  });
+  }));
 
-  app.get("/api/player/:id", async (req, res) => {
+  app.get("/api/player/:id", asyncHandler(async (req, res) => {
     const playerId = parseInt(req.params.id);
     const player = await storage.getPlayer(playerId);
     if (!player) return res.status(404).json({ message: "Player not found" });
     res.json(player);
-  });
+  }));
 
-  app.get("/api/player/:id/stats", async (req, res) => {
+  app.get("/api/player/:id/stats", asyncHandler(async (req, res) => {
     const playerId = parseInt(req.params.id);
     const seasonId = req.query.season ? parseInt(req.query.season as string) : undefined;
     const stats = await storage.getPlayerSeasonStats(playerId, seasonId);
     res.json(stats);
-  });
+  }));
 
-  app.get("/api/team/:teamId/stats", async (req, res) => {
+  app.get("/api/team/:teamId/stats", asyncHandler(async (req, res) => {
     const teamId = parseInt(req.params.teamId);
     const seasonId = req.query.season ? parseInt(req.query.season as string) : undefined;
     const stats = await storage.getTeamSeasonStats(teamId, seasonId);
     res.json(stats);
-  });
+  }));
 
-  app.get("/api/season", async (_req, res) => {
+  app.get("/api/season", asyncHandler(async (_req, res) => {
     const seasonId = await storage.getCurrentSeasonId();
     res.json({ seasonId });
-  });
+  }));
 
-  app.get("/api/team-snapshots", async (req, res) => {
+  app.get("/api/team-snapshots", asyncHandler(async (req, res) => {
     const seasonId = parseInt(req.query.season as string);
     if (isNaN(seasonId)) return res.status(400).json({ message: "season query parameter required" });
     const snapshots = await storage.getTeamSnapshots(seasonId);
     res.json(snapshots);
-  });
+  }));
 
-  app.post("/api/matches/:id/result", async (req, res) => {
+  app.post("/api/matches/:id/result", asyncHandler(async (req, res) => {
     const matchId = parseInt(req.params.id);
     const { homeScore, awayScore, details } = req.body;
     if (homeScore === undefined || awayScore === undefined ||
@@ -297,22 +311,22 @@ export async function registerRoutes(
     }
 
     res.json(updated);
-  });
+  }));
 
-  app.get("/api/match-details/:matchId", async (req, res) => {
+  app.get("/api/match-details/:matchId", asyncHandler(async (req, res) => {
     const matchId = parseInt(req.params.matchId);
     const detail = await storage.getMatchDetails(matchId);
     if (!detail) return res.status(404).json({ message: "Match details not found" });
     res.json(detail);
-  });
+  }));
 
-  app.get("/api/lineup/:teamId", async (req, res) => {
+  app.get("/api/lineup/:teamId", asyncHandler(async (req, res) => {
     const teamId = parseInt(req.params.teamId);
     const lineup = await storage.getLineup(teamId);
     res.json(lineup || null);
-  });
+  }));
 
-  app.post("/api/lineup", async (req, res) => {
+  app.post("/api/lineup", asyncHandler(async (req, res) => {
     const { teamId, fieldPositions, battingOrder } = req.body;
     if (!teamId) return res.status(400).json({ message: "teamId required" });
 
@@ -322,15 +336,15 @@ export async function registerRoutes(
       battingOrder: battingOrder || [],
     });
     res.json(lineup);
-  });
+  }));
 
-  app.get("/api/pitcher-rotation/:teamId", async (req, res) => {
+  app.get("/api/pitcher-rotation/:teamId", asyncHandler(async (req, res) => {
     const teamId = parseInt(req.params.teamId);
     const rotation = await storage.getPitcherRotation(teamId);
     res.json(rotation || null);
-  });
+  }));
 
-  app.post("/api/pitcher-rotation", async (req, res) => {
+  app.post("/api/pitcher-rotation", asyncHandler(async (req, res) => {
     const { teamId, rotationOrder, roles, pitcherConfigs } = req.body;
     if (!teamId) return res.status(400).json({ message: "teamId required" });
 
@@ -348,15 +362,15 @@ export async function registerRoutes(
       pitcherConfigs: mergedConfigs,
     });
     res.json(rotation);
-  });
+  }));
 
-  app.get("/api/tactics/:teamId", async (req, res) => {
+  app.get("/api/tactics/:teamId", asyncHandler(async (req, res) => {
     const teamId = parseInt(req.params.teamId);
     const tac = await storage.getTactics(teamId);
     res.json(tac || null);
-  });
+  }));
 
-  app.post("/api/tactics", async (req, res) => {
+  app.post("/api/tactics", asyncHandler(async (req, res) => {
     const { teamId, attackStyle, infieldPosition, outfieldPosition, batterApproach, offensiveAttack, defenseSetup,
       batterApproachSchedule, attackStyleSchedule, offensiveAttackSchedule } = req.body;
     if (!teamId) return res.status(400).json({ message: "teamId required" });
@@ -374,16 +388,16 @@ export async function registerRoutes(
       offensiveAttackSchedule: offensiveAttackSchedule || undefined,
     });
     res.json(tac);
-  });
+  }));
 
-  app.get("/api/admin/tactic-coefficients", async (req, res) => {
+  app.get("/api/admin/tactic-coefficients", asyncHandler(async (req, res) => {
     const adminData = await requireAdmin(req, res);
     if (!adminData) return;
     const coefficients = await storage.getAllTacticCoefficients();
     res.json(coefficients);
-  });
+  }));
 
-  app.put("/api/admin/tactic-coefficients/:layer/:tacticValue", async (req, res) => {
+  app.put("/api/admin/tactic-coefficients/:layer/:tacticValue", asyncHandler(async (req, res) => {
     const adminData = await requireAdmin(req, res);
     if (!adminData) return;
     const { layer, tacticValue } = req.params;
@@ -393,22 +407,22 @@ export async function registerRoutes(
     }
     const updated = await storage.updateTacticCoefficient(layer, tacticValue, { hr, xbh, single, bb, so, go, fo });
     res.json(updated);
-  });
+  }));
 
-  app.post("/api/admin/reset-tactic-coefficients", async (req, res) => {
+  app.post("/api/admin/reset-tactic-coefficients", asyncHandler(async (req, res) => {
     const adminData = await requireAdmin(req, res);
     if (!adminData) return;
     await storage.resetTacticCoefficients();
     const coefficients = await storage.getAllTacticCoefficients();
     res.json({ message: "Tactic coefficients reset to defaults", coefficients });
-  });
+  }));
 
-  app.get("/api/tactic-coefficients", async (_req, res) => {
+  app.get("/api/tactic-coefficients", asyncHandler(async (_req, res) => {
     const coefficients = await storage.getAllTacticCoefficients();
     res.json(coefficients);
-  });
+  }));
 
-  app.post("/api/simulate-day", async (req, res) => {
+  app.post("/api/simulate-day", asyncHandler(async (req, res) => {
     const adminData = await requireAdmin(req, res);
     if (!adminData) return;
     const { day } = req.body;
@@ -423,9 +437,9 @@ export async function registerRoutes(
       console.error('Simulate day failed:', err);
       res.status(500).json({ message: "Failed to simulate match day" });
     }
-  });
+  }));
 
-  app.post("/api/update-playoff-matchups", async (req, res) => {
+  app.post("/api/update-playoff-matchups", asyncHandler(async (req, res) => {
     const adminData = await requireAdmin(req, res);
     if (!adminData) return;
     try {
@@ -435,7 +449,7 @@ export async function registerRoutes(
       console.error('Playoff matchup update failed:', err);
       res.status(500).json({ message: "Failed to update playoff matchups" });
     }
-  });
+  }));
 
   const authenticateUser = async (req: Request, res: Response): Promise<{ userId: number; walletAddress: string } | null> => {
     const authHeader = req.headers.authorization;
@@ -462,7 +476,7 @@ export async function registerRoutes(
     return tokenData;
   };
 
-  app.post("/api/training/result", async (req, res) => {
+  app.post("/api/training/result", asyncHandler(async (req, res) => {
     const tokenData = await authenticateUser(req, res);
     if (!tokenData) return;
 
@@ -544,9 +558,9 @@ export async function registerRoutes(
         challenge,
       } : null,
     });
-  });
+  }));
 
-  app.post("/api/training/confirm", async (req, res) => {
+  app.post("/api/training/confirm", asyncHandler(async (req, res) => {
     const tokenData = await authenticateUser(req, res);
     if (!tokenData) return;
 
@@ -585,33 +599,33 @@ export async function registerRoutes(
     await storage.confirmTrainingResult(resultId);
 
     res.json({ confirmed: true, playerIds, attributes: attrs, amount: trainingResult.rewardAmount });
-  });
+  }));
 
-  app.get("/api/training/rankings/:gameType", async (req, res) => {
+  app.get("/api/training/rankings/:gameType", asyncHandler(async (req, res) => {
     const rankings = await storage.getTrainingRankings(req.params.gameType, 20);
     res.json(rankings);
-  });
+  }));
 
-  app.get("/api/training/history/:gameType", async (req, res) => {
+  app.get("/api/training/history/:gameType", asyncHandler(async (req, res) => {
     const tokenData = await authenticateUser(req, res);
     if (!tokenData) return;
     const results = await storage.getUserTrainingResults(tokenData.userId, req.params.gameType);
     res.json(results);
-  });
+  }));
 
-  app.get("/api/training-configs", async (_req, res) => {
+  app.get("/api/training-configs", asyncHandler(async (_req, res) => {
     const configs = await storage.getAllTrainingConfigs();
     res.json(configs);
-  });
+  }));
 
-  app.get("/api/admin/training-config", async (req, res) => {
+  app.get("/api/admin/training-config", asyncHandler(async (req, res) => {
     const tokenData = await requireAdmin(req, res);
     if (!tokenData) return;
     const configs = await storage.getAllTrainingConfigs();
     res.json(configs);
-  });
+  }));
 
-  app.put("/api/admin/training-config/:gameType", async (req, res) => {
+  app.put("/api/admin/training-config/:gameType", asyncHandler(async (req, res) => {
     const tokenData = await requireAdmin(req, res);
     if (!tokenData) return;
     const { rewardAttributes, rewardAmount, minScoreForReward, maxBoostPerSeason, rewardTarget, rewardTargetRole } = req.body;
@@ -625,9 +639,9 @@ export async function registerRoutes(
       rewardTargetRole: rewardTargetRole ?? null,
     });
     res.json(config);
-  });
+  }));
 
-  app.get("/api/tokens/balance", async (req, res) => {
+  app.get("/api/tokens/balance", asyncHandler(async (req, res) => {
     const tokenData = await authenticateUser(req, res);
     if (!tokenData) return;
     const userTokenRecord = await storage.getUserTokens(tokenData.userId);
@@ -645,16 +659,16 @@ export async function registerRoutes(
       }
     }
     res.json({ balance, lastClaimAt: lastClaimAt?.toISOString() ?? null, canClaim, nextClaimAt, claimAmount: config?.claimAmount ?? 10 });
-  });
+  }));
 
-  app.post("/api/tokens/claim-challenge", async (req, res) => {
+  app.post("/api/tokens/claim-challenge", asyncHandler(async (req, res) => {
     const tokenData = await authenticateUser(req, res);
     if (!tokenData) return;
     const challenge = generateClaimChallenge(tokenData.walletAddress);
     res.json(challenge);
-  });
+  }));
 
-  app.post("/api/tokens/claim", async (req, res) => {
+  app.post("/api/tokens/claim", asyncHandler(async (req, res) => {
     const tokenData = await authenticateUser(req, res);
     if (!tokenData) return;
 
@@ -685,16 +699,16 @@ export async function registerRoutes(
       return res.status(429).json({ message: "Claim not available yet" });
     }
     res.json({ balance: updated.balance, lastClaimAt: updated.lastClaimAt?.toISOString(), claimAmount });
-  });
+  }));
 
-  app.get("/api/admin/token-config", async (req, res) => {
+  app.get("/api/admin/token-config", asyncHandler(async (req, res) => {
     const tokenData = await requireAdmin(req, res);
     if (!tokenData) return;
     const config = await storage.getTokenConfig();
     res.json(config || { claimAmount: 10, claimIntervalHours: 24 });
-  });
+  }));
 
-  app.put("/api/admin/token-config", async (req, res) => {
+  app.put("/api/admin/token-config", asyncHandler(async (req, res) => {
     const tokenData = await requireAdmin(req, res);
     if (!tokenData) return;
     const { claimAmount, claimIntervalHours } = req.body;
@@ -709,16 +723,16 @@ export async function registerRoutes(
     }
     const config = await storage.updateTokenConfig(claimAmount, claimIntervalHours);
     res.json(config);
-  });
+  }));
 
-  app.post("/api/admin/reset-tokens", async (req, res) => {
+  app.post("/api/admin/reset-tokens", asyncHandler(async (req, res) => {
     const tokenData = await requireAdmin(req, res);
     if (!tokenData) return;
     await storage.resetAllTokens();
     res.json({ message: "All token balances have been reset" });
-  });
+  }));
 
-  app.post("/api/new-season", async (req, res) => {
+  app.post("/api/new-season", asyncHandler(async (req, res) => {
     const adminData = await requireAdmin(req, res);
     if (!adminData) return;
     try {
@@ -728,9 +742,9 @@ export async function registerRoutes(
       console.error('New season generation failed:', err);
       res.status(500).json({ message: "Failed to generate new season" });
     }
-  });
+  }));
 
-  app.post("/api/admin/reset-season", async (req, res) => {
+  app.post("/api/admin/reset-season", asyncHandler(async (req, res) => {
     const adminData = await requireAdmin(req, res);
     if (!adminData) return;
     try {
@@ -741,9 +755,9 @@ export async function registerRoutes(
       console.error('Reset season failed:', err);
       res.status(500).json({ message: "Failed to reset season" });
     }
-  });
+  }));
 
-  app.post("/api/admin/wipe-database", async (req, res) => {
+  app.post("/api/admin/wipe-database", asyncHandler(async (req, res) => {
     const adminData = await requireAdmin(req, res);
     if (!adminData) return;
     try {
@@ -766,7 +780,7 @@ export async function registerRoutes(
       console.error('Database wipe failed:', err);
       res.status(500).json({ message: "Failed to wipe database" });
     }
-  });
+  }));
 
   const defaultConfigs = [
     { gameType: "eye_drill", rewardAttributes: ["eye"], rewardAmount: 1, minScoreForReward: 200, maxBoostPerSeason: 10 },

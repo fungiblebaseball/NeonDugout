@@ -1,4 +1,4 @@
-import { db } from "./db";
+import { db, pool } from "./db";
 import { eq, and, sql, desc } from "drizzle-orm";
 import {
   users, teams, players, matches, lineups, pitcherRotations, tactics, matchDetails, playerSeasonStats, teamSnapshots,
@@ -19,6 +19,7 @@ export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByWallet(walletAddress: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  getOrCreateUser(walletAddress: string): Promise<User>;
   updateUserTeam(userId: number, teamId: number): Promise<void>;
   getAllUsers(): Promise<User[]>;
   setUserAdmin(userId: number, isAdmin: boolean): Promise<void>;
@@ -31,6 +32,7 @@ export interface IStorage {
   renameTeam(teamId: number, newName: string): Promise<Team>;
   assignTeamOwner(teamId: number, wallet: string): Promise<Team>;
   getUnownedTeam(): Promise<Team | undefined>;
+  claimUnownedTeam(walletAddress: string): Promise<Team | null>;
 
   getPlayersByTeam(teamId: number): Promise<Player[]>;
   getPlayer(id: number): Promise<Player | undefined>;
@@ -105,6 +107,20 @@ export class DatabaseStorage implements IStorage {
   async createUser(user: InsertUser): Promise<User> {
     const [created] = await db.insert(users).values(user).returning();
     return created;
+  }
+
+  async getOrCreateUser(walletAddress: string): Promise<User> {
+    const result = await pool.query(
+      `INSERT INTO users (wallet_address) VALUES ($1) ON CONFLICT (wallet_address) DO NOTHING RETURNING *`,
+      [walletAddress]
+    );
+    if (result.rows.length > 0) {
+      const row = result.rows[0];
+      return { id: row.id, walletAddress: row.wallet_address, teamId: row.team_id, isAdmin: row.is_admin, createdAt: row.created_at };
+    }
+    const existing = await this.getUserByWallet(walletAddress);
+    if (!existing) throw new Error("Failed to create or find user");
+    return existing;
   }
 
   async updateUserTeam(userId: number, teamId: number): Promise<void> {
@@ -195,6 +211,35 @@ export class DatabaseStorage implements IStorage {
       return b.series.localeCompare(a.series);
     });
     return unowned[0];
+  }
+
+  async claimUnownedTeam(walletAddress: string): Promise<Team | null> {
+    const result = await pool.query(
+      `UPDATE teams SET owner_wallet = $1
+       WHERE id = (
+         SELECT id FROM teams
+         WHERE owner_wallet IS NULL
+         ORDER BY
+           CAST(REPLACE(league, 'L', '') AS INTEGER) DESC,
+           series DESC
+         LIMIT 1
+         FOR UPDATE SKIP LOCKED
+       )
+       RETURNING *`,
+      [walletAddress]
+    );
+    if (result.rows.length === 0) return null;
+    const row = result.rows[0];
+    return {
+      id: row.id,
+      name: row.name,
+      primaryColor: row.primary_color,
+      league: row.league,
+      series: row.series,
+      division: row.division,
+      ownerWallet: row.owner_wallet,
+      seasonId: row.season_id,
+    };
   }
 
   async getPlayersByTeam(teamId: number): Promise<Player[]> {

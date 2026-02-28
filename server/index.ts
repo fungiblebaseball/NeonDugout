@@ -3,6 +3,15 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("Unhandled Rejection at:", promise, "reason:", reason);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught Exception:", err);
+  process.exit(1);
+});
+
 const app = express();
 const httpServer = createServer(app);
 

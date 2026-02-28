@@ -141,6 +141,21 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ walletAddress: walletAddr }),
       });
+
+      const contentType = challengeRes.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        setError("Server temporarily unavailable — please try again in a few seconds.");
+        setStatus("error");
+        return;
+      }
+
+      if (!challengeRes.ok) {
+        const errData = await challengeRes.json();
+        setError(errData.message || "Failed to get challenge.");
+        setStatus("error");
+        return;
+      }
+
       const { message } = await challengeRes.json();
 
       const encodedMessage = new TextEncoder().encode(message);

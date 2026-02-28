@@ -6,6 +6,35 @@ Formato:
   • Dettaglio 2 (file modificati)  
   • Trade-off / note (se rilevanti)
 
+## v1.15.1 – 28 febbraio 2026 – Login Stability & Crash Prevention
+
+- **Global error handlers (T001)**:
+  * `process.on('unhandledRejection')` e `process.on('uncaughtException')` aggiunti a `server/index.ts`
+  * Tutte le route async wrappate con `asyncHandler()` che cattura errori e li passa al middleware Express
+  * Il processo Node non muore più per promise rejection non gestite
+
+- **Creazione utente atomica (T002)**:
+  * Nuovo metodo `getOrCreateUser()` con `INSERT ... ON CONFLICT DO NOTHING` per evitare crash su constraint violation
+  * Due login simultanei con lo stesso wallet non causano più errori
+
+- **Assegnazione team atomica (T003)**:
+  * Nuovo metodo `claimUnownedTeam()` con `UPDATE ... FOR UPDATE SKIP LOCKED` per evitare che due utenti prendano lo stesso team
+  * Due registrazioni simultanee ricevono sempre team diversi
+
+- **Advisory lock per espansione leghe (T004)**:
+  * `expandLeague()` wrappato con `pg_try_advisory_lock` per evitare espansioni duplicate concorrenti
+  * Se lock non disponibile, skip silenzioso (altra espansione in corso)
+
+- **Resilienza client-side (T005)**:
+  * Check `Content-Type` sulle risposte API prima di parsare come JSON
+  * Quando il server è temporaneamente non disponibile (restart), errore user-friendly invece di "unexpected token doctype"
+  * Retry automatico (1 tentativo dopo 2s) per errori temporanei su verify
+
+- **Logging migliorato nella route auth/verify**:
+  * Log dettagliati per ogni step: tentativo, firma valida, utente creato/trovato, team assegnato, successo
+
+- **File Modificati**: server/index.ts, server/routes.ts, server/storage.ts, server/expansion.ts, client/src/pages/LoginPage.tsx, client/src/lib/store.ts, CHANGELOG.md, replit.md
+
 ## v1.15.0 – 28 febbraio 2026 – Season Progression, Bot Setup, Tattiche nel Gameplay
 
 - **Preparazione roster nuova stagione (T001)**:

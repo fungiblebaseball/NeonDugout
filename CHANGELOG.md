@@ -6,6 +6,23 @@ Formato:
   • Dettaglio 2 (file modificati)  
   • Trade-off / note (se rilevanti)
 
+## v1.14.1 – 28 febbraio 2026 – Home & Team Page UI/UX Improvements
+
+- **Home Page**:
+  * **Countdown Timer**: countdown live "NEXT GAME IN HH:MM:SS" tra Final Score e Training Center, aggiornamento ogni secondo fino a 00:00 CET (23:00 UTC). Visibile anche nel box Game Day Preview.
+  * **Radar Chart SVG**: sostituiti i SectorBar (ATK/DEF/PIT) con grafico poligonale a 9 assi (POW/CON/SPD/EYE/DEF/VEL/CTL/MOV/STA). Poligoni sovrapposti (cyan = mia squadra, pink = avversario) con griglia concentrica e label attributi.
+  * **Lineup Preview Links**: due bottoni affiancati nel game preview — "MY LINEUP" (→ /lineup) e "OPP LINEUP" (espande inline la lista dei 9 titolari avversari con posizione difensiva). Fetch lazy dell'opponent lineup.
+  * Rimosso componente `SectorBar` e funzione `calcSectors`.
+
+- **Team Page**:
+  * **Bottone Reload**: icona RotateCcw nell'header roster, invalida e rifetch `team-players`, `lineup`, `pitcher-rotation`. Animazione spin durante il refetch.
+  * **Colonne Ordinabili**: click su header attributo (POW, CON, etc.) cicla desc → asc → nessun ordinamento. Freccia ▼/▲ indicatrice sulla colonna attiva.
+  * **Colonne Lineup**: nuove colonne "#" (batting order 1-9) e "FLD" (posizione difensiva assegnata) prima degli attributi. Dati caricati da `/api/lineup/:teamId`.
+
+- **Fix Stale Data**: aggiunto `refetchOnMount: 'always'` alle query critiche in TeamPage, LineupPage e PitchersPage per risolvere il problema dei dati non aggiornati nella navigazione tra pagine.
+
+- **File Modificati**: client/src/pages/Home.tsx, client/src/pages/TeamPage.tsx, client/src/pages/LineupPage.tsx, client/src/pages/PitchersPage.tsx, PAGE_HOME.md, PAGE_TEAM.md, CHANGELOG.md, replit.md
+
 ## v1.14.0 – 28 febbraio 2026 – Dynamic Tactic Coefficients & Schedules
 
 - **Sistema Tattico Dinamico**:

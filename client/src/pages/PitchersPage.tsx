@@ -152,6 +152,7 @@ export default function PitchersPage() {
       return res.json();
     },
     enabled: !!team,
+    refetchOnMount: 'always',
   });
 
   const { data: teamStats } = useQuery<SeasonStats[]>({

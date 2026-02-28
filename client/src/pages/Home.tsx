@@ -2,8 +2,8 @@ import { useGameStore } from "@/lib/store";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
-import { Terminal, ShieldAlert, Calendar, Swords, Shield, ListOrdered, RotateCcw, Zap, Trophy, Play, Pencil, Check, X, ScrollText, Dumbbell, Users, Coins, Clock, Eye, Target, Crosshair } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import { Terminal, ShieldAlert, Calendar, Swords, Shield, ListOrdered, RotateCcw, Zap, Trophy, Play, Pencil, Check, X, ScrollText, Dumbbell, Users, Coins, Clock, Eye, Target, Crosshair, ChevronDown, ChevronUp } from "lucide-react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import type { SimPlayer } from "@/lib/calculations";
 import logoImg from "@/assets/images/logo-neon-dugout.png";
@@ -43,25 +43,93 @@ interface PlayerInfo {
   def: number;
 }
 
-function SectorBar({ label, myVal, oppVal, color }: { label: string; myVal: number; oppVal: number; color: string }) {
-  const max = Math.max(myVal, oppVal, 1);
-  const myPct = (myVal / max) * 100;
-  const oppPct = (oppVal / max) * 100;
+const RADAR_ATTRS = ['POW', 'CON', 'SPD', 'EYE', 'DEF', 'VEL', 'CTL', 'MOV', 'STA'] as const;
+const RADAR_KEYS = ['pow', 'con', 'spd', 'eye', 'def', 'vel', 'ctl', 'mov', 'sta'] as const;
+
+function RadarChart({ myPlayers, oppPlayers }: { myPlayers: PlayerInfo[]; oppPlayers: PlayerInfo[] }) {
+  const size = 180;
+  const cx = size / 2;
+  const cy = size / 2;
+  const maxR = 70;
+  const n = RADAR_ATTRS.length;
+
+  const avg = (pls: PlayerInfo[], key: string) => {
+    if (!pls.length) return 0;
+    return pls.reduce((s, p) => s + ((p as any)[key] ?? 0), 0) / pls.length;
+  };
+
+  const myVals = RADAR_KEYS.map(k => avg(myPlayers, k));
+  const oppVals = RADAR_KEYS.map(k => avg(oppPlayers, k));
+  const globalMax = Math.max(...myVals, ...oppVals, 1);
+
+  const toPoint = (idx: number, val: number) => {
+    const angle = (Math.PI * 2 * idx) / n - Math.PI / 2;
+    const r = (val / globalMax) * maxR;
+    return { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) };
+  };
+
+  const poly = (vals: number[]) => vals.map((v, i) => { const p = toPoint(i, v); return `${p.x},${p.y}`; }).join(' ');
+
+  const gridLevels = [0.25, 0.5, 0.75, 1];
+
   return (
-    <div className="space-y-1">
-      <div className="flex justify-between items-center">
-        <span className="text-[10px] font-mono text-gray-500 uppercase w-8">{label}</span>
-        <span className="text-[10px] font-mono text-cyan-400 w-8 text-right">{myVal}</span>
-      </div>
-      <div className="relative h-3 bg-gray-900 rounded-full overflow-hidden">
-        <div className="absolute inset-y-0 left-0 rounded-full transition-all" style={{ width: `${myPct}%`, background: `linear-gradient(90deg, ${color}, ${color}88)` }} />
-        <div className="absolute inset-y-0 right-0 rounded-full transition-all opacity-40 border border-pink-500/50" style={{ width: `${oppPct}%`, background: 'linear-gradient(270deg, #ec4899, #ec489988)' }} />
-      </div>
-      <div className="flex justify-end">
-        <span className="text-[10px] font-mono text-pink-400 w-8 text-right">{oppVal}</span>
-      </div>
-    </div>
+    <svg data-testid="radar-chart-preview" width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="mx-auto">
+      {gridLevels.map(lev => (
+        <polygon
+          key={lev}
+          points={Array.from({ length: n }, (_, i) => {
+            const angle = (Math.PI * 2 * i) / n - Math.PI / 2;
+            const r = lev * maxR;
+            return `${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`;
+          }).join(' ')}
+          fill="none"
+          stroke="rgba(100,100,100,0.2)"
+          strokeWidth="0.5"
+        />
+      ))}
+      {RADAR_ATTRS.map((_, i) => {
+        const angle = (Math.PI * 2 * i) / n - Math.PI / 2;
+        return (
+          <line key={i} x1={cx} y1={cy} x2={cx + maxR * Math.cos(angle)} y2={cy + maxR * Math.sin(angle)} stroke="rgba(100,100,100,0.15)" strokeWidth="0.5" />
+        );
+      })}
+      <polygon points={poly(oppVals)} fill="rgba(236,72,153,0.15)" stroke="#ec4899" strokeWidth="1.5" />
+      <polygon points={poly(myVals)} fill="rgba(34,211,238,0.2)" stroke="#22d3ee" strokeWidth="1.5" />
+      {RADAR_ATTRS.map((label, i) => {
+        const angle = (Math.PI * 2 * i) / n - Math.PI / 2;
+        const lx = cx + (maxR + 14) * Math.cos(angle);
+        const ly = cy + (maxR + 14) * Math.sin(angle);
+        return (
+          <text key={label} x={lx} y={ly} textAnchor="middle" dominantBaseline="central" fill="#9ca3af" fontSize="7" fontFamily="monospace">
+            {label}
+          </text>
+        );
+      })}
+    </svg>
   );
+}
+
+function useCountdown() {
+  const [timeLeft, setTimeLeft] = useState('');
+  useEffect(() => {
+    const calc = () => {
+      const now = new Date();
+      const target = new Date(now);
+      target.setUTCHours(23, 0, 0, 0);
+      if (target.getTime() <= now.getTime()) {
+        target.setUTCDate(target.getUTCDate() + 1);
+      }
+      const diff = target.getTime() - now.getTime();
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setTimeLeft(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+    };
+    calc();
+    const id = setInterval(calc, 1000);
+    return () => clearInterval(id);
+  }, []);
+  return timeLeft;
 }
 
 export default function Home() {
@@ -72,9 +140,11 @@ export default function Home() {
   const [nameInput, setNameInput] = useState("");
   const [savingName, setSavingName] = useState(false);
   const [claiming, setClaiming] = useState(false);
+  const [showOppLineup, setShowOppLineup] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
+  const countdown = useCountdown();
 
   useEffect(() => {
     if (editingName && nameInputRef.current) {
@@ -190,21 +260,27 @@ export default function Home() {
     enabled: !!opponentId && opponentId !== 0,
   });
 
+  const { data: oppLineupData } = useQuery<{ battingOrder: number[]; fieldPositions: Record<string, number | null> } | null>({
+    queryKey: ['opponent-lineup', opponentId],
+    queryFn: async () => {
+      const res = await fetch(`/api/lineup/${opponentId}`);
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!opponentId && opponentId !== 0 && showOppLineup,
+  });
+
   const realMatches = allMatchesRaw.filter(m => m.homeTeamId !== 0 && m.awayTeamId !== 0);
   const unfilledPlayoffs = allMatchesRaw.filter(m => (m.homeTeamId === 0 || m.awayTeamId === 0) && !m.played);
   const seasonFinished = realMatches.length > 0 && realMatches.every(m => m.played) && unfilledPlayoffs.length === 0;
 
-  const calcSectors = (pls: PlayerInfo[] | SimPlayer[] | undefined) => {
-    if (!pls || pls.length === 0) return { atk: 0, def: 0, pit: 0 };
-    const n = pls.length;
-    const atk = Math.round(pls.reduce((s, p) => s + (p.pow + p.con + p.spd + p.eye), 0) / n);
-    const def_ = Math.round(pls.reduce((s, p) => s + p.def, 0) / n);
-    const pit = Math.round(pls.reduce((s, p) => s + (p.vel + p.ctl + p.mov + p.sta), 0) / n);
-    return { atk, def: def_, pit };
-  };
-
-  const mySectors = calcSectors(players as PlayerInfo[]);
-  const oppSectors = calcSectors(opponentPlayers);
+  const oppPlayerMap = useMemo(() => {
+    const map = new Map<number, PlayerInfo>();
+    if (opponentPlayers) {
+      for (const p of opponentPlayers) map.set(p.id, p);
+    }
+    return map;
+  }, [opponentPlayers]);
 
   const saveTeamName = async () => {
     if (!team || !nameInput.trim() || nameInput.trim() === team.name) {
@@ -355,6 +431,14 @@ export default function Home() {
           );
         })()}
 
+        {!seasonFinished && nextUnplayedDay && (
+          <div data-testid="countdown-next-game" className="flex items-center justify-center gap-2 py-2 px-4 rounded-xl border border-cyan-500/15 bg-cyan-950/10">
+            <Clock className="w-3 h-3 text-cyan-500/50" />
+            <span className="text-[10px] font-mono text-cyan-400/60 uppercase tracking-wider">NEXT GAME IN</span>
+            <span data-testid="text-countdown" className="text-xs font-black text-cyan-300/80 tracking-widest" style={{fontFamily: "'Orbitron', sans-serif"}}>{countdown}</span>
+          </div>
+        )}
+
         <div className="rounded-2xl border-2 animate-border-glitter bg-gradient-to-r from-amber-950/30 to-orange-950/30 overflow-hidden p-5">
           <div className="flex items-center gap-3 mb-4">
             <Dumbbell className="w-7 h-7 text-amber-400" />
@@ -473,19 +557,55 @@ export default function Home() {
               </div>
 
               {nextLeagueMatch && opponentPlayers && opponentId !== 0 && (
-                <div className="p-3 rounded-lg border border-cyan-500/20 bg-black/30 space-y-2">
-                  <div className="flex justify-between items-center mb-2">
+                <div className="p-3 rounded-lg border border-cyan-500/20 bg-black/30 space-y-3">
+                  <div className="flex justify-between items-center">
                     <span className="text-[10px] font-mono text-cyan-400 uppercase">{team?.name}</span>
-                    <span className="text-[9px] font-mono text-gray-600 uppercase">Sector Preview</span>
+                    <span className="text-[9px] font-mono text-gray-600 uppercase">Radar Preview</span>
                     <span className="text-[10px] font-mono text-pink-400 uppercase">{teamMap.get(opponentId!)?.name}</span>
                   </div>
-                  <SectorBar label="ATK" myVal={mySectors.atk} oppVal={oppSectors.atk} color="#22d3ee" />
-                  <SectorBar label="DEF" myVal={mySectors.def} oppVal={oppSectors.def} color="#22d3ee" />
-                  <SectorBar label="PIT" myVal={mySectors.pit} oppVal={oppSectors.pit} color="#22d3ee" />
+                  <RadarChart myPlayers={(players || []) as PlayerInfo[]} oppPlayers={opponentPlayers} />
+                  <div className="flex justify-between items-center gap-2">
+                    <Link href="/lineup" data-testid="link-my-lineup-preview" className="flex-1 text-center py-1.5 px-2 rounded-lg border border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20 transition-colors">
+                      <span className="text-[10px] font-mono text-cyan-400 uppercase">MY LINEUP</span>
+                    </Link>
+                    <button
+                      data-testid="button-opp-lineup-toggle"
+                      onClick={() => setShowOppLineup(!showOppLineup)}
+                      className="flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg border border-pink-500/30 bg-pink-500/10 hover:bg-pink-500/20 transition-colors"
+                    >
+                      <span className="text-[10px] font-mono text-pink-400 uppercase">OPP LINEUP</span>
+                      {showOppLineup ? <ChevronUp className="w-3 h-3 text-pink-400" /> : <ChevronDown className="w-3 h-3 text-pink-400" />}
+                    </button>
+                  </div>
+                  {showOppLineup && (
+                    <div className="border border-pink-500/20 rounded-lg bg-black/40 p-2 space-y-1">
+                      {oppLineupData?.battingOrder && oppLineupData.battingOrder.length > 0 ? (
+                        <>
+                          {oppLineupData.battingOrder.map((pid, idx) => {
+                            const p = oppPlayerMap.get(pid);
+                            const pos = Object.entries(oppLineupData.fieldPositions || {}).find(([, v]) => v === pid)?.[0] || '—';
+                            return (
+                              <div key={pid} data-testid={`opp-lineup-slot-${idx}`} className="flex items-center gap-2 py-0.5">
+                                <span className="text-[9px] font-mono text-gray-600 w-4">{idx + 1}.</span>
+                                <span className="text-[10px] font-mono text-pink-300">{p?.name || `#${pid}`}</span>
+                                <span className="text-[9px] font-mono text-gray-500 ml-auto">{pos}</span>
+                              </div>
+                            );
+                          })}
+                        </>
+                      ) : (
+                        <p data-testid="text-opp-no-lineup" className="text-[9px] font-mono text-gray-600 text-center py-1">No lineup set</p>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
-              <p className="text-[10px] font-mono text-gray-500 text-center">Next match auto-simulated at 00:00 CET</p>
+              <div className="flex items-center justify-center gap-2">
+                <Clock className="w-3 h-3 text-cyan-500/40" />
+                <span className="text-[10px] font-mono text-gray-500">NEXT GAME IN </span>
+                <span data-testid="text-countdown-preview" className="text-[10px] font-black text-cyan-400/70 tracking-wider" style={{fontFamily: "'Orbitron', sans-serif"}}>{countdown}</span>
+              </div>
             </div>
           ) : null}
 

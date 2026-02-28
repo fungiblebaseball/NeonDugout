@@ -4,7 +4,7 @@
 Text-based fantasy baseball manager game with retro 80s/90s cyberpunk aesthetic. Target platform: Solana Seeker mobile (Web3 integration planned). Zero MLB licenses - all fictional teams and players.
 
 ## Current State
-Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.14.0 — Dynamic Tactic Coefficients: 12 rows (4 layers x 3 values) for RPS and strategy modifiers. Tactic schedules (Primary/Secondary/Optional) with mid-game switching based on conditions (Inning, K, Runs, Hits). Admin panel for tuning coefficients. Per-pitcher pitching staff configs (v1.13.0).
+Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.14.1 — Home & Team page UI/UX improvements: live countdown timer to next game, SVG radar chart for team comparison, opponent lineup preview, sortable roster columns, lineup/defense position display, reload button. Dynamic Tactic Coefficients (v1.14.0). Per-pitcher pitching staff configs (v1.13.0).
 
 ## Branding
 - **Logo**: `client/src/assets/images/logo-neon-dugout.png` — Stylized baseball diamond (neon glow, transparent bg)

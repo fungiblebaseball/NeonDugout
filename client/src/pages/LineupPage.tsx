@@ -47,6 +47,7 @@ export default function LineupPage() {
       return res.json();
     },
     enabled: !!team,
+    refetchOnMount: 'always',
   });
 
   const { data: pitcherRotation } = useQuery({
@@ -56,6 +57,7 @@ export default function LineupPage() {
       return res.json();
     },
     enabled: !!team,
+    refetchOnMount: 'always',
   });
 
   const [fieldPositions, setFieldPositions] = useState<Record<string, number | null>>({});

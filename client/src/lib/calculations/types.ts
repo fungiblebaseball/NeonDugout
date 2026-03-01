@@ -104,6 +104,7 @@ export interface PlayLogEntry {
   newPitcherName?: string;
   newPitcherRole?: string;
   changeReason?: string;
+  pitcherStyle?: string;
 
   tacticField?: string;
   oldValue?: string;

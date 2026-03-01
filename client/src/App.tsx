@@ -32,7 +32,9 @@ function Router() {
 
   useEffect(() => {
     if (!walletAddress) {
-      restoreSession();
+      restoreSession().then(() => {
+        queryClient.invalidateQueries();
+      });
     }
   }, []);
 

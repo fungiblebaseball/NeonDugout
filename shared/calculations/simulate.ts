@@ -405,6 +405,7 @@ function simulateHalfInning(
       const next = getNextPitcher(activePitcher, pitchingConfig);
       if (next) {
         const reason = getSubstitutionReason(activePitcher, pitchingConfig);
+        const newPitcherStyle = getRoleConfig(next.role, pitchingConfig).pitcherStyle;
         logEntries.push({
           type: 'pitcher_change',
           inning,
@@ -414,6 +415,7 @@ function simulateHalfInning(
           newPitcherName: next.player.name,
           newPitcherRole: next.role === 'r1' ? 'Relief' : next.role === 'closer' ? 'Closer' : 'SP',
           changeReason: reason,
+          pitcherStyle: newPitcherStyle,
         });
         substitutions.push({ ...activePitcher });
         activePitcher = next;
@@ -769,6 +771,27 @@ export function simulateGame(
       }
     }
   }
+
+  allPlayLog.push({
+    type: 'tactic_initial',
+    inning: 1,
+    half: 'bottom',
+    outs: 0,
+    tacticField: 'Pitcher Style',
+    newValue: `${homeP.pitcher.player.name}: ${homeP.config.spConfig.pitcherStyle}`,
+    teamSide: 'home',
+    pitcherStyle: homeP.config.spConfig.pitcherStyle,
+  });
+  allPlayLog.push({
+    type: 'tactic_initial',
+    inning: 1,
+    half: 'top',
+    outs: 0,
+    tacticField: 'Pitcher Style',
+    newValue: `${awayP.pitcher.player.name}: ${awayP.config.spConfig.pitcherStyle}`,
+    teamSide: 'away',
+    pitcherStyle: awayP.config.spConfig.pitcherStyle,
+  });
 
   let prevAwayTactics: Record<string, string> = {};
   let prevHomeTactics: Record<string, string> = {};

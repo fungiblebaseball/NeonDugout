@@ -1,108 +1,44 @@
 import { useGameStore } from "@/lib/store";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import type { AttackStyle, BatterApproach, OffensiveAttack, TacticSchedule, TacticSlot } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Slider } from "@/components/ui/slider";
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { ButtonGroup } from "@/components/ui/button-group";
-import { ChevronDown, ChevronUp } from "lucide-react";
 
-const ATTACK_OPTIONS: { value: AttackStyle; label: string; desc: string; icon: string; effects: { label: string; value: string; color: string }[] }[] = [
-  {
-    value: 'bunt',
-    label: 'BUNT',
-    desc: 'Sacrifice hits to advance runners.',
-    icon: '◇',
-    effects: [
-      { label: 'Singles', value: '+15%', color: 'text-green-400' },
-      { label: 'XBH', value: '-20%', color: 'text-red-400' },
-    ],
-  },
-  {
-    value: 'hit_and_run',
-    label: 'H&R',
-    desc: 'Runners go on pitch.',
-    icon: '⚡',
-    effects: [
-      { label: 'Singles', value: '+15%', color: 'text-green-400' },
-      { label: 'HR', value: '-25%', color: 'text-red-400' },
-    ],
-  },
-  {
-    value: 'neutral',
-    label: 'NEUTRAL',
-    desc: 'Balanced approach.',
-    icon: '⬡',
-    effects: [
-      { label: 'All', value: 'BASE', color: 'text-gray-400' },
-    ],
-  },
-  {
-    value: 'swing_on_sight',
-    label: 'SWING',
-    desc: 'Maximum aggression for power.',
-    icon: '💥',
-    effects: [
-      { label: 'XBH', value: '+20%', color: 'text-green-400' },
-      { label: 'SO', value: '+20%', color: 'text-red-400' },
-    ],
-  },
+interface TacticCoefficient {
+  id: number;
+  layer: string;
+  tacticValue: string;
+  hr: number;
+  xbh: number;
+  single: number;
+  bb: number;
+  so: number;
+  go: number;
+  fo: number;
+}
+
+const COEFF_KEYS = ['hr', 'xbh', 'single', 'bb', 'so', 'go', 'fo'] as const;
+const COEFF_LABELS: Record<string, string> = { hr: 'HR', xbh: 'XBH', single: '1B', bb: 'BB', so: 'SO', go: 'GO', fo: 'FO' };
+
+const ATTACK_OPTIONS: { value: AttackStyle; label: string; desc: string; icon: string }[] = [
+  { value: 'bunt', label: 'BUNT', desc: 'Sacrifice hits to advance runners.', icon: '◇' },
+  { value: 'hit_and_run', label: 'H&R', desc: 'Runners go on pitch.', icon: '⚡' },
+  { value: 'neutral', label: 'NEUTRAL', desc: 'Balanced approach.', icon: '⬡' },
+  { value: 'swing_on_sight', label: 'SWING', desc: 'Maximum aggression for power.', icon: '💥' },
 ];
 
 const BATTER_APPROACH_OPTIONS: { value: BatterApproach; label: string; desc: string; icon: string; beats: string; losesTo: string }[] = [
-  {
-    value: 'power',
-    label: 'POWER',
-    desc: 'Swing for the fences.',
-    icon: '🔥',
-    beats: 'Movement',
-    losesTo: 'Command',
-  },
-  {
-    value: 'contact',
-    label: 'CONTACT',
-    desc: 'Put the ball in play.',
-    icon: '🎯',
-    beats: 'Command',
-    losesTo: 'Velocity',
-  },
-  {
-    value: 'patient',
-    label: 'PATIENT',
-    desc: 'Work the count.',
-    icon: '👁️',
-    beats: 'Velocity',
-    losesTo: 'Movement',
-  },
+  { value: 'power', label: 'POWER', desc: 'Swing for the fences.', icon: '🔥', beats: 'Movement', losesTo: 'Command' },
+  { value: 'contact', label: 'CONTACT', desc: 'Put the ball in play.', icon: '🎯', beats: 'Command', losesTo: 'Velocity' },
+  { value: 'patient', label: 'PATIENT', desc: 'Work the count.', icon: '👁️', beats: 'Velocity', losesTo: 'Movement' },
 ];
 
 const OFFENSIVE_ATTACK_OPTIONS: { value: OffensiveAttack; label: string; desc: string; icon: string; beats: string; losesTo: string }[] = [
-  {
-    value: 'aggressive',
-    label: 'AGGR',
-    desc: 'Big leads, frequent steals.',
-    icon: '⚡',
-    beats: 'Protective',
-    losesTo: 'Aggressive',
-  },
-  {
-    value: 'balanced',
-    label: 'BAL',
-    desc: 'Standard situational running.',
-    icon: '⚖️',
-    beats: 'Aggressive',
-    losesTo: 'Protective',
-  },
-  {
-    value: 'conservative',
-    label: 'CONS',
-    desc: 'Small leads, cautious.',
-    icon: '🛡️',
-    beats: '—',
-    losesTo: 'Aggressive',
-  },
+  { value: 'aggressive', label: 'AGGR', desc: 'Big leads, frequent steals.', icon: '⚡', beats: 'Protective', losesTo: 'Aggressive' },
+  { value: 'balanced', label: 'BAL', desc: 'Standard situational running.', icon: '⚖️', beats: 'Aggressive', losesTo: 'Protective' },
+  { value: 'conservative', label: 'CONS', desc: 'Small leads, cautious.', icon: '🛡️', beats: '—', losesTo: 'Aggressive' },
 ];
 
 const DEFAULT_APPROACH_SCHEDULE: TacticSchedule = {
@@ -123,6 +59,31 @@ const DEFAULT_OFFENSIVE_SCHEDULE: TacticSchedule = {
   optional: { value: 'balanced', conditions: {} },
 };
 
+function CoeffBadges({ coefficients, layer, tacticValue }: { coefficients: TacticCoefficient[]; layer: string; tacticValue: string }) {
+  const coeff = coefficients.find(c => c.layer === layer && c.tacticValue === tacticValue);
+  if (!coeff) return null;
+
+  const badges = COEFF_KEYS
+    .filter(k => coeff[k] !== 0)
+    .map(k => ({ key: k, val: coeff[k] }));
+
+  if (badges.length === 0) return <span className="text-[9px] text-gray-500 font-mono">BASE</span>;
+
+  return (
+    <div className="flex flex-wrap gap-1">
+      {badges.map(b => (
+        <span
+          key={b.key}
+          data-testid={`badge-coeff-${layer}-${tacticValue}-${b.key}`}
+          className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono font-bold ${b.val > 0 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}
+        >
+          {COEFF_LABELS[b.key]} {b.val > 0 ? '+' : ''}{b.val}%
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export default function AttackPage() {
   const { team, walletAddress } = useGameStore();
   const queryClient = useQueryClient();
@@ -134,6 +95,15 @@ export default function AttackPage() {
       return res.json();
     },
     enabled: !!team,
+    refetchOnMount: 'always',
+  });
+
+  const { data: coefficients = [] } = useQuery<TacticCoefficient[]>({
+    queryKey: ['tactic-coefficients'],
+    queryFn: async () => {
+      const res = await fetch('/api/tactic-coefficients');
+      return res.json();
+    },
   });
 
   const [approachSchedule, setApproachSchedule] = useState<TacticSchedule>(DEFAULT_APPROACH_SCHEDULE);
@@ -215,6 +185,17 @@ export default function AttackPage() {
     return <div className="min-h-screen bg-black p-6 flex items-center justify-center text-center text-pink-500 font-mono text-xl uppercase tracking-widest">ACCESS DENIED</div>;
   }
 
+  const coeffLayer = (section: 'approach' | 'style' | 'offensive') => {
+    if (section === 'approach') return 'batterApproach';
+    if (section === 'style') return 'attackStyle';
+    return 'offensiveAttack';
+  };
+
+  const getDesc = (section: 'approach' | 'style' | 'offensive', value: string) => {
+    const all = section === 'approach' ? BATTER_APPROACH_OPTIONS : section === 'style' ? ATTACK_OPTIONS : OFFENSIVE_ATTACK_OPTIONS;
+    return (all as { value: string; desc: string }[]).find(o => o.value === value)?.desc || '';
+  };
+
   const renderTacticBox = (
     section: 'approach' | 'style' | 'offensive',
     slot: 'primary' | 'secondary' | 'optional',
@@ -227,6 +208,13 @@ export default function AttackPage() {
       secondary: "bg-yellow-500/20 text-yellow-400 border-yellow-500/50",
       optional: "bg-gray-500/20 text-gray-400 border-gray-500/50"
     };
+
+    const CONDITIONS = [
+      { label: 'Max Inn', key: 'maxInning' as const, min: 1, max: 9 },
+      { label: 'Max K', key: 'maxStrikeouts' as const, min: 1, max: 20 },
+      { label: 'Max R', key: 'maxRunsAllowed' as const, min: 0, max: 10 },
+      { label: 'Max H', key: 'maxHitsAllowed' as const, min: 1, max: 20 },
+    ];
 
     return (
       <div className="bg-gray-900/40 border border-gray-800 rounded-lg p-3 space-y-3">
@@ -255,38 +243,37 @@ export default function AttackPage() {
           ))}
         </ButtonGroup>
 
+        <div className="text-[10px] text-gray-400 font-mono" data-testid={`text-desc-${section}-${slot}`}>
+          {getDesc(section, data.value)}
+        </div>
+
+        {coefficients.length > 0 && (
+          <CoeffBadges coefficients={coefficients} layer={coeffLayer(section)} tacticValue={data.value} />
+        )}
+
         {slot !== 'optional' && (
-          <Collapsible>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="sm" className="w-full h-6 text-[9px] text-gray-500 flex items-center justify-between px-2 hover:bg-white/5">
-                CONDITION LIMITS
-                <ChevronDown className="w-3 h-3" />
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-4 pt-2 pb-1">
-              {[
-                { label: 'Max Inning', key: 'maxInning', min: 1, max: 9 },
-                { label: 'Max K', key: 'maxStrikeouts', min: 1, max: 20 },
-                { label: 'Max Runs', key: 'maxRunsAllowed', min: 0, max: 10 },
-                { label: 'Max Hits', key: 'maxHitsAllowed', min: 1, max: 20 },
-              ].map(cond => (
-                <div key={cond.key} className="space-y-1.5 px-1">
-                  <div className="flex justify-between text-[9px] font-mono text-gray-400">
-                    <span>{cond.label}</span>
-                    <span className="text-cyan-400">{(data.conditions as any)[cond.key] || 0}</span>
-                  </div>
-                  <Slider
-                    value={[(data.conditions as any)[cond.key] || 0]}
-                    min={cond.min}
-                    max={cond.max}
-                    step={1}
-                    onValueChange={([val]) => updateCondition(section, slot as any, cond.key as any, val)}
-                    data-testid={`slider-${section}-${slot}-${cond.key}`}
-                  />
-                </div>
-              ))}
-            </CollapsibleContent>
-          </Collapsible>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 pt-1 border-t border-gray-800/60">
+            <div className="col-span-2 text-[9px] font-mono text-gray-500 uppercase tracking-wider">Condition Limits</div>
+            {CONDITIONS.map(cond => (
+              <div key={cond.key} className="flex items-center justify-between gap-2">
+                <label className="text-[9px] font-mono text-gray-400 whitespace-nowrap">{cond.label}</label>
+                <input
+                  type="number"
+                  min={cond.min}
+                  max={cond.max}
+                  value={(data.conditions as any)[cond.key] ?? 0}
+                  onChange={e => {
+                    let v = parseInt(e.target.value, 10);
+                    if (isNaN(v)) v = cond.min;
+                    v = Math.max(cond.min, Math.min(cond.max, v));
+                    updateCondition(section, slot as any, cond.key, v);
+                  }}
+                  data-testid={`input-${section}-${slot}-${cond.key}`}
+                  className="w-14 h-6 text-center text-[10px] font-mono bg-black border border-gray-700 rounded text-cyan-400 focus:border-cyan-500 focus:outline-none"
+                />
+              </div>
+            ))}
+          </div>
         )}
       </div>
     );
@@ -302,7 +289,6 @@ export default function AttackPage() {
       </header>
 
       <main className="p-4 space-y-8">
-        {/* 1. BATTER APPROACH */}
         <section className="space-y-4">
           <div className="flex items-center justify-between border-b border-purple-500/30 pb-2">
             <h2 className="text-sm font-mono text-purple-400">1. BATTER APPROACH</h2>
@@ -315,7 +301,6 @@ export default function AttackPage() {
           </div>
         </section>
 
-        {/* 2. OFFENSIVE STRATEGY */}
         <section className="space-y-4">
           <div className="flex items-center justify-between border-b border-pink-500/30 pb-2">
             <h2 className="text-sm font-mono text-pink-500">2. OFFENSIVE STRATEGY</h2>
@@ -328,7 +313,6 @@ export default function AttackPage() {
           </div>
         </section>
 
-        {/* 3. OFFENSIVE ATTACK */}
         <section className="space-y-4">
           <div className="flex items-center justify-between border-b border-orange-500/30 pb-2">
             <h2 className="text-sm font-mono text-orange-400">3. OFFENSIVE ATTACK</h2>
@@ -353,4 +337,3 @@ export default function AttackPage() {
     </div>
   );
 }
-

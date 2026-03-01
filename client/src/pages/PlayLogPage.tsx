@@ -26,6 +26,7 @@ interface PlayLogEntry {
   newPitcherName?: string;
   newPitcherRole?: string;
   changeReason?: string;
+  pitcherStyle?: string;
   tacticField?: string;
   oldValue?: string;
   newValue?: string;
@@ -146,6 +147,7 @@ function MatchLogAccordion({ match }: { match: MatchWithLog }) {
                             <div key={idx} className="py-1 px-2 bg-purple-950/30 border border-purple-500/20 rounded text-purple-300">
                               ⟳ {entry.oldPitcherName} → <span className="text-purple-200 font-bold">{entry.newPitcherName}</span>
                               <span className="text-gray-500 ml-1">({entry.newPitcherRole})</span>
+                              {entry.pitcherStyle && <span className="text-amber-400 ml-1">⚡ {entry.pitcherStyle}</span>}
                               {entry.changeReason && <span className="text-gray-600 ml-1">• {entry.changeReason}</span>}
                             </div>
                           );

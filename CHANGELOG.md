@@ -6,6 +6,31 @@ Formato:
   • Dettaglio 2 (file modificati)  
   • Trade-off / note (se rilevanti)
 
+## v1.16.0 – 1 marzo 2026 – Pitcher Tactics in Play Log, Data Loading Fix, Attack Page Redesign
+
+- **Tattiche lanciatore nel play log (T001)**:
+  * `tactic_initial` ora include lo stile del pitcher titolare (SP) per entrambe le squadre, con nome del lanciatore
+  * `pitcher_change` ora mostra lo stile (`pitcherStyle`) del lanciatore sostituto insieme a nome, ruolo e motivo della sostituzione
+  * Nuovo campo opzionale `pitcherStyle` in `PlayLogEntry` (types.ts)
+  * Rendering aggiornato in MatchDetailPage e PlayLogPage con icona ⚡ e colore amber
+  * Modifiche sincronizzate in shared/calculations e client/src/lib/calculations
+
+- **Fix caricamento dati navigazione (T002)**:
+  * `staleTime` cambiato da `Infinity` a `30000` (30s) in queryClient.ts — i dati cached diventano stale e vengono ricaricati
+  * `refetchOnMount: 'always'` aggiunto alle query tattiche in AttackPage e DefensePage
+  * Dopo `restoreSession()`, `queryClient.invalidateQueries()` svuota la cache stale
+  * Lineup e PitchersPage avevano già `refetchOnMount: 'always'` — confermato
+
+- **Redesign pagina Attack Tactics (T003)**:
+  * Slider sostituiti con `<input type="number">` per i limiti condizionali (maxInning, maxK, maxRuns, maxHits)
+  * Layout compatto: label + input su stessa riga, griglia a 2 colonne
+  * Buff descriptions dinamiche: i valori dei coefficienti vengono caricati da `/api/tactic-coefficients` e mostrati come badge colorati (verde positivo, rosso negativo)
+  * Rimossi effetti hardcoded da `ATTACK_OPTIONS`; i badge ora riflettono i valori reali configurati nell'admin
+  * Descrizioni tattiche sempre visibili, non nascoste dietro collapsible
+  * Rimossi import inutilizzati (Slider, Collapsible, ChevronDown, ChevronUp)
+
+- **File Modificati**: shared/calculations/types.ts, shared/calculations/simulate.ts, client/src/lib/calculations/types.ts, client/src/lib/calculations/simulate.ts, client/src/pages/MatchDetailPage.tsx, client/src/pages/PlayLogPage.tsx, client/src/lib/queryClient.ts, client/src/pages/AttackPage.tsx, client/src/pages/DefensePage.tsx, client/src/App.tsx, CHANGELOG.md, replit.md
+
 ## v1.15.1 – 28 febbraio 2026 – Login Stability & Crash Prevention
 
 - **Global error handlers (T001)**:

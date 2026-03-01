@@ -53,6 +53,7 @@ export default function DefensePage() {
       return res.json();
     },
     enabled: !!team,
+    refetchOnMount: 'always',
   });
 
   const [infieldPosition, setInfieldPosition] = useState<InfieldPosition>('neutral');

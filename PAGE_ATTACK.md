@@ -20,13 +20,15 @@ Configurazione del Batter Approach con 3 slot (Primary, Secondary, Optional) e c
 
 ### 2. Offensive Strategy (Attack Style) (4 opzioni, 3 box temporali)
 Modificatori diretti applicati alla tabella probabilità, contrastati dalle posizioni difensive (Infield/Outfield). 3 slot (Primary, Secondary, Optional) con condizioni di switch.
+questi i parametri che modificano:
+Hr xbh 1b go fo st
 
 | Stile | Effetto Base |
 |-------|---------|
-| **Bunt** | +15% 1B, -20% XBH, -20% HR, +10% GO |
-| **Hit & Run** | +15% 1B, -15% XBH, -25% HR, +5% SO |
+| **Bunt** | Hr xbh 1b go fo st 
+| **Hit & Run** | Hr xbh 1b go fo st
 | **Neutral** | Nessun modificatore |
-| **Swing on Sight** | +20% XBH, +15% HR, +20% SO, +10% FO |
+| **Swing on Sight** | Hr xbh 1b go fo st
 
 ### 3. Offensive Attack (3 opzioni, 3 box temporali)
 Configurazione dell'Offensive Attack con 3 slot e condizioni di switch. Matchup RPS contro Defense Setup dell'avversario.

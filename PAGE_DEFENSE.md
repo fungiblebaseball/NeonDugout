@@ -9,22 +9,22 @@ Pagina di configurazione tattica difensiva. Contiene 3 sezioni: posizionamento i
 ## Sezioni
 
 ### 1. Infield Position (3 opzioni, scelta esclusiva)
-Posizionamento degli interni. Countera specifici Attack Style avversari.
+Posizionamento degli interni. Countera specifici Attack Style avversari annullandosi a aritmeticamente a vicenda possonocessere + o - positivi o negativi configurabili da admin
 
 | Posizione | Counter vs | Effetto |
 |-----------|-----------|---------|
-| **Short** | Bunt | -12% 1B, +10% GO |
-| **Neutral** | Hit & Run | -8% 1B, +6% GO |
-| **Deep** | Swing on Sight | -5% 1B, +5% GO |
+| **Short** | Bunt, Hit&Run| Hr xbh 1b go fo st
+| **Neutral** | Neutral |no mod|
+| **Deep** | Swing on Sight | Hr xbh 1b go fo st|
 
 ### 2. Outfield Position (3 opzioni, scelta esclusiva)
 Posizionamento degli esterni. Countera specifici Attack Style avversari.
 
 | Posizione | Counter vs | Effetto |
 |-----------|-----------|---------|
-| **Short** | Bunt | -5% 1B, +4% FO |
-| **Neutral** | Hit & Run | -4% 1B |
-| **Deep** | Swing on Sight | -8% HR, -6% XBH, +8% FO |
+| **Short** | Bunt, Hit&Run| Hr xbh 1b go fo st
+| **Neutral** |Neutral |No mod| 
+| **Deep** | Swing on Sight | Hr xbh 1b go fo st|
 
 ### 3. Defense Setup (3 opzioni, scelta esclusiva)
 Matchup RPS contro Offensive Attack dell'avversario. Determina successo rubate, extra base, esecuzione small ball.

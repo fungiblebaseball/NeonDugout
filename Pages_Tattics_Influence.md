@@ -16,12 +16,14 @@ Flusso:
 2. Layer 1: `evaluateRpsBilateral(batterApproach, pitcherStyle, coefficients)` → Win/Tie/Lose.
    - Se Win: applica coefficienti dell'attaccante.
    - Se Lose: applica coefficienti del difensore.
-3. Layer 2: `applyModifiers(probs, ATTACK_MODIFIERS[attackStyle])` → modificatori diretti hardcoded (Bunt, Hit&Run, SOS).
-4. Layer 2b: `getDefenseCounterBonus(attackStyle, infieldPos, outfieldPos)` → counter posizionale hardcoded.
-5. Layer 3: `evaluateRpsBilateral(offensiveAttack, defenseSetup, coefficients)` → Win/Tie/Lose.
+3. Layer 2: `applyModifiers(probs, ATTACK_MODIFIERS[attackStyle],DEFENCE_POSITIONING [infield_pos, Outfield_pos,]→ modificatori diretti coefficents da pagina admin (Bunt, Hit&Run, SOS, infield,outfield short, long).
+4. no need coefficents for neutrals
+
+5. Layer 2b: `getDefenseCounterBonus(attackStyle, infieldPos, outfieldPos)` → counter sommato da coefficents sopra
+6. Layer 3: `evaluateRpsBilateral(offensiveAttack, defenseSetup, coefficients)` → Win/Tie/Lose.
    - Se Win: applica coefficienti dell'offesa.
    - Se Lose: applica coefficienti della difesa.
-6. Normalizzazione: somma a 1.0
+7. Normalizzazione: somma a 1.0
 
 ### 2. `shared/calculations/simulate.ts`
 Funzione: `simulateHalfInning()` → per ogni at-bat:
@@ -56,8 +58,8 @@ PROBABILITY_TABLE[bracket]     ← attributi giocatore (immutabili)
    Layer 1: Batter vs Pitcher  ← RPS bilateral (coefficienti per-tattica da DB)
         │
         ▼
-   Layer 2: Attack Style        ← modificatori diretti (hardcoded)
-   Layer 2b: Defense Counter    ← counter posizionale (hardcoded)
+   Layer 2: Attack Style        ← modificatori diretti (coefficienti per-tattica da DB)
+   Layer 2b: Defense Counter    ← counter posizionale (coefficienti per-tattica da DB)
         │
         ▼
    Layer 3: Offense vs Defense  ← RPS bilateral (coefficienti per-tattica da DB)

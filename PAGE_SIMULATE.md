@@ -16,7 +16,7 @@ Partita amichevole/exhibition per testare la formazione contro avversari della s
    - Batter Stats — Tabella battitori (AB, H, HR, RBI, BB, SO, AVG)
    - Pitcher Stats — Card per ogni lanciatore usato (IP, SO, ER, H, BB, PC)
    - MVP — Player of the Game
-   - Play Log — Accordion collassabile con log inning-per-inning (at-bat + pitcher changes)
+   - Play Log — Accordion collassabile con log inning-per-inning (at-bat + pitcher changes + pitcher tactics change)
 4. **New Match Button** — Reset per nuova simulazione
 
 ## Dati

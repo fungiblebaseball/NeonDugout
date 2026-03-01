@@ -1,6 +1,6 @@
 # MECHANICS_SPEC.md
-Ultimo aggiornamento: 26 febbraio 2026  
-Versione: 0.5 (Training minigames, attribute boosts, admin config)
+Ultimo aggiornamento: 1 marzo 2026  
+Versione: 0.6 (Stolen base, DB coefficients for attack_style/defense_counter, tac_st)
 
 ### Scopo del file
 Questo documento definisce le specifiche tecniche e le regole di gioco. Serve come riferimento per gli sviluppatori, gli architetti e i designer per garantire la coerenza e la determinazione del gameplay.  **Questo documento è una fonte di verità per il comportamento del gioco e deve essere consultato prima di qualsiasi modifica al codice.**
@@ -109,14 +109,21 @@ Su 1B, 2B, 3B, HR, Error:
   - Double: lead runner advance 2 basi 60–90%, score from 1st 40–80%
   - Error: +1 base extra a tutti i runners con 60% prob
 
-## Stolen Base (nuovo beta – confronto skill)
-Tentativo SB opzionale (AI decide basato su SPD runner, count, outs, score diff)
+## Stolen Base — IMPLEMENTATO v1.17.0
 
-Success prob = 0.50 + (runner_SPD - catcher_DEF * 0.6 - middle_inf_DEF * 0.3)/150 + count_mod
-  - count_mod: +0.08 se 3-1 o 3-2 count (pitcher meno attento), -0.10 se 0-2
-  - Range ≈ 40–90%
+Meccanica post-at-bat a 2 fasi. Gate: esito SO/BB + corridore in 1a/2a + <2 out + no rubata di casa.
 
-Se fallisce → caught stealing (out, runner removed)
+### Fase 1: Tentativo
+attemptProb = 0.15 + (runner.spd-60)/300 - (pitcher.ctl-50)/400 + tac_st_mod
+- tac_st_mod = somma tac_st dai layer tattici attivi / 100 (attack_style, offensive_attack, defense_counter_infield/outfield, defense_setup)
+- Clamp [0.02, 0.35]
+
+### Fase 2: Riuscita (solo confronto skill)
+successProb = 0.50 + (runner.spd*0.4 + runner.eye*0.3 + runner.sta*0.3 - catcher.def*0.4 - catcher.eye*0.3 - catcher.sta*0.3) / 150
+- Clamp [0.25, 0.90]
+- SAFE → corridore avanza 1 base; OUT → caught stealing (+1 out)
+
+~1-4 tentativi per partita, successo tipico 60-75%. Vedi `Steal_mechanic.md` per dettaglio completo.
 
 ## Double Play / GIDP
 
@@ -270,7 +277,6 @@ Ogni partita genera un array di `PlayLogEntry` salvato nel campo `play_log` JSON
 
 ## Prossimi affinamenti
 - Hit_quality e spray chart per difesa granulare (sostituirebbe PlayI/PlayO semplificato)
-- Stolen Base implementation
 - GIDP probabilistico (non solo basi piene)
 - Park factor
 - Momentum / hot streak temporaneo

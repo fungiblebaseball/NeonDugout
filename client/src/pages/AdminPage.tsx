@@ -40,6 +40,7 @@ interface TacticCoefficient {
   so: number;
   go: number;
   fo: number;
+  tacSt: number;
 }
 
 const ALL_ATTRIBUTES = ["pow", "con", "spd", "eye", "vel", "ctl", "mov", "sta", "def"];
@@ -687,7 +688,10 @@ function TacticCoefficientsCard({
   const layers = [
     { id: "batter_approach", label: "Batter Approach" },
     { id: "pitcher_style", label: "Pitcher Style" },
+    { id: "attack_style", label: "Attack Style" },
     { id: "offensive_attack", label: "Offensive Attack" },
+    { id: "defense_counter_infield", label: "Defense Counter Infield" },
+    { id: "defense_counter_outfield", label: "Defense Counter Outfield" },
     { id: "defense_setup", label: "Defense Setup" },
   ];
 
@@ -718,6 +722,7 @@ function TacticCoefficientsCard({
               so: c.so,
               go: c.go,
               fo: c.fo,
+              tacSt: c.tacSt,
             }),
           })
         )
@@ -805,6 +810,7 @@ function TacticCoefficientsCard({
                   <th className="py-2 px-1">SO</th>
                   <th className="py-2 px-1">GO</th>
                   <th className="py-2 px-1">FO</th>
+                  <th className="py-2 px-1">ST</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800/50">
@@ -812,8 +818,8 @@ function TacticCoefficientsCard({
                   .filter((c) => c.layer === layer.id)
                   .map((coeff) => (
                     <tr key={coeff.id} className="text-xs">
-                      <td className="py-2 px-1 font-bold text-gray-400 capitalize">{coeff.tacticValue.replace("_", " ")}</td>
-                      {["hr", "xbh", "single", "bb", "so", "go", "fo"].map((field) => (
+                      <td className="py-2 px-1 font-bold text-gray-400 capitalize">{coeff.tacticValue.replace(/_/g, " ")}</td>
+                      {["hr", "xbh", "single", "bb", "so", "go", "fo", "tacSt"].map((field) => (
                         <td key={field} className="py-1 px-1">
                           <input
                             type="number"

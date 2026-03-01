@@ -81,7 +81,7 @@ export interface BoxScore {
 }
 
 export interface PlayLogEntry {
-  type: 'at_bat' | 'pitcher_change' | 'tactic_change' | 'tactic_initial';
+  type: 'at_bat' | 'pitcher_change' | 'tactic_change' | 'tactic_initial' | 'stolen_base';
   inning: number;
   half: 'top' | 'bottom';
   outs: number;
@@ -110,6 +110,13 @@ export interface PlayLogEntry {
   oldValue?: string;
   newValue?: string;
   teamSide?: 'home' | 'away';
+
+  runnerId?: number;
+  runnerName?: string;
+  fromBase?: '1B' | '2B';
+  toBase?: '2B' | '3B';
+  success?: boolean;
+  catcherName?: string;
 }
 
 export interface GameResult {

@@ -401,11 +401,11 @@ export async function registerRoutes(
     const adminData = await requireAdmin(req, res);
     if (!adminData) return;
     const { layer, tacticValue } = req.params;
-    const { hr, xbh, single, bb, so, go, fo } = req.body;
-    if ([hr, xbh, single, bb, so, go, fo].some(v => typeof v !== 'number')) {
-      return res.status(400).json({ message: "All coefficient fields (hr, xbh, single, bb, so, go, fo) must be numbers" });
+    const { hr, xbh, single, bb, so, go, fo, tacSt } = req.body;
+    if ([hr, xbh, single, bb, so, go, fo, tacSt].some(v => typeof v !== 'number')) {
+      return res.status(400).json({ message: "All coefficient fields (hr, xbh, single, bb, so, go, fo, tacSt) must be numbers" });
     }
-    const updated = await storage.updateTacticCoefficient(layer, tacticValue, { hr, xbh, single, bb, so, go, fo });
+    const updated = await storage.updateTacticCoefficient(layer, tacticValue, { hr, xbh, single, bb, so, go, fo, tacSt });
     res.json(updated);
   }));
 

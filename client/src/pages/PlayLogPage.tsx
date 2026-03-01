@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useGameStore } from "@/lib/store";
 
 interface PlayLogEntry {
-  type: 'at_bat' | 'pitcher_change' | 'tactic_change' | 'tactic_initial';
+  type: 'at_bat' | 'pitcher_change' | 'tactic_change' | 'tactic_initial' | 'stolen_base';
   inning: number;
   half: 'top' | 'bottom';
   outs: number;
@@ -31,6 +31,12 @@ interface PlayLogEntry {
   oldValue?: string;
   newValue?: string;
   teamSide?: 'home' | 'away';
+  runnerId?: number;
+  runnerName?: string;
+  fromBase?: string;
+  toBase?: string;
+  success?: boolean;
+  catcherName?: string;
 }
 
 interface MatchWithLog {
@@ -149,6 +155,21 @@ function MatchLogAccordion({ match }: { match: MatchWithLog }) {
                               <span className="text-gray-500 ml-1">({entry.newPitcherRole})</span>
                               {entry.pitcherStyle && <span className="text-amber-400 ml-1">⚡ {entry.pitcherStyle}</span>}
                               {entry.changeReason && <span className="text-gray-600 ml-1">• {entry.changeReason}</span>}
+                            </div>
+                          );
+                        }
+                        if (entry.type === 'stolen_base') {
+                          return (
+                            <div key={idx} data-testid={`log-stolenbase-${inn}-${half}-${idx}`} className={`py-1 px-2 rounded border ${entry.success ? 'bg-green-950/30 border-green-500/20' : 'bg-red-950/30 border-red-500/20'}`}>
+                              <span className="text-gray-600 w-4 text-right inline-block mr-1.5">{entry.outs}o</span>
+                              {entry.success ? (
+                                <span className="text-green-400 font-bold">⚡ STOLEN BASE</span>
+                              ) : (
+                                <span className="text-red-400 font-bold">✗ CAUGHT STEALING</span>
+                              )}
+                              <span className="text-gray-400 ml-1.5">{entry.runnerName}</span>
+                              <span className="text-gray-600 ml-1">{entry.fromBase} → {entry.toBase}</span>
+                              {entry.catcherName && <span className="text-gray-500 ml-1.5">vs C {entry.catcherName}</span>}
                             </div>
                           );
                         }

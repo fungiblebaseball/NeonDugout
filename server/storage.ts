@@ -51,7 +51,7 @@ export interface IStorage {
   upsertTactics(data: InsertTactics): Promise<Tactics>;
 
   getAllTacticCoefficients(): Promise<TacticCoefficient[]>;
-  updateTacticCoefficient(layer: string, tacticValue: string, data: { hr: number; xbh: number; single: number; bb: number; so: number; go: number; fo: number }): Promise<TacticCoefficient>;
+  updateTacticCoefficient(layer: string, tacticValue: string, data: { hr: number; xbh: number; single: number; bb: number; so: number; go: number; fo: number; tacSt: number }): Promise<TacticCoefficient>;
   seedDefaultTacticCoefficients(): Promise<void>;
   resetTacticCoefficients(): Promise<void>;
 
@@ -660,7 +660,7 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(tacticCoefficients);
   }
 
-  async updateTacticCoefficient(layer: string, tacticValue: string, data: { hr: number; xbh: number; single: number; bb: number; so: number; go: number; fo: number }): Promise<TacticCoefficient> {
+  async updateTacticCoefficient(layer: string, tacticValue: string, data: { hr: number; xbh: number; single: number; bb: number; so: number; go: number; fo: number; tacSt: number }): Promise<TacticCoefficient> {
     const [existing] = await db.select().from(tacticCoefficients)
       .where(and(eq(tacticCoefficients.layer, layer), eq(tacticCoefficients.tacticValue, tacticValue)));
     if (existing) {
@@ -678,22 +678,29 @@ export class DatabaseStorage implements IStorage {
     if (existing.length > 0) return;
 
     const defaults: InsertTacticCoefficients[] = [
-      { layer: 'batter_approach', tacticValue: 'power', hr: 12, xbh: 10, single: 0, bb: 0, so: 0, go: -5, fo: -5 },
-      { layer: 'batter_approach', tacticValue: 'contact', hr: 0, xbh: 5, single: 12, bb: 5, so: -10, go: 0, fo: 0 },
-      { layer: 'batter_approach', tacticValue: 'patient', hr: 0, xbh: 6, single: 8, bb: 10, so: -8, go: -4, fo: 0 },
-      { layer: 'pitcher_style', tacticValue: 'velocity', hr: -8, xbh: -6, single: 0, bb: 0, so: 12, go: 0, fo: 5 },
-      { layer: 'pitcher_style', tacticValue: 'movement', hr: -5, xbh: -8, single: -4, bb: 0, so: 5, go: 10, fo: 5 },
-      { layer: 'pitcher_style', tacticValue: 'command', hr: -6, xbh: -5, single: -5, bb: -8, so: 8, go: 6, fo: 6 },
-      { layer: 'offensive_attack', tacticValue: 'aggressive', hr: 5, xbh: 8, single: 0, bb: 0, so: 0, go: -6, fo: -4 },
-      { layer: 'offensive_attack', tacticValue: 'balanced', hr: 0, xbh: 4, single: 6, bb: 4, so: -4, go: -4, fo: 0 },
-      { layer: 'offensive_attack', tacticValue: 'conservative', hr: 0, xbh: 0, single: 8, bb: 6, so: -6, go: 0, fo: 4 },
-      { layer: 'defense_setup', tacticValue: 'aggressive', hr: -6, xbh: -5, single: -4, bb: 0, so: 8, go: 8, fo: 0 },
-      { layer: 'defense_setup', tacticValue: 'balanced', hr: -3, xbh: -3, single: 0, bb: 0, so: 4, go: 4, fo: 4 },
-      { layer: 'defense_setup', tacticValue: 'protective', hr: -8, xbh: -6, single: 0, bb: 4, so: 0, go: 0, fo: 10 },
+      { layer: 'batter_approach', tacticValue: 'power', hr: 12, xbh: 10, single: 0, bb: 0, so: 0, go: -5, fo: -5, tacSt: 0 },
+      { layer: 'batter_approach', tacticValue: 'contact', hr: 0, xbh: 5, single: 12, bb: 5, so: -10, go: 0, fo: 0, tacSt: 0 },
+      { layer: 'batter_approach', tacticValue: 'patient', hr: 0, xbh: 6, single: 8, bb: 10, so: -8, go: -4, fo: 0, tacSt: 0 },
+      { layer: 'pitcher_style', tacticValue: 'velocity', hr: -8, xbh: -6, single: 0, bb: 0, so: 12, go: 0, fo: 5, tacSt: 0 },
+      { layer: 'pitcher_style', tacticValue: 'movement', hr: -5, xbh: -8, single: -4, bb: 0, so: 5, go: 10, fo: 5, tacSt: 0 },
+      { layer: 'pitcher_style', tacticValue: 'command', hr: -6, xbh: -5, single: -5, bb: -8, so: 8, go: 6, fo: 6, tacSt: 0 },
+      { layer: 'offensive_attack', tacticValue: 'aggressive', hr: 5, xbh: 8, single: 0, bb: 0, so: 0, go: -6, fo: -4, tacSt: 12 },
+      { layer: 'offensive_attack', tacticValue: 'balanced', hr: 0, xbh: 4, single: 6, bb: 4, so: -4, go: -4, fo: 0, tacSt: 0 },
+      { layer: 'offensive_attack', tacticValue: 'conservative', hr: 0, xbh: 0, single: 8, bb: 6, so: -6, go: 0, fo: 4, tacSt: -8 },
+      { layer: 'defense_setup', tacticValue: 'aggressive', hr: -6, xbh: -5, single: -4, bb: 0, so: 8, go: 8, fo: 0, tacSt: -6 },
+      { layer: 'defense_setup', tacticValue: 'balanced', hr: -3, xbh: -3, single: 0, bb: 0, so: 4, go: 4, fo: 4, tacSt: 0 },
+      { layer: 'defense_setup', tacticValue: 'protective', hr: -8, xbh: -6, single: 0, bb: 4, so: 0, go: 0, fo: 10, tacSt: 4 },
+      { layer: 'attack_style', tacticValue: 'bunt', hr: -20, xbh: -20, single: 15, bb: 0, so: 0, go: 10, fo: 0, tacSt: 10 },
+      { layer: 'attack_style', tacticValue: 'hit_and_run', hr: -25, xbh: -15, single: 15, bb: 0, so: 5, go: 0, fo: 0, tacSt: 15 },
+      { layer: 'attack_style', tacticValue: 'swing_on_sight', hr: 15, xbh: 20, single: 0, bb: 0, so: 20, go: 0, fo: 10, tacSt: -10 },
+      { layer: 'defense_counter_infield', tacticValue: 'short', hr: 0, xbh: 0, single: -12, bb: 0, so: 0, go: 10, fo: 0, tacSt: -8 },
+      { layer: 'defense_counter_infield', tacticValue: 'deep', hr: 0, xbh: 0, single: -5, bb: 0, so: 0, go: 5, fo: 0, tacSt: 5 },
+      { layer: 'defense_counter_outfield', tacticValue: 'short', hr: 0, xbh: 0, single: -5, bb: 0, so: 0, go: 0, fo: 4, tacSt: -5 },
+      { layer: 'defense_counter_outfield', tacticValue: 'deep', hr: -8, xbh: -6, single: 0, bb: 0, so: 0, go: 0, fo: 8, tacSt: 3 },
     ];
 
     await db.insert(tacticCoefficients).values(defaults);
-    console.log('Seeded 12 default tactic coefficients');
+    console.log('Seeded 19 default tactic coefficients');
   }
 
   async resetTacticCoefficients(): Promise<void> {

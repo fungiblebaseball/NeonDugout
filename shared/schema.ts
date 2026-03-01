@@ -157,6 +157,7 @@ export const tacticCoefficients = pgTable("tactic_coefficients", {
   so: integer("so").notNull().default(0),
   go: integer("go").notNull().default(0),
   fo: integer("fo").notNull().default(0),
+  tacSt: integer("tac_st").notNull().default(0),
 });
 
 export const matchDetails = pgTable("match_details", {

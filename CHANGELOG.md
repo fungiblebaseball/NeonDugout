@@ -6,6 +6,37 @@ Formato:
   • Dettaglio 2 (file modificati)  
   • Trade-off / note (se rilevanti)
 
+## v1.17.0 – 1 marzo 2026 – Stolen Base, DB Coefficients Migration, tac_st Column
+
+- **Meccanica Stolen Base (T002)**:
+  * Sistema a 2 fasi: tentativo (15% base + velocità + tac_st) e riuscita (confronto corridore vs catcher)
+  * Gate: solo dopo SO/BB, corridore in 1a/2a, <2 out, no rubata di casa
+  * Nuovo tipo `stolen_base` in PlayLogEntry con rendering verde (safe) / rosso (out)
+  * Funzione `getStealTacStMod()` in probability.ts per calcolo influenza tattica
+
+- **DB Coefficients Migration (T001+T003)**:
+  * Nuova colonna `tac_st` (integer, default 0) su `tactic_coefficients`
+  * 7 nuovi layer: `attack_style` (bunt/hit_and_run/swing_on_sight), `defense_counter_infield` (short/deep), `defense_counter_outfield` (short/deep) — totale 19 righe
+  * Layer 2 e 2b migrati da hardcoded (`ATTACK_MODIFIERS`, `getDefenseCounterBonus()`) a coefficienti DB
+  * Fallback hardcoded mantenuto per retrocompatibilità quando coefficients non forniti
+
+- **Admin UI (T004)**:
+  * Nuove sezioni per Attack Style, Defense Counter Infield, Defense Counter Outfield
+  * Colonna ST (steal) editabile per tutti i layer
+  * Fix display multi-underscore: `replace(/_/g, " ")`
+
+- **Pagine Attack e Defense Redesign (T005+T006)**:
+  * Badge dinamici da DB per tutti i coefficienti incluso STEAL (tac_st)
+  * Badge arancione distinto per tac_st
+  * `refetchOnMount: 'always'` per dati sempre aggiornati
+
+- **Play Log Rendering (T007)**:
+  * Rendering `stolen_base` in MatchDetailPage e PlayLogPage
+  * Stile verde per SAFE, rosso per CAUGHT STEALING
+  * Mostra corridore, basi, catcher
+
+- **File Modificati**: shared/schema.ts, shared/calculations/probability.ts, shared/calculations/simulate.ts, shared/calculations/types.ts, server/storage.ts, server/routes.ts, client/src/lib/calculations/probability.ts, client/src/lib/calculations/simulate.ts, client/src/lib/calculations/types.ts, client/src/pages/AdminPage.tsx, client/src/pages/AttackPage.tsx, client/src/pages/DefensePage.tsx, client/src/pages/MatchDetailPage.tsx, client/src/pages/PlayLogPage.tsx
+
 ## v1.16.0 – 1 marzo 2026 – Pitcher Tactics in Play Log, Data Loading Fix, Attack Page Redesign
 
 - **Tattiche lanciatore nel play log (T001)**:

@@ -64,48 +64,25 @@ export interface TacticCoefficientRow {
   so: number;
   go: number;
   fo: number;
+  tacSt: number;
 }
 
-const ATTACK_MODIFIERS: Record<AttackStyle, Partial<OutcomeProbabilities>> = {
+const FALLBACK_ATTACK_MODIFIERS: Record<AttackStyle, Partial<OutcomeProbabilities>> = {
   bunt:           { '1B': 0.15, XBH: -0.20, HR: -0.20, GO: 0.10 },
   hit_and_run:    { '1B': 0.15, XBH: -0.15, HR: -0.25, SO: 0.05 },
   neutral:        {},
   swing_on_sight: { XBH: 0.20, HR: 0.15, SO: 0.20, FO: 0.10 },
 };
 
-function getDefenseCounterBonus(atk: AttackStyle, infieldPos: InfieldPosition, outfieldPos: OutfieldPosition): Partial<OutcomeProbabilities> {
+function getFallbackDefenseCounter(atk: AttackStyle, infieldPos: InfieldPosition, outfieldPos: OutfieldPosition): Partial<OutcomeProbabilities> {
   const mods: Partial<OutcomeProbabilities> = {};
-
-  if (atk === 'bunt' && infieldPos === 'short') {
-    mods['1B'] = -0.12;
-    mods.GO = 0.10;
-  } else if (atk === 'bunt' && infieldPos === 'deep') {
-    mods['1B'] = 0.05;
-  }
-
-  if (atk === 'hit_and_run' && infieldPos === 'neutral') {
-    mods['1B'] = -0.08;
-    mods.GO = 0.06;
-  }
-
-  if (atk === 'swing_on_sight' && infieldPos === 'deep') {
-    mods['1B'] = -0.05;
-    mods.GO = 0.05;
-  }
-
-  if (atk === 'swing_on_sight' && outfieldPos === 'deep') {
-    mods.HR = -0.08;
-    mods.XBH = -0.06;
-    mods.FO = 0.08;
-  } else if (atk === 'bunt' && outfieldPos === 'short') {
-    mods['1B'] = -0.05;
-    mods.FO = 0.04;
-  }
-
-  if (atk === 'hit_and_run' && outfieldPos === 'neutral') {
-    mods['1B'] = (mods['1B'] || 0) - 0.04;
-  }
-
+  if (atk === 'bunt' && infieldPos === 'short') { mods['1B'] = -0.12; mods.GO = 0.10; }
+  else if (atk === 'bunt' && infieldPos === 'deep') { mods['1B'] = 0.05; }
+  if (atk === 'hit_and_run' && infieldPos === 'neutral') { mods['1B'] = -0.08; mods.GO = 0.06; }
+  if (atk === 'swing_on_sight' && infieldPos === 'deep') { mods['1B'] = -0.05; mods.GO = 0.05; }
+  if (atk === 'swing_on_sight' && outfieldPos === 'deep') { mods.HR = -0.08; mods.XBH = -0.06; mods.FO = 0.08; }
+  else if (atk === 'bunt' && outfieldPos === 'short') { mods['1B'] = -0.05; mods.FO = 0.04; }
+  if (atk === 'hit_and_run' && outfieldPos === 'neutral') { mods['1B'] = (mods['1B'] || 0) - 0.04; }
   return mods;
 }
 
@@ -162,6 +139,36 @@ function applyModifiers(base: OutcomeProbabilities, mods: Partial<OutcomeProbabi
   return result;
 }
 
+export function getStealTacStMod(
+  tactics?: TacticsModifiers,
+  opponentTactics?: TacticsModifiers,
+  coefficients?: TacticCoefficientRow[],
+): number {
+  if (!coefficients) return 0;
+  let total = 0;
+  if (tactics?.attackStyle && tactics.attackStyle !== 'neutral') {
+    const row = findCoefficient(coefficients, 'attack_style', tactics.attackStyle);
+    if (row) total += row.tacSt;
+  }
+  if (tactics?.offensiveAttack) {
+    const row = findCoefficient(coefficients, 'offensive_attack', tactics.offensiveAttack);
+    if (row) total += row.tacSt;
+  }
+  if (opponentTactics?.infieldPosition && opponentTactics.infieldPosition !== 'neutral') {
+    const row = findCoefficient(coefficients, 'defense_counter_infield', opponentTactics.infieldPosition);
+    if (row) total += row.tacSt;
+  }
+  if (opponentTactics?.outfieldPosition && opponentTactics.outfieldPosition !== 'neutral') {
+    const row = findCoefficient(coefficients, 'defense_counter_outfield', opponentTactics.outfieldPosition);
+    if (row) total += row.tacSt;
+  }
+  if (opponentTactics?.defenseSetup) {
+    const row = findCoefficient(coefficients, 'defense_setup', opponentTactics.defenseSetup);
+    if (row) total += row.tacSt;
+  }
+  return total / 100;
+}
+
 export function getOutcomeProbabilities(
   matchupRating: number,
   tactics?: TacticsModifiers,
@@ -191,12 +198,26 @@ export function getOutcomeProbabilities(
     }
   }
 
-  if (tactics) {
-    const atkMods = ATTACK_MODIFIERS[tactics.attackStyle];
-    probs = applyModifiers(probs, atkMods);
-
+  if (tactics && coefficients) {
+    if (tactics.attackStyle !== 'neutral') {
+      const row = findCoefficient(coefficients, 'attack_style', tactics.attackStyle);
+      if (row) probs = applyModifiers(probs, coefficientRowToMods(row));
+    }
     if (opponentTactics) {
-      const defMods = getDefenseCounterBonus(tactics.attackStyle, opponentTactics.infieldPosition, opponentTactics.outfieldPosition);
+      if (opponentTactics.infieldPosition !== 'neutral') {
+        const row = findCoefficient(coefficients, 'defense_counter_infield', opponentTactics.infieldPosition);
+        if (row) probs = applyModifiers(probs, coefficientRowToMods(row));
+      }
+      if (opponentTactics.outfieldPosition !== 'neutral') {
+        const row = findCoefficient(coefficients, 'defense_counter_outfield', opponentTactics.outfieldPosition);
+        if (row) probs = applyModifiers(probs, coefficientRowToMods(row));
+      }
+    }
+  } else if (tactics) {
+    const atkMods = FALLBACK_ATTACK_MODIFIERS[tactics.attackStyle];
+    probs = applyModifiers(probs, atkMods);
+    if (opponentTactics) {
+      const defMods = getFallbackDefenseCounter(tactics.attackStyle, opponentTactics.infieldPosition, opponentTactics.outfieldPosition);
       probs = applyModifiers(probs, defMods);
     }
   }

@@ -3,16 +3,33 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import type { InfieldPosition, OutfieldPosition, DefenseSetup } from "@/lib/types";
 
-const INFIELD_OPTIONS: { value: InfieldPosition; label: string; desc: string; counters: string; effects: string }[] = [
-  { value: 'short', label: 'SHORT (IN)', desc: 'Infielders play shallow. Best against bunt strategy and slow grounders.', counters: 'Counters: BUNT PRIORITY', effects: 'vs Bunt: -12% singles, +10% ground outs' },
-  { value: 'neutral', label: 'NEUTRAL', desc: 'Standard depth. Balanced coverage against gap hits.', counters: 'Counters: HIT & RUN', effects: 'vs H&R: -8% singles, +6% ground outs' },
-  { value: 'deep', label: 'DEEP (BACK)', desc: 'Infielders play deep. Better range on hard grounders and line drives.', counters: 'Counters: SWING ON SIGHT', effects: 'vs SoS: -5% singles, +5% ground outs' },
+interface TacticCoefficient {
+  id: number;
+  layer: string;
+  tacticValue: string;
+  hr: number;
+  xbh: number;
+  single: number;
+  bb: number;
+  so: number;
+  go: number;
+  fo: number;
+  tacSt: number;
+}
+
+const COEFF_KEYS = ['hr', 'xbh', 'single', 'bb', 'so', 'go', 'fo', 'tacSt'] as const;
+const COEFF_LABELS: Record<string, string> = { hr: 'HR', xbh: 'XBH', single: '1B', bb: 'BB', so: 'SO', go: 'GO', fo: 'FO', tacSt: 'STEAL' };
+
+const INFIELD_OPTIONS: { value: InfieldPosition; label: string; desc: string; counters: string }[] = [
+  { value: 'short', label: 'SHORT (IN)', desc: 'Infielders play shallow. Best against bunt strategy and slow grounders.', counters: 'Counters: BUNT PRIORITY' },
+  { value: 'neutral', label: 'NEUTRAL', desc: 'Standard depth. Balanced coverage against gap hits.', counters: 'Counters: HIT & RUN' },
+  { value: 'deep', label: 'DEEP (BACK)', desc: 'Infielders play deep. Better range on hard grounders and line drives.', counters: 'Counters: SWING ON SIGHT' },
 ];
 
-const OUTFIELD_OPTIONS: { value: OutfieldPosition; label: string; desc: string; counters: string; effects: string }[] = [
-  { value: 'short', label: 'SHORT (IN)', desc: 'Outfielders play shallow. Better for bloops, singles and bunt hits.', counters: 'Counters: BUNT singles', effects: 'vs Bunt: -5% singles, +4% fly outs' },
-  { value: 'neutral', label: 'NEUTRAL', desc: 'Standard depth. Balanced coverage for all fly balls.', counters: 'Counters: HIT & RUN', effects: 'vs H&R: -4% singles' },
-  { value: 'deep', label: 'DEEP (BACK)', desc: 'Outfielders play deep. Better for deep fly balls and power hits.', counters: 'Counters: SWING ON SIGHT', effects: 'vs SoS: -8% HR, -6% XBH, +8% fly outs' },
+const OUTFIELD_OPTIONS: { value: OutfieldPosition; label: string; desc: string; counters: string }[] = [
+  { value: 'short', label: 'SHORT (IN)', desc: 'Outfielders play shallow. Better for bloops, singles and bunt hits.', counters: 'Counters: BUNT singles' },
+  { value: 'neutral', label: 'NEUTRAL', desc: 'Standard depth. Balanced coverage for all fly balls.', counters: 'Counters: HIT & RUN' },
+  { value: 'deep', label: 'DEEP (BACK)', desc: 'Outfielders play deep. Better for deep fly balls and power hits.', counters: 'Counters: SWING ON SIGHT' },
 ];
 
 const DEFENSE_SETUP_OPTIONS: { value: DefenseSetup; label: string; desc: string; icon: string; beats: string; losesTo: string }[] = [
@@ -42,6 +59,31 @@ const DEFENSE_SETUP_OPTIONS: { value: DefenseSetup; label: string; desc: string;
   },
 ];
 
+function CoeffBadges({ coefficients, layer, tacticValue }: { coefficients: TacticCoefficient[]; layer: string; tacticValue: string }) {
+  const coeff = coefficients.find(c => c.layer === layer && c.tacticValue === tacticValue);
+  if (!coeff) return null;
+
+  const badges = COEFF_KEYS
+    .filter(k => coeff[k] !== 0)
+    .map(k => ({ key: k, val: coeff[k] }));
+
+  if (badges.length === 0) return <span className="text-[9px] text-gray-500 font-mono">BASE</span>;
+
+  return (
+    <div className="flex flex-wrap gap-1 mt-2">
+      {badges.map(b => (
+        <span
+          key={b.key}
+          data-testid={`badge-coeff-${layer}-${tacticValue}-${b.key}`}
+          className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono font-bold ${b.val > 0 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}
+        >
+          {COEFF_LABELS[b.key]} {b.val > 0 ? '+' : ''}{b.val}%
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export default function DefensePage() {
   const { team, walletAddress } = useGameStore();
   const queryClient = useQueryClient();
@@ -53,6 +95,15 @@ export default function DefensePage() {
       return res.json();
     },
     enabled: !!team,
+    refetchOnMount: 'always',
+  });
+
+  const { data: coefficients = [] } = useQuery<TacticCoefficient[]>({
+    queryKey: ['tactic-coefficients'],
+    queryFn: async () => {
+      const res = await fetch('/api/tactic-coefficients');
+      return res.json();
+    },
     refetchOnMount: 'always',
   });
 
@@ -126,7 +177,9 @@ export default function DefensePage() {
               </div>
               <p className="text-xs font-mono text-gray-500 leading-relaxed">{opt.desc}</p>
               <p className="text-[10px] font-mono text-cyan-500/70 mt-2">{opt.counters}</p>
-              <p className="text-[10px] font-mono text-yellow-500/60 mt-1">{opt.effects}</p>
+              {coefficients.length > 0 && (
+                <CoeffBadges coefficients={coefficients} layer="defense_counter_infield" tacticValue={opt.value} />
+              )}
             </button>
           ))}
         </div>
@@ -155,7 +208,9 @@ export default function DefensePage() {
               </div>
               <p className="text-xs font-mono text-gray-500 leading-relaxed">{opt.desc}</p>
               <p className="text-[10px] font-mono text-pink-500/70 mt-2">{opt.counters}</p>
-              <p className="text-[10px] font-mono text-yellow-500/60 mt-1">{opt.effects}</p>
+              {coefficients.length > 0 && (
+                <CoeffBadges coefficients={coefficients} layer="defense_counter_outfield" tacticValue={opt.value} />
+              )}
             </button>
           ))}
         </div>
@@ -189,6 +244,9 @@ export default function DefensePage() {
                 <span className="text-[10px] font-mono text-green-400">▲ Beats: {opt.beats}</span>
                 <span className="text-[10px] font-mono text-red-400">▼ Weak vs: {opt.losesTo}</span>
               </div>
+              {coefficients.length > 0 && (
+                <CoeffBadges coefficients={coefficients} layer="defense_setup" tacticValue={opt.value} />
+              )}
             </button>
           ))}
         </div>

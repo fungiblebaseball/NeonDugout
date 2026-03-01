@@ -17,10 +17,11 @@ interface TacticCoefficient {
   so: number;
   go: number;
   fo: number;
+  tacSt: number;
 }
 
-const COEFF_KEYS = ['hr', 'xbh', 'single', 'bb', 'so', 'go', 'fo'] as const;
-const COEFF_LABELS: Record<string, string> = { hr: 'HR', xbh: 'XBH', single: '1B', bb: 'BB', so: 'SO', go: 'GO', fo: 'FO' };
+const COEFF_KEYS = ['hr', 'xbh', 'single', 'bb', 'so', 'go', 'fo', 'tacSt'] as const;
+const COEFF_LABELS: Record<string, string> = { hr: 'HR', xbh: 'XBH', single: '1B', bb: 'BB', so: 'SO', go: 'GO', fo: 'FO', tacSt: 'STEAL' };
 
 const ATTACK_OPTIONS: { value: AttackStyle; label: string; desc: string; icon: string }[] = [
   { value: 'bunt', label: 'BUNT', desc: 'Sacrifice hits to advance runners.', icon: '◇' },
@@ -75,7 +76,7 @@ function CoeffBadges({ coefficients, layer, tacticValue }: { coefficients: Tacti
         <span
           key={b.key}
           data-testid={`badge-coeff-${layer}-${tacticValue}-${b.key}`}
-          className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono font-bold ${b.val > 0 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}
+          className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono font-bold ${b.key === 'tacSt' ? (b.val > 0 ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30') : (b.val > 0 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400')}`}
         >
           {COEFF_LABELS[b.key]} {b.val > 0 ? '+' : ''}{b.val}%
         </span>
@@ -104,6 +105,7 @@ export default function AttackPage() {
       const res = await fetch('/api/tactic-coefficients');
       return res.json();
     },
+    refetchOnMount: 'always',
   });
 
   const [approachSchedule, setApproachSchedule] = useState<TacticSchedule>(DEFAULT_APPROACH_SCHEDULE);

@@ -11,20 +11,24 @@ Pagina di configurazione tattica difensiva. Contiene 3 sezioni: posizionamento i
 ### 1. Infield Position (3 opzioni, scelta esclusiva)
 Posizionamento degli interni. Countera specifici Attack Style avversari annullandosi a aritmeticamente a vicenda possonocessere + o - positivi o negativi configurabili da admin
 
-| Posizione | Counter vs | Effetto |
-|-----------|-----------|---------|
-| **Short** | Bunt, Hit&Run| Hr xbh 1b go fo st
-| **Neutral** | Neutral |no mod|
-| **Deep** | Swing on Sight | Hr xbh 1b go fo st|
+Coefficienti dinamici caricati da DB (`defense_counter_infield` layer). Badge colorati mostrano valori reali incluso **STEAL** (tac_st).
+
+| Posizione | Coefficienti (da DB) |
+|-----------|---------|
+| **Short** | 1B:-12 GO:+10 STEAL:-8 |
+| **Neutral** | Nessun modificatore |
+| **Deep** | 1B:-5 GO:+5 STEAL:+5 |
 
 ### 2. Outfield Position (3 opzioni, scelta esclusiva)
-Posizionamento degli esterni. Countera specifici Attack Style avversari.
+Posizionamento degli esterni. Coefficienti dinamici da DB (`defense_counter_outfield` layer).
 
-| Posizione | Counter vs | Effetto |
-|-----------|-----------|---------|
-| **Short** | Bunt, Hit&Run| Hr xbh 1b go fo st
-| **Neutral** |Neutral |No mod| 
-| **Deep** | Swing on Sight | Hr xbh 1b go fo st|
+| Posizione | Coefficienti (da DB) |
+|-----------|---------|
+| **Short** | 1B:-5 FO:+4 STEAL:-5 |
+| **Neutral** | Nessun modificatore |
+| **Deep** | HR:-8 XBH:-6 FO:+8 STEAL:+3 |
+
+I valori sopra sono i default seedati; modificabili dall'admin.
 
 ### 3. Defense Setup (3 opzioni, scelta esclusiva)
 Matchup RPS contro Offensive Attack dell'avversario. Determina successo rubate, extra base, esecuzione small ball.

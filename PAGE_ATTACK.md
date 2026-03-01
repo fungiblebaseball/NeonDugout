@@ -20,15 +20,16 @@ Configurazione del Batter Approach con 3 slot (Primary, Secondary, Optional) e c
 
 ### 2. Offensive Strategy (Attack Style) (4 opzioni, 3 box temporali)
 Modificatori diretti applicati alla tabella probabilità, contrastati dalle posizioni difensive (Infield/Outfield). 3 slot (Primary, Secondary, Optional) con condizioni di switch.
-questi i parametri che modificano:
-Hr xbh 1b go fo st
+Coefficienti dinamici caricati da DB (`attack_style` layer). Badge colorati mostrano valori reali incluso **STEAL** (tac_st).
 
-| Stile | Effetto Base |
+| Stile | Coefficienti (da DB) |
 |-------|---------|
-| **Bunt** | Hr xbh 1b go fo st 
-| **Hit & Run** | Hr xbh 1b go fo st
+| **Bunt** | HR:-20 XBH:-20 1B:+15 GO:+10 STEAL:+10 |
+| **Hit & Run** | HR:-25 XBH:-15 1B:+15 SO:+5 STEAL:+15 |
 | **Neutral** | Nessun modificatore |
-| **Swing on Sight** | Hr xbh 1b go fo st
+| **Swing on Sight** | HR:+15 XBH:+20 SO:+20 FO:+10 STEAL:-10 |
+
+I valori sopra sono i default seedati; modificabili dall'admin.
 
 ### 3. Offensive Attack (3 opzioni, 3 box temporali)
 Configurazione dell'Offensive Attack con 3 slot e condizioni di switch. Matchup RPS contro Defense Setup dell'avversario.

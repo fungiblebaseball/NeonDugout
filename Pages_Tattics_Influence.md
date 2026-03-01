@@ -16,10 +16,8 @@ Flusso:
 2. Layer 1: `evaluateRpsBilateral(batterApproach, pitcherStyle, coefficients)` → Win/Tie/Lose.
    - Se Win: applica coefficienti dell'attaccante.
    - Se Lose: applica coefficienti del difensore.
-3. Layer 2: `applyModifiers(probs, ATTACK_MODIFIERS[attackStyle],DEFENCE_POSITIONING [infield_pos, Outfield_pos,]→ modificatori diretti coefficents da pagina admin (Bunt, Hit&Run, SOS, infield,outfield short, long).
-4. no need coefficents for neutrals
-
-5. Layer 2b: `getDefenseCounterBonus(attackStyle, infieldPos, outfieldPos)` → counter sommato da coefficents sopra
+3. Layer 2: Attack Style — coefficienti diretti da DB (`attack_style/bunt`, `attack_style/hit_and_run`, `attack_style/swing_on_sight`). Neutral = nessun modificatore.
+4. Layer 2b: Defense Counter — coefficienti diretti da DB (`defense_counter_infield/short|deep`, `defense_counter_outfield/short|deep`). Neutral = nessun modificatore.
 6. Layer 3: `evaluateRpsBilateral(offensiveAttack, defenseSetup, coefficients)` → Win/Tie/Lose.
    - Se Win: applica coefficienti dell'offesa.
    - Se Lose: applica coefficienti della difesa.
@@ -44,8 +42,8 @@ UI per configurare:
 
 ### 5. `client/src/pages/AdminPage.tsx`
 UI per tuning coefficienti:
-- 4 sotto-sezioni: Batter Approach, Pitcher Style, Offensive Attack, Defense Setup
-- Tabella editabile: 3 righe × 7 colonne per sotto-sezione
+- 7 sotto-sezioni: Batter Approach, Pitcher Style, Offensive Attack, Defense Setup, Attack Style, Defense Counter Infield, Defense Counter Outfield
+- Tabella editabile: righe × 8 colonne (hr, xbh, single, bb, so, go, fo, tac_st) per sotto-sezione
 
 ---
 
@@ -69,6 +67,14 @@ PROBABILITY_TABLE[bracket]     ← attributi giocatore (immutabili)
         │
         ▼
    Roll esito (HR/XBH/1B/BB/SO/GO/FO)
+        │
+        ▼
+   Post-roll: Stolen Base check ← tac_st da tutti i layer sopra
+        │                         (solo se SO/BB + corridore in base + <2 out)
+        │                         Fase 1: tentativo (tac_st influenza)
+        │                         Fase 2: riuscita (confronto corridore/catcher puro)
+        ▼
+   Avanzamento basi / scoring
 ```
 
 ---
@@ -98,8 +104,8 @@ PROBABILITY_TABLE[bracket]     ← attributi giocatore (immutabili)
 ## Schema Coefficienti
 
 I coefficienti sono salvati nella tabella `tactic_coefficients` nel database:
-- 12 righe totali (3 batter_approach + 3 pitcher_style + 3 offensive_attack + 3 defense_setup)
-- Ogni riga ha 7 valori interi (hr, xbh, single, bb, so, go, fo) che rappresentano percentuali
+- 19 righe totali (3 batter_approach + 3 pitcher_style + 3 offensive_attack + 3 defense_setup + 3 attack_style + 2 defense_counter_infield + 2 defense_counter_outfield)
+- Ogni riga ha 8 valori interi (hr, xbh, single, bb, so, go, fo, tac_st) che rappresentano percentuali
 - Caricati dal server all'inizio del match day, passati alla simulazione
 - Modificabili dall'admin nella pagina /admin
 - Applicati come: `prob * (1 + coefficiente/100)`

@@ -1,6 +1,6 @@
 import { rng } from './rng';
-import { matchupRating, errorChance, findFielderByPosition, pickRandomInfielder, pickRandomOutfielder } from './matchup';
-import { rollOutcome, type TacticsModifiers, type TacticCoefficientRow } from './probability';
+import { matchupRating, errorChance, findFielderByPosition, pickRandomInfielder, pickRandomOutfielder, clamp } from './matchup';
+import { rollOutcome, getStealTacStMod, type TacticsModifiers, type TacticCoefficientRow } from './probability';
 import { generateAtBatDescription, generateFlavorTexts } from './flavor';
 import type {
   SimPlayer, SimTeam, AtBatResult, AtBatOutcome,
@@ -539,6 +539,80 @@ function simulateHalfInning(
       runsScored: runsThisPlay,
       outsAdded: outsThisPlay,
     });
+
+    const outsBeforePlay = outs - outsThisPlay;
+    if ((outcome === 'SO' || outcome === 'BB') && outsBeforePlay < 2 && outs < 3 && (bases.second || bases.first)) {
+      const stealRng = rng();
+      const runner = bases.second || bases.first!;
+      const fromBase: '1B' | '2B' = bases.second ? '2B' : '1B';
+      const toBase: '2B' | '3B' = bases.second ? '3B' : '2B';
+
+      const catcher = findFielderByPosition(defenseLineup, 'C') || defenseLineup[0];
+      const tacStMod = getStealTacStMod(effectiveBattingTactics, effectiveDefenseTactics, coefficients);
+
+      const attemptProb = clamp(
+        0.15
+        + (runner.spd - 60) / 300
+        - (activePitcher.player.ctl - 50) / 400
+        + tacStMod,
+        0.02, 0.35
+      );
+
+      if (stealRng.next() < attemptProb) {
+        const successProb = clamp(
+          0.50
+          + (runner.spd * 0.4 + runner.eye * 0.3 + runner.sta * 0.3
+            - catcher.def * 0.4 - catcher.eye * 0.3 - catcher.sta * 0.3) / 150,
+          0.25, 0.90
+        );
+
+        const stealBasesBefore = {
+          first: !!bases.first,
+          second: !!bases.second,
+          third: !!bases.third,
+        };
+
+        const success = stealRng.next() < successProb;
+
+        if (success) {
+          if (fromBase === '2B') {
+            bases.third = runner;
+            bases.second = null;
+          } else {
+            bases.second = runner;
+            bases.first = null;
+          }
+        } else {
+          if (fromBase === '2B') {
+            bases.second = null;
+          } else {
+            bases.first = null;
+          }
+          outs++;
+        }
+
+        logEntries.push({
+          type: 'stolen_base',
+          inning,
+          half: halfLabel,
+          outs,
+          runnerId: runner.id,
+          runnerName: runner.name,
+          fromBase,
+          toBase,
+          success,
+          catcherName: catcher.name,
+          basesBefore: stealBasesBefore,
+          basesAfter: {
+            first: !!bases.first,
+            second: !!bases.second,
+            third: !!bases.third,
+          },
+          runsScored: 0,
+          outsAdded: success ? 0 : 1,
+        });
+      }
+    }
 
     events.push(result);
     batterIds.push(batter.id);

@@ -154,6 +154,7 @@ export const useGameStore = create<GameState>()(
         token: state.token,
         user: state.user,
         team: state.team,
+        players: state.players,
       }),
     }
   )

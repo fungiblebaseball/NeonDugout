@@ -27,6 +27,7 @@ export default function LineupPage() {
       return res.json();
     },
     enabled: !!team,
+    refetchOnMount: 'always',
   });
 
   const statsMap = new Map<number, SeasonStats>();

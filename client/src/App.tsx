@@ -31,11 +31,9 @@ function Router() {
   const { walletAddress, restoreSession } = useGameStore();
 
   useEffect(() => {
-    if (!walletAddress) {
-      restoreSession().then(() => {
-        queryClient.invalidateQueries();
-      });
-    }
+    restoreSession().then(() => {
+      queryClient.invalidateQueries();
+    });
   }, []);
 
   return (

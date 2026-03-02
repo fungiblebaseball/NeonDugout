@@ -249,6 +249,7 @@ export default function MatchDetailPage() {
   const params = useParams<{ id: string }>();
   const matchId = parseInt(params.id || '0');
   const [showPlayLog, setShowPlayLog] = useState(false);
+  const [showLineup, setShowLineup] = useState(false);
 
   const { data: detail, isLoading: detailLoading } = useQuery<MatchDetailData>({
     queryKey: ['match-details', matchId],
@@ -421,6 +422,51 @@ export default function MatchDetailPage() {
           <p data-testid="text-mvp" className="text-lg font-black text-pink-400" style={{fontFamily: "'Orbitron', sans-serif"}}>{detail.mvp.name}</p>
           <p className="text-xs font-mono text-gray-400 mt-1">{detail.mvp.reason}</p>
         </div>
+
+        {detail.homeLineup?.playerIds?.length > 0 && (
+          <div className="rounded-xl border border-cyan-500/20 bg-cyan-950/10 overflow-hidden">
+            <button
+              data-testid="button-toggle-lineup"
+              onClick={() => setShowLineup(!showLineup)}
+              className="w-full flex items-center justify-between p-4 hover:bg-cyan-500/5 transition-colors"
+            >
+              <span className="text-sm font-mono text-cyan-400 uppercase tracking-wider font-bold" style={{fontFamily: "'Orbitron', sans-serif"}}>
+                BATTING ORDER USED
+              </span>
+              {showLineup ? <ChevronUp className="w-4 h-4 text-cyan-400" /> : <ChevronDown className="w-4 h-4 text-cyan-400" />}
+            </button>
+            {showLineup && (
+              <div className="p-4 pt-0 border-t border-cyan-500/10">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <h4 className="text-[10px] font-mono text-cyan-400 mb-2 font-bold">{homeTeam?.name || 'HOME'}</h4>
+                    {detail.homeLineup.playerIds.map((pid: number, i: number) => {
+                      const batter = detail.homeBatters?.find((b: BatterStats) => b.playerId === pid);
+                      return (
+                        <div key={pid} data-testid={`lineup-home-${i}`} className="flex items-center gap-2 py-1 border-b border-gray-800/30">
+                          <span className="text-[9px] font-mono text-pink-400 w-5 text-right" style={{fontFamily: "'Press Start 2P', cursive", fontSize: '7px'}}>#{i + 1}</span>
+                          <span className="text-[10px] font-mono text-cyan-100 truncate flex-1">{batter?.name || `ID:${pid}`}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div>
+                    <h4 className="text-[10px] font-mono text-pink-400 mb-2 font-bold">{awayTeam?.name || 'AWAY'}</h4>
+                    {detail.awayLineup.playerIds.map((pid: number, i: number) => {
+                      const batter = detail.awayBatters?.find((b: BatterStats) => b.playerId === pid);
+                      return (
+                        <div key={pid} data-testid={`lineup-away-${i}`} className="flex items-center gap-2 py-1 border-b border-gray-800/30">
+                          <span className="text-[9px] font-mono text-pink-400 w-5 text-right" style={{fontFamily: "'Press Start 2P', cursive", fontSize: '7px'}}>#{i + 1}</span>
+                          <span className="text-[10px] font-mono text-pink-100 truncate flex-1">{batter?.name || `ID:${pid}`}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {detail.playLog && detail.playLog.length > 0 && (
           <div className="rounded-xl border border-green-500/20 bg-green-950/10 overflow-hidden">

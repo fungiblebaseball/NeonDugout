@@ -1,7 +1,7 @@
 import { useGameStore } from "@/lib/store";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { LineupPositions } from "@/lib/types";
 import { useLocation } from "wouter";
 
@@ -65,11 +65,15 @@ export default function LineupPage() {
   const [battingOrder, setBattingOrder] = useState<number[]>([]);
   const [useDH, setUseDH] = useState(false);
   const [dhPlayerId, setDhPlayerId] = useState<number | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  const isLoadingFromDB = useRef(false);
 
   const spId = pitcherRotation?.roles?.sp ?? null;
 
   useEffect(() => {
     if (savedLineup) {
+      isLoadingFromDB.current = true;
       const fp = { ...(savedLineup.fieldPositions || {}) };
       setFieldPositions(fp);
       const savedOrder = savedLineup.battingOrder || [];
@@ -77,7 +81,12 @@ export default function LineupPage() {
       if (fp['DH']) {
         setUseDH(true);
         setDhPlayerId(fp['DH']);
+      } else {
+        setUseDH(false);
+        setDhPlayerId(null);
       }
+      setHasUnsavedChanges(false);
+      requestAnimationFrame(() => { isLoadingFromDB.current = false; });
     }
   }, [savedLineup]);
 
@@ -100,14 +109,22 @@ export default function LineupPage() {
     setBattingOrder(prev => {
       const cleaned = prev.filter(id => validIds.has(id));
       const missing = Array.from(validIds).filter(id => !cleaned.includes(id));
+      if (missing.length === 0 && cleaned.length === prev.length) {
+        return prev;
+      }
       const merged = [...cleaned, ...missing].slice(0, 9);
-
       if (merged.length === prev.length && merged.every((id, i) => id === prev[i])) {
         return prev;
       }
       return merged;
     });
   }, [spId, fieldPositions, useDH, dhPlayerId, players]);
+
+  const markDirty = useCallback(() => {
+    if (!isLoadingFromDB.current) {
+      setHasUnsavedChanges(true);
+    }
+  }, []);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -125,7 +142,10 @@ export default function LineupPage() {
       });
       return res.json();
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['lineup'] }),
+    onSuccess: () => {
+      setHasUnsavedChanges(false);
+      queryClient.invalidateQueries({ queryKey: ['lineup'] });
+    },
   });
 
   if (!walletAddress || !team) {
@@ -138,6 +158,7 @@ export default function LineupPage() {
   const assignField = (pos: string, playerIdStr: string) => {
     const playerId = playerIdStr === 'none' ? null : parseInt(playerIdStr);
     setFieldPositions(prev => ({ ...prev, [pos]: playerId }));
+    markDirty();
   };
 
   const moveBatter = (idx: number, direction: 'up' | 'down') => {
@@ -146,6 +167,7 @@ export default function LineupPage() {
     if (swapIdx < 0 || swapIdx >= newOrder.length) return;
     [newOrder[idx], newOrder[swapIdx]] = [newOrder[swapIdx], newOrder[idx]];
     setBattingOrder(newOrder);
+    markDirty();
   };
 
   const allAssignedIds = new Set([
@@ -161,11 +183,13 @@ export default function LineupPage() {
     } else {
       setUseDH(true);
     }
+    markDirty();
   };
 
   const assignDH = (val: string) => {
     const pid = val === 'none' ? null : parseInt(val);
     setDhPlayerId(pid);
+    markDirty();
   };
 
   const getBatterPosition = (playerId: number): string => {
@@ -187,6 +211,13 @@ export default function LineupPage() {
       </header>
 
       <main className="p-4 space-y-6">
+        {hasUnsavedChanges && (
+          <div data-testid="banner-unsaved" className="p-3 rounded-lg border border-amber-500/40 bg-amber-950/20 flex items-center gap-2 animate-pulse">
+            <span className="text-amber-400 text-sm font-bold" style={{fontFamily: "'Orbitron', sans-serif"}}>UNSAVED CHANGES</span>
+            <span className="text-amber-300/60 text-[10px] font-mono">Press SAVE LINEUP to apply</span>
+          </div>
+        )}
+
         <div className="space-y-4">
           <h2 className="text-sm font-mono text-pink-500 border-b border-pink-500/30 pb-2">FIELD POSITIONS</h2>
 
@@ -327,9 +358,13 @@ export default function LineupPage() {
           data-testid="button-save-lineup"
           onClick={() => saveMutation.mutate()}
           disabled={saveMutation.isPending}
-          className="w-full py-4 bg-cyan-500 hover:bg-cyan-400 text-black font-black uppercase tracking-widest rounded-xl transition-all shadow-[0_0_15px_rgba(34,211,238,0.4)] disabled:opacity-50"
+          className={`w-full py-4 font-black uppercase tracking-widest rounded-xl transition-all disabled:opacity-50 ${
+            hasUnsavedChanges
+              ? 'bg-amber-500 hover:bg-amber-400 text-black shadow-[0_0_20px_rgba(245,158,11,0.5)] animate-pulse'
+              : 'bg-cyan-500 hover:bg-cyan-400 text-black shadow-[0_0_15px_rgba(34,211,238,0.4)]'
+          }`}
         >
-          {saveMutation.isPending ? "SAVING..." : "SAVE LINEUP"}
+          {saveMutation.isPending ? "SAVING..." : hasUnsavedChanges ? "SAVE LINEUP (UNSAVED)" : "SAVE LINEUP"}
         </button>
 
         <div className="pt-4 space-y-4">

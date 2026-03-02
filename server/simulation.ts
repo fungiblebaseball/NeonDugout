@@ -72,7 +72,7 @@ function buildLineupFromSaved(lineup: any, players: SimPlayer[], rotation: any, 
     if (final.length < 9) {
       console.warn(`[lineup:${label}] Only ${final.length} valid players (need 9) — simulation may use fallback`);
     }
-    console.log(`[lineup:${label}] Final lineup: ${final.map(p => `${p.id}:${p.name}`).join(', ')}`);
+    console.log(`[lineup:${label}] Batting order: ${final.map((p, i) => `#${i + 1} ${p.name} (${p.id})`).join(' | ')}`);
     return { lineup: final, hasDH };
   }
 
@@ -80,7 +80,7 @@ function buildLineupFromSaved(lineup: any, players: SimPlayer[], rotation: any, 
   if (final.length < 9) {
     console.warn(`[lineup:${label}] Only ${final.length} valid players (need 9) — simulation may use fallback`);
   }
-  console.log(`[lineup:${label}] Final lineup (no batting order): ${final.map(p => `${p.id}:${p.name}`).join(', ')}`);
+  console.log(`[lineup:${label}] Batting order (auto): ${final.map((p, i) => `#${i + 1} ${p.name} (${p.id})`).join(' | ')}`);
   return { lineup: final, hasDH };
 }
 

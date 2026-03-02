@@ -6,6 +6,29 @@ Formato:
   • Dettaglio 2 (file modificati)  
   • Trade-off / note (se rilevanti)
 
+## v1.17.1 – 2 marzo 2026 – Lineup Order Fix, Unsaved Changes Indicator, Batting Order Display
+
+- **Fix race condition batting order (T001)**:
+  * `useEffect` in LineupPage non sovrascrive più l'ordine di battuta durante il caricamento dal DB
+  * Aggiunto `isLoadingFromDB` ref per distinguere caricamento iniziale da modifiche utente
+  * L'ordine relativo dei battitori già presenti non viene mai alterato — solo giocatori mancanti aggiunti in coda
+
+- **Indicatore "unsaved changes" (T002)**:
+  * Banner pulsante "UNSAVED CHANGES" quando l'utente modifica posizioni, ordine o DH senza salvare
+  * Pulsante SAVE diventa arancione con testo "SAVE LINEUP (UNSAVED)"
+  * Reset automatico dopo salvataggio riuscito e al caricamento dal DB
+
+- **Logging batting order nella simulazione (T003)**:
+  * `buildLineupFromSaved()` ora logga l'ordine con slot numerico esplicito: `#1 Nome (id) | #2 Nome (id) | ...`
+  * Formato distinto per lineup salvati vs auto-generati
+
+- **Batting Order Used nel match detail (T004)**:
+  * Sezione collassabile "BATTING ORDER USED" nel MatchDetailPage dopo il MVP
+  * Mostra lineup #1-#9 di entrambe le squadre con nomi giocatori
+  * Permette all'utente di confrontare l'ordine usato nella partita con quello attuale
+
+- **File Modificati**: client/src/pages/LineupPage.tsx, client/src/pages/MatchDetailPage.tsx, server/simulation.ts
+
 ## v1.17.0 – 1 marzo 2026 – Stolen Base, DB Coefficients Migration, tac_st Column
 
 - **Meccanica Stolen Base (T002)**:

@@ -8,11 +8,19 @@ Formato:
 
 ## v1.18.1 – 2 marzo 2026 – Schedule storico, navigazione stagioni passate
 
-- **SchedulePage — supporto stagioni precedenti (T001)**:
+- **Backend — `/api/matches?season=N` (T001)**:
+  * `storage.getAllMatches(seasonId?)` accetta parametro opzionale per filtrare per stagione
+  * Route `/api/matches` legge `?season=N` dal query string
+  * Senza parametro, comportamento invariato (stagione corrente)
+  * Files: server/storage.ts, server/routes.ts
+
+- **SchedulePage — supporto stagioni precedenti (T002)**:
   * Parametro URL `?season=N` per visualizzare calendario/risultati di qualsiasi stagione
   * Selettore stagione con frecce avanti/indietro (come StandingsPage)
   * Banner "SEASON X ARCHIVE" per stagioni passate
   * Nascosti "Next Match" e "PROJECTED" per stagioni archiviate
+  * Usa `/api/matches?season=N` per fetch match storici
+  * Usa `/api/team-snapshots?season=N` per risolvere nomi team nelle stagioni passate
   * Record/stats calcolati per il team del wallet nella stagione selezionata
   * Files: client/src/pages/SchedulePage.tsx
 

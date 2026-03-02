@@ -73,12 +73,12 @@ export default function SchedulePage() {
   };
 
   const { data: allMatchesRaw = [] } = useQuery<MatchData[]>({
-    queryKey: ['matches-all'],
+    queryKey: ['matches-all', displaySeason],
     queryFn: async () => {
-      const res = await fetch('/api/matches');
+      const res = await fetch(`/api/matches?season=${displaySeason}`);
       return res.json();
     },
-    enabled: !!team,
+    enabled: !!team && displaySeason > 0,
   });
 
   const { data: allTeamsRaw = [] } = useQuery<TeamData[]>({
@@ -88,6 +88,15 @@ export default function SchedulePage() {
       return res.json();
     },
     enabled: !!team,
+  });
+
+  const { data: teamSnapshotsRaw = [] } = useQuery<any[]>({
+    queryKey: ['team-snapshots', displaySeason],
+    queryFn: async () => {
+      const res = await fetch(`/api/team-snapshots?season=${displaySeason}`);
+      return res.json();
+    },
+    enabled: !!team && isPastSeason,
   });
 
   const { data: projectedPlayoffs = [] } = useQuery<ProjectedMatch[]>({
@@ -123,7 +132,20 @@ export default function SchedulePage() {
   };
 
   const seasonMatches = allMatchesRaw.filter(m => m.seasonId === displaySeason);
-  const allSeasonTeams = allTeamsRaw.filter(t => t.seasonId === displaySeason);
+
+  const snapshotTeams: TeamData[] = isPastSeason
+    ? teamSnapshotsRaw.map((s: any) => ({
+        id: s.teamId,
+        name: s.name,
+        division: s.division,
+        ownerWallet: s.ownerWallet,
+        seasonId: s.seasonId,
+        league: s.league,
+        series: s.series,
+      }))
+    : allTeamsRaw.filter(t => t.seasonId === displaySeason);
+
+  const allSeasonTeams = snapshotTeams;
   const teamMap = new Map(allSeasonTeams.map(t => [t.id, t]));
 
   const userTeamInSeason = isPastSeason

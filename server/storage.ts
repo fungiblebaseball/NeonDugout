@@ -38,7 +38,7 @@ export interface IStorage {
   getPlayer(id: number): Promise<Player | undefined>;
 
   getMatchesByDivision(division: string): Promise<Match[]>;
-  getAllMatches(): Promise<Match[]>;
+  getAllMatches(seasonId?: number): Promise<Match[]>;
   updateMatchResult(matchId: number, homeScore: number, awayScore: number): Promise<Match>;
 
   getLineup(teamId: number): Promise<Lineup | undefined>;
@@ -262,7 +262,10 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(matches).where(eq(matches.division, division));
   }
 
-  async getAllMatches(): Promise<Match[]> {
+  async getAllMatches(seasonId?: number): Promise<Match[]> {
+    if (seasonId !== undefined) {
+      return db.select().from(matches).where(eq(matches.seasonId, seasonId));
+    }
     const allTeams = await db.select().from(teams).limit(1);
     const currentSeason = allTeams.length > 0 ? allTeams[0].seasonId : 1;
     return db.select().from(matches).where(eq(matches.seasonId, currentSeason));

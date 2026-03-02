@@ -183,8 +183,9 @@ export async function registerRoutes(
     res.json(playersList);
   }));
 
-  app.get("/api/matches", asyncHandler(async (_req, res) => {
-    const allMatches = await storage.getAllMatches();
+  app.get("/api/matches", asyncHandler(async (req, res) => {
+    const seasonParam = req.query.season ? parseInt(req.query.season as string) : undefined;
+    const allMatches = await storage.getAllMatches(seasonParam && !isNaN(seasonParam) ? seasonParam : undefined);
     res.json(allMatches);
   }));
 

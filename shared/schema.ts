@@ -25,7 +25,7 @@ export const teams = pgTable("teams", {
 export const players = pgTable("players", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
-  teamId: integer("team_id").notNull(),
+  teamId: integer("team_id"),
   positions: text("positions").array().notNull(),
   pow: integer("pow").notNull(),
   con: integer("con").notNull(),
@@ -326,3 +326,18 @@ export const dismissedMessages = pgTable("dismissed_messages", {
 export const insertDismissedMessageSchema = createInsertSchema(dismissedMessages).omit({ id: true, dismissedAt: true });
 export type InsertDismissedMessage = z.infer<typeof insertDismissedMessageSchema>;
 export type DismissedMessage = typeof dismissedMessages.$inferSelect;
+
+export const marketListings = pgTable("market_listings", {
+  id: serial("id").primaryKey(),
+  playerId: integer("player_id").notNull(),
+  sellerWallet: text("seller_wallet").notNull(),
+  sellerTeamId: integer("seller_team_id").notNull(),
+  price: integer("price").notNull(),
+  status: text("status").notNull().default("active"),
+  buyerWallet: text("buyer_wallet"),
+  listedAt: timestamp("listed_at").defaultNow(),
+});
+
+export const insertMarketListingSchema = createInsertSchema(marketListings).omit({ id: true, listedAt: true });
+export type InsertMarketListing = z.infer<typeof insertMarketListingSchema>;
+export type MarketListing = typeof marketListings.$inferSelect;

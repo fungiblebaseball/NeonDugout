@@ -1,8 +1,10 @@
 import { useGameStore } from "@/lib/store";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Coins, Users, RotateCcw } from "lucide-react";
+import { ArrowLeft, Coins, Users, RotateCcw, DollarSign } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useState, useMemo } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface PlayerData {
   id: number;
@@ -67,6 +69,11 @@ export default function TeamPage() {
   const [sortDir, setSortDir] = useState<SortDir>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [pendingColor, setPendingColor] = useState<string | null>(null);
+  const [sellPlayer, setSellPlayer] = useState<PlayerData | null>(null);
+  const [sellPrice, setSellPrice] = useState('10');
+  const [sellStatus, setSellStatus] = useState<'idle' | 'signing' | 'confirming' | 'done' | 'error'>('idle');
+  const { signMessage } = useWallet();
+  const { toast } = useToast();
 
   const colorMutation = useMutation({
     mutationFn: async (color: string) => {
@@ -168,6 +175,61 @@ export default function TeamPage() {
       queryClient.invalidateQueries({ queryKey: ['pitcher-rotation'] }),
     ]);
     setTimeout(() => setRefreshing(false), 600);
+  };
+
+  const isInLineup = (playerId: number) => {
+    if (!lineupData) return false;
+    const inBatting = lineupData.battingOrder.includes(playerId);
+    const inField = Object.values(lineupData.fieldPositions).includes(playerId);
+    return inBatting || inField;
+  };
+
+  const handleSellConfirm = async () => {
+    if (!sellPlayer || !token || !signMessage) return;
+    const price = parseInt(sellPrice);
+    if (!price || price < 1) return;
+
+    setSellStatus('signing');
+    try {
+      const challengeRes = await fetch('/api/market/sell/challenge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ playerId: sellPlayer.id, price }),
+      });
+      if (!challengeRes.ok) {
+        const err = await challengeRes.json();
+        toast({ title: 'Error', description: err.message, variant: 'destructive' });
+        setSellStatus('error');
+        return;
+      }
+      const challenge = await challengeRes.json();
+
+      const messageBytes = new TextEncoder().encode(challenge.message);
+      const sig = await signMessage(messageBytes);
+      const signature = Buffer.from(sig).toString('base64');
+
+      setSellStatus('confirming');
+      const confirmRes = await fetch('/api/market/sell/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ playerId: sellPlayer.id, price, signature, message: challenge.message }),
+      });
+      if (confirmRes.ok) {
+        setSellStatus('done');
+        toast({ title: 'Listed!', description: `${sellPlayer.name} listed for ${price} tokens` });
+        queryClient.invalidateQueries({ queryKey: ['team-players'] });
+        queryClient.invalidateQueries({ queryKey: ['market-listings'] });
+        setTimeout(() => { setSellPlayer(null); setSellStatus('idle'); }, 1000);
+      } else {
+        const err = await confirmRes.json();
+        toast({ title: 'Error', description: err.message, variant: 'destructive' });
+        setSellStatus('error');
+      }
+    } catch (err) {
+      console.error('Sell failed:', err);
+      setSellStatus('error');
+      toast({ title: 'Error', description: 'Transaction cancelled or failed', variant: 'destructive' });
+    }
   };
 
   if (!walletAddress || !team) {
@@ -286,6 +348,7 @@ export default function TeamPage() {
                   <th className="px-1.5 py-1.5 text-[9px] font-mono text-gray-500 uppercase">Pos</th>
                   <th className="px-1 py-1.5 text-[9px] font-mono text-green-500/70 uppercase text-center min-w-[24px]">#</th>
                   <th className="px-1 py-1.5 text-[9px] font-mono text-green-500/70 uppercase text-center min-w-[28px]">FLD</th>
+                  <th className="px-1 py-1.5 text-[9px] font-mono text-amber-500/70 uppercase text-center min-w-[32px]">SELL</th>
                   {ATTRS.map(attr => (
                     <th
                       key={attr}
@@ -330,6 +393,19 @@ export default function TeamPage() {
                           {fieldPos ?? '—'}
                         </span>
                       </td>
+                      <td className="px-1 py-1 text-center">
+                        {isInLineup(player.id) ? (
+                          <span className="text-[7px] font-mono text-gray-600">IN USE</span>
+                        ) : (
+                          <button
+                            data-testid={`button-sell-${player.id}`}
+                            onClick={(e) => { e.stopPropagation(); setSellPlayer(player); setSellPrice('10'); setSellStatus('idle'); }}
+                            className="px-1.5 py-0.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-mono text-[8px] uppercase tracking-wider rounded transition-all"
+                          >
+                            SELL
+                          </button>
+                        )}
+                      </td>
                       {ATTRS.map(attr => {
                         const base = getBase(player, attr);
                         const add = getAdd(player, attr);
@@ -357,6 +433,53 @@ export default function TeamPage() {
           </div>
         </div>
       </main>
+
+      {sellPlayer && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => sellStatus === 'idle' && setSellPlayer(null)}>
+          <div className="bg-gray-900 border border-amber-500/40 rounded-xl p-5 w-full max-w-sm shadow-[0_0_30px_rgba(245,158,11,0.2)]" onClick={e => e.stopPropagation()}>
+            <h3 className="text-sm font-black text-amber-400 uppercase mb-3" style={{ fontFamily: "'Orbitron', sans-serif" }}>
+              SELL PLAYER
+            </h3>
+            <div className="flex items-center gap-2 mb-3 p-2 bg-black/50 rounded-lg border border-gray-800">
+              <span className="text-xs font-bold text-cyan-300">{sellPlayer.name}</span>
+              <span className="text-[9px] font-mono text-pink-400">{sellPlayer.positions.join('/')}</span>
+            </div>
+            <div className="mb-4">
+              <label className="text-[10px] font-mono text-gray-400 uppercase block mb-1">Price (tokens)</label>
+              <input
+                data-testid="input-sell-price"
+                type="number"
+                min="1"
+                value={sellPrice}
+                onChange={e => setSellPrice(e.target.value)}
+                disabled={sellStatus !== 'idle'}
+                className="w-full px-3 py-2 bg-black border border-amber-500/30 rounded-lg text-amber-300 font-mono text-sm focus:outline-none focus:border-amber-400"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                data-testid="button-cancel-sell"
+                onClick={() => { setSellPlayer(null); setSellStatus('idle'); }}
+                disabled={sellStatus === 'signing' || sellStatus === 'confirming'}
+                className="flex-1 px-3 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 font-mono text-[10px] uppercase tracking-wider rounded-lg transition-all disabled:opacity-50"
+              >
+                CANCEL
+              </button>
+              <button
+                data-testid="button-confirm-sell"
+                onClick={handleSellConfirm}
+                disabled={sellStatus !== 'idle' || !sellPrice || parseInt(sellPrice) < 1}
+                className="flex-1 px-3 py-2 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-300 font-mono text-[10px] uppercase tracking-wider rounded-lg transition-all disabled:opacity-50"
+              >
+                {sellStatus === 'idle' ? 'CONFIRM & SIGN' :
+                 sellStatus === 'signing' ? 'SIGN WALLET...' :
+                 sellStatus === 'confirming' ? 'PROCESSING...' :
+                 sellStatus === 'done' ? '✓ LISTED' : 'ERROR — RETRY'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

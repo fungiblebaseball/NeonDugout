@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { teams, players, matches } from "@shared/schema";
+import { teams, players, matches, marketListings } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { generateUniqueName, generateUniqueTeamName } from "./names";
 
@@ -190,6 +190,7 @@ export async function seedDatabase() {
   const existingTeams = await db.select().from(teams).limit(1);
   if (existingTeams.length > 0) {
     console.log("Database already seeded, skipping...");
+    await seedFreeAgents();
     return;
   }
 
@@ -269,4 +270,59 @@ export async function seedDatabase() {
   const totalTeams = Object.values(createdTeams).flatMap(l => Object.values(l).flat()).length;
   console.log(`Seeded: ${totalTeams} teams, ${totalPlayers} players, ${allScheduleMatches.length} matches (14 match days)`);
   console.log(`Name pools: ${usedTeamNames.size} unique team names, ${usedPlayerNames.size} unique player names`);
+
+  await seedFreeAgents(usedPlayerNames);
+}
+
+export async function seedFreeAgents(existingNames?: Set<string>) {
+  const existing = await db.select({ id: marketListings.id }).from(marketListings).where(eq(marketListings.status, 'active')).limit(1);
+  if (existing.length > 0) return;
+
+  const usedNames = existingNames ?? new Set<string>();
+  if (!existingNames) {
+    const allPlayers = await db.select({ name: players.name }).from(players);
+    allPlayers.forEach(p => usedNames.add(p.name));
+  }
+
+  const FREE_AGENT_COUNT = 30;
+  const positionSets: Position[][] = [
+    ['P'], ['P'], ['P'], ['P'], ['P'], ['P'],
+    ['C'], ['C', '1B'],
+    ['1B'], ['2B'], ['3B'], ['SS'], ['2B', 'SS'],
+    ['LF'], ['CF'], ['RF'], ['LF', 'RF'],
+    ['1B', 'DH'], ['3B', '1B'], ['CF', 'LF', 'RF'],
+    ['P'], ['P'],
+    ['C'], ['1B'], ['2B'], ['SS'],
+    ['LF'], ['CF'], ['RF'], ['3B'],
+  ];
+
+  const freeAgents = [];
+  for (let i = 0; i < FREE_AGENT_COUNT; i++) {
+    const pos = positionSets[i % positionSets.length];
+    const isPitcher = pos.includes('P');
+    const getStat = () => Math.max(1, Math.min(100, gaussianRand(25, 80)));
+    freeAgents.push({
+      name: generateUniqueName(usedNames),
+      teamId: null as unknown as number,
+      positions: pos,
+      pow: getStat(), con: getStat(), spd: getStat(), eye: getStat(),
+      vel: isPitcher ? getStat() : rand(1, 20),
+      ctl: isPitcher ? getStat() : rand(1, 20),
+      mov: isPitcher ? getStat() : rand(1, 20),
+      sta: isPitcher ? getStat() : rand(1, 20),
+      def: getStat(),
+    });
+  }
+
+  const inserted = await db.insert(players).values(freeAgents).returning();
+
+  const listings = inserted.map(p => ({
+    playerId: p.id,
+    sellerWallet: 'FREE_AGENT',
+    sellerTeamId: 0,
+    price: rand(5, 50),
+    status: 'active' as const,
+  }));
+  await db.insert(marketListings).values(listings);
+  console.log(`Seeded ${FREE_AGENT_COUNT} free agent players in market`);
 }

@@ -6,6 +6,61 @@ Formato:
   • Dettaglio 2 (file modificati)  
   • Trade-off / note (se rilevanti)
 
+## v1.19.0 – 2 marzo 2026 – Player Market con wallet-signed transactions
+
+- **Schema — tabella `market_listings` (T001)**:
+  * Nuova tabella `market_listings`: id, playerId (ref players), sellerWallet, sellerTeamId, price, listedAt, status ('active'|'sold'|'cancelled'), buyerWallet (nullable)
+  * `players.teamId` reso nullable per giocatori in vendita e free agent
+  * Insert/select schema e tipi esportati
+  * Files: shared/schema.ts
+
+- **Storage — CRUD operazioni market (T002)**:
+  * `listPlayerForSale()` — crea listing + setta player.teamId = null (transazione atomica)
+  * `buyPlayer()` — verifica crediti, trasferisce token (skip per FREE_AGENT), cambia ownership, marca listing 'sold' (transazione atomica)
+  * `cancelListing()` — verifica ownership, ripristina player.teamId, marca listing 'cancelled' (transazione atomica)
+  * `getActiveListings()` — listings attivi con join player data
+  * `getListingById()`, `getPlayerCountForTeam()`
+  * Files: server/storage.ts
+
+- **Auth — challenge/verify per transazioni market (T003)**:
+  * `marketChallengeStore` con TTL 5 minuti, pattern identico a trainingChallengeStore
+  * Actions: 'sell', 'buy', 'cancel'
+  * Files: server/auth.ts
+
+- **Routes — 7 API endpoints market (T004)**:
+  * `GET /api/market/listings` — listings attivi con dati player completi
+  * `POST /api/market/sell/challenge` + `/confirm` — vendita con firma wallet
+  * `POST /api/market/buy/challenge` + `/confirm` — acquisto con firma wallet
+  * `POST /api/market/cancel/challenge` + `/confirm` — cancellazione con firma wallet
+  * Validazioni: non vendere giocatore in lineup, roster max 20, non comprare propri giocatori
+  * JWT auth su tutti gli endpoint
+  * Files: server/routes.ts
+
+- **Frontend — MarketPage (T005)**:
+  * Lista giocatori con stats raggruppate (ATK, PIT, DEF), prezzo, etichetta "FREE AGENT"
+  * Riga espandibile con tutti 9 attributi + career stats per stagione
+  * Bottoni BUY/CANCEL con challenge → firma wallet → conferma
+  * Stile cyberpunk coerente (neon, Orbitron, sfondo nero)
+  * Files: client/src/pages/MarketPage.tsx
+
+- **Frontend — TeamPage SELL button (T006)**:
+  * Colonna SELL per ogni giocatore nel roster
+  * Popup overlay con campo prezzo + firma wallet
+  * Blocco vendita giocatori in lineup attivo
+  * Invalidazione query roster dopo vendita
+  * Files: client/src/pages/TeamPage.tsx
+
+- **Navigation + Routing (T007)**:
+  * Route `/market` con MarketPage in App.tsx
+  * Link "Mkt" con icona Store nella Navigation (10 items totale)
+  * Files: client/src/App.tsx, client/src/components/Navigation.tsx
+
+- **Seed — 30 Free Agent nel market (T009)**:
+  * 30 giocatori random con teamId=null, posizioni miste, stats gaussiane
+  * Listings con sellerWallet="FREE_AGENT", sellerTeamId=0, prezzo 5-50 token
+  * `seedFreeAgents()` esportata, chiamata anche su DB già seedati (idempotente)
+  * Files: server/seed.ts
+
 ## v1.18.1 – 2 marzo 2026 – Schedule storico, navigazione stagioni passate
 
 - **Backend — `/api/matches?season=N` (T001)**:

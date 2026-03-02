@@ -166,6 +166,55 @@ export function verifyTrainingSignature(walletAddress: string, resultId: number,
   }
 }
 
+const marketChallengeStore = new Map<string, { nonce: string; action: string; entityId: number; createdAt: number }>();
+
+setInterval(() => {
+  const now = Date.now();
+  marketChallengeStore.forEach((val, key) => {
+    if (now - val.createdAt > CHALLENGE_TTL) {
+      marketChallengeStore.delete(key);
+    }
+  });
+}, 60 * 1000);
+
+export function generateMarketChallenge(walletAddress: string, action: string, entityId: number): { message: string; nonce: string } {
+  const nonce = uuidv4();
+  const message = `Confirm market ${action} in Neon Dugout: ${nonce}`;
+  marketChallengeStore.set(`${walletAddress}:${action}:${entityId}`, { nonce, action, entityId, createdAt: Date.now() });
+  return { message, nonce };
+}
+
+export function verifyMarketSignature(walletAddress: string, action: string, entityId: number, signature: string, message: string): boolean {
+  const key = `${walletAddress}:${action}:${entityId}`;
+  const stored = marketChallengeStore.get(key);
+  if (!stored) return false;
+
+  const now = Date.now();
+  if (now - stored.createdAt > CHALLENGE_TTL) {
+    marketChallengeStore.delete(key);
+    return false;
+  }
+
+  if (!message.includes(stored.nonce)) return false;
+
+  try {
+    const messageBytes = new TextEncoder().encode(message);
+    const signatureBytes = Buffer.from(signature, "base64");
+    const publicKeyBytes = decodeBase58(walletAddress);
+
+    const valid = nacl.sign.detached.verify(messageBytes, signatureBytes, publicKeyBytes);
+
+    if (valid) {
+      marketChallengeStore.delete(key);
+    }
+
+    return valid;
+  } catch (err) {
+    console.error("Market signature verification failed:", err);
+    return false;
+  }
+}
+
 function decodeBase58(str: string): Uint8Array {
   const ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
   const bytes: number[] = [0];

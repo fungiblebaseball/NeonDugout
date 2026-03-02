@@ -23,6 +23,7 @@ import BattingPracticeGame from "@/pages/minigames/BattingPracticeGame";
 import PitchControlGame from "@/pages/minigames/PitchControlGame";
 import AdminPage from "@/pages/AdminPage";
 import TeamPage from "@/pages/TeamPage";
+import MarketPage from "@/pages/MarketPage";
 import NotFound from "@/pages/not-found";
 import { useGameStore } from "@/lib/store";
 import { useEffect } from "react";
@@ -56,6 +57,7 @@ function Router() {
         <Route path="/training/batting" component={BattingPracticeGame} />
         <Route path="/training/pitch-control" component={PitchControlGame} />
         <Route path="/team" component={TeamPage} />
+        <Route path="/market" component={MarketPage} />
         <Route path="/admin" component={AdminPage} />
         <Route component={NotFound} />
       </Switch>

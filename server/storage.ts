@@ -3,6 +3,7 @@ import { eq, and, sql, desc } from "drizzle-orm";
 import {
   users, teams, players, matches, lineups, pitcherRotations, tactics, matchDetails, playerSeasonStats, teamSnapshots,
   trainingResults, trainingConfig, userTokens, tokenConfig, tacticCoefficients, adminMessages, dismissedMessages,
+  marketListings,
   type User, type InsertUser, type Team, type InsertTeam,
   type Player, type Match, type Lineup, type InsertLineup,
   type PitcherRotation, type InsertPitcherRotation,
@@ -13,6 +14,7 @@ import {
   type TrainingConfig, type InsertTrainingConfig,
   type UserTokens, type TokenConfig,
   type TacticCoefficient, type InsertTacticCoefficients,
+  type MarketListing,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -98,6 +100,13 @@ export interface IStorage {
   getActiveMessagesForTeam(league: string, series: string, teamName: string): Promise<any[]>;
   dismissMessage(messageId: number, walletAddress: string): Promise<void>;
   getDismissedMessageIds(walletAddress: string): Promise<number[]>;
+
+  listPlayerForSale(playerId: number, sellerWallet: string, sellerTeamId: number, price: number): Promise<MarketListing>;
+  buyPlayer(listingId: number, buyerWallet: string, buyerTeamId: number): Promise<MarketListing>;
+  cancelListing(listingId: number, sellerWallet: string): Promise<MarketListing>;
+  getActiveListings(): Promise<(MarketListing & { player: Player })[]>;
+  getListingById(id: number): Promise<MarketListing | undefined>;
+  getPlayerCountForTeam(teamId: number): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -143,6 +152,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async wipeAllData(): Promise<void> {
+    await db.delete(marketListings);
     await db.delete(matchDetails);
     await db.delete(playerSeasonStats);
     await db.delete(trainingResults);
@@ -773,6 +783,135 @@ export class DatabaseStorage implements IStorage {
   async getDismissedMessageIds(walletAddress: string): Promise<number[]> {
     const rows = await db.select({ messageId: dismissedMessages.messageId }).from(dismissedMessages).where(eq(dismissedMessages.walletAddress, walletAddress));
     return rows.map(r => r.messageId);
+  }
+
+  async listPlayerForSale(playerId: number, sellerWallet: string, sellerTeamId: number, price: number): Promise<MarketListing> {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { rows: existingListings } = await client.query(
+        `SELECT id FROM market_listings WHERE player_id = $1 AND status = 'active'`, [playerId]
+      );
+      if (existingListings.length > 0) throw new Error('Player already has an active listing');
+      const updateResult = await client.query('UPDATE players SET team_id = NULL WHERE id = $1 AND team_id = $2', [playerId, sellerTeamId]);
+      if (updateResult.rowCount === 0) throw new Error('Player not found or not owned by seller');
+      const listingResult = await client.query(
+        `INSERT INTO market_listings (player_id, seller_wallet, seller_team_id, price, status) VALUES ($1, $2, $3, $4, 'active') RETURNING *`,
+        [playerId, sellerWallet, sellerTeamId, price]
+      );
+      await client.query('COMMIT');
+      const r = listingResult.rows[0];
+      return { id: r.id, playerId: r.player_id, sellerWallet: r.seller_wallet, sellerTeamId: r.seller_team_id, price: r.price, status: r.status, buyerWallet: r.buyer_wallet, listedAt: r.listed_at };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  async buyPlayer(listingId: number, buyerWallet: string, buyerTeamId: number): Promise<MarketListing> {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { rows: [listing] } = await client.query('SELECT * FROM market_listings WHERE id = $1 AND status = $2 FOR UPDATE', [listingId, 'active']);
+      if (!listing) throw new Error('Listing not found or already sold');
+
+      if (listing.seller_wallet !== 'FREE_AGENT') {
+        const { rows: [buyer] } = await client.query('SELECT id FROM users WHERE wallet_address = $1', [buyerWallet]);
+        const { rows: [buyerTokens] } = await client.query('SELECT * FROM user_tokens WHERE user_id = $1 FOR UPDATE', [buyer.id]);
+        if (!buyerTokens || buyerTokens.balance < listing.price) throw new Error('Insufficient tokens');
+
+        await client.query('UPDATE user_tokens SET balance = balance - $1 WHERE user_id = $2', [listing.price, buyer.id]);
+
+        const { rows: [seller] } = await client.query('SELECT id FROM users WHERE wallet_address = $1', [listing.seller_wallet]);
+        if (seller) {
+          const { rows: [sellerTokens] } = await client.query('SELECT * FROM user_tokens WHERE user_id = $1', [seller.id]);
+          if (sellerTokens) {
+            await client.query('UPDATE user_tokens SET balance = balance + $1 WHERE user_id = $2', [listing.price, seller.id]);
+          } else {
+            await client.query('INSERT INTO user_tokens (user_id, balance) VALUES ($1, $2)', [seller.id, listing.price]);
+          }
+        }
+      }
+
+      await client.query('UPDATE players SET team_id = $1 WHERE id = $2', [buyerTeamId, listing.player_id]);
+      const { rows: [updated] } = await client.query(
+        `UPDATE market_listings SET status = 'sold', buyer_wallet = $1 WHERE id = $2 RETURNING *`,
+        [buyerWallet, listingId]
+      );
+      await client.query('COMMIT');
+      return { id: updated.id, playerId: updated.player_id, sellerWallet: updated.seller_wallet, sellerTeamId: updated.seller_team_id, price: updated.price, status: updated.status, buyerWallet: updated.buyer_wallet, listedAt: updated.listed_at };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  async cancelListing(listingId: number, sellerWallet: string): Promise<MarketListing> {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { rows: [listing] } = await client.query('SELECT * FROM market_listings WHERE id = $1 AND status = $2 AND seller_wallet = $3 FOR UPDATE', [listingId, 'active', sellerWallet]);
+      if (!listing) throw new Error('Listing not found or not yours');
+
+      await client.query('UPDATE players SET team_id = $1 WHERE id = $2', [listing.seller_team_id, listing.player_id]);
+      const { rows: [updated] } = await client.query(
+        `UPDATE market_listings SET status = 'cancelled' WHERE id = $1 RETURNING *`,
+        [listingId]
+      );
+      await client.query('COMMIT');
+      return { id: updated.id, playerId: updated.player_id, sellerWallet: updated.seller_wallet, sellerTeamId: updated.seller_team_id, price: updated.price, status: updated.status, buyerWallet: updated.buyer_wallet, listedAt: updated.listed_at };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  async getActiveListings(): Promise<(MarketListing & { player: Player })[]> {
+    const result = await pool.query(
+      `SELECT ml.*, p.name as p_name, p.positions as p_positions,
+        p.pow, p.con, p.spd, p.eye, p.vel, p.ctl, p.mov, p.sta, p.def,
+        p.pow_add, p.con_add, p.spd_add, p.eye_add, p.vel_add, p.ctl_add, p.mov_add, p.sta_add, p.def_add
+       FROM market_listings ml
+       JOIN players p ON ml.player_id = p.id
+       WHERE ml.status = 'active'
+       ORDER BY ml.listed_at DESC`
+    );
+    return result.rows.map((r: any) => ({
+      id: r.id,
+      playerId: r.player_id,
+      sellerWallet: r.seller_wallet,
+      sellerTeamId: r.seller_team_id,
+      price: r.price,
+      status: r.status,
+      buyerWallet: r.buyer_wallet,
+      listedAt: r.listed_at,
+      player: {
+        id: r.player_id,
+        name: r.p_name,
+        teamId: null,
+        positions: r.p_positions,
+        pow: r.pow, con: r.con, spd: r.spd, eye: r.eye,
+        vel: r.vel, ctl: r.ctl, mov: r.mov, sta: r.sta, def: r.def,
+        powAdd: r.pow_add ?? 0, conAdd: r.con_add ?? 0, spdAdd: r.spd_add ?? 0, eyeAdd: r.eye_add ?? 0,
+        velAdd: r.vel_add ?? 0, ctlAdd: r.ctl_add ?? 0, movAdd: r.mov_add ?? 0, staAdd: r.sta_add ?? 0, defAdd: r.def_add ?? 0,
+      },
+    }));
+  }
+
+  async getListingById(id: number): Promise<MarketListing | undefined> {
+    const [listing] = await db.select().from(marketListings).where(eq(marketListings.id, id));
+    return listing;
+  }
+
+  async getPlayerCountForTeam(teamId: number): Promise<number> {
+    const result = await db.select({ count: sql<number>`count(*)` }).from(players).where(eq(players.teamId, teamId));
+    return Number(result[0]?.count ?? 0);
   }
 }
 

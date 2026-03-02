@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { simulateMatchDay, updatePlayoffMatchups } from "./simulation";
 import { generateNewSeason } from "./season";
-import { generateChallenge, verifySignature, createToken, verifyToken, generateClaimChallenge, verifyClaimSignature, generateTrainingChallenge, verifyTrainingSignature } from "./auth";
+import { generateChallenge, verifySignature, createToken, verifyToken, generateClaimChallenge, verifyClaimSignature, generateTrainingChallenge, verifyTrainingSignature, generateMarketChallenge, verifyMarketSignature } from "./auth";
 import { expandLeague, ensureExtraLeague } from "./expansion";
 
 type AsyncHandler = (req: Request, res: Response, next: NextFunction) => Promise<any>;
@@ -887,6 +887,156 @@ export async function registerRoutes(
     }
 
     res.json(projections);
+  }));
+
+  app.get("/api/market/listings", asyncHandler(async (_req, res) => {
+    const listings = await storage.getActiveListings();
+    res.json(listings);
+  }));
+
+  app.get("/api/market/listing/:id/stats", asyncHandler(async (req, res) => {
+    const listing = await storage.getListingById(Number(req.params.id));
+    if (!listing) return res.status(404).json({ message: "Listing not found" });
+    const stats = await storage.getPlayerSeasonStats(listing.playerId);
+    res.json(stats);
+  }));
+
+  app.post("/api/market/sell/challenge", asyncHandler(async (req, res) => {
+    const auth = req.headers.authorization?.split(" ")[1];
+    if (!auth) return res.status(401).json({ message: "Unauthorized" });
+    const decoded = verifyToken(auth);
+    if (!decoded) return res.status(401).json({ message: "Invalid token" });
+
+    const { playerId, price } = req.body;
+    if (!playerId || !price || price < 1) return res.status(400).json({ message: "playerId and price required" });
+
+    const user = await storage.getUser(decoded.userId);
+    if (!user?.teamId) return res.status(400).json({ message: "No team" });
+
+    const player = await storage.getPlayer(playerId);
+    if (!player || player.teamId !== user.teamId) return res.status(403).json({ message: "Not your player" });
+
+    const lineup = await storage.getLineup(user.teamId);
+    if (lineup) {
+      const inBatting = lineup.battingOrder.includes(playerId);
+      const inField = Object.values(lineup.fieldPositions).includes(playerId);
+      if (inBatting || inField) return res.status(400).json({ message: "Remove player from lineup first" });
+    }
+
+    const challenge = generateMarketChallenge(decoded.walletAddress, 'sell', playerId);
+    res.json({ ...challenge, playerId, price });
+  }));
+
+  app.post("/api/market/sell/confirm", asyncHandler(async (req, res) => {
+    const auth = req.headers.authorization?.split(" ")[1];
+    if (!auth) return res.status(401).json({ message: "Unauthorized" });
+    const decoded = verifyToken(auth);
+    if (!decoded) return res.status(401).json({ message: "Invalid token" });
+
+    const { playerId, price, signature, message } = req.body;
+    if (!playerId || !price || !signature || !message) return res.status(400).json({ message: "Missing fields" });
+
+    const valid = verifyMarketSignature(decoded.walletAddress, 'sell', playerId, signature, message);
+    if (!valid) return res.status(401).json({ message: "Invalid signature" });
+
+    const user = await storage.getUser(decoded.userId);
+    if (!user?.teamId) return res.status(400).json({ message: "No team" });
+
+    const player = await storage.getPlayer(playerId);
+    if (!player || player.teamId !== user.teamId) return res.status(403).json({ message: "Not your player" });
+
+    const lineup = await storage.getLineup(user.teamId);
+    if (lineup) {
+      const inBatting = lineup.battingOrder.includes(playerId);
+      const inField = Object.values(lineup.fieldPositions).includes(playerId);
+      if (inBatting || inField) return res.status(400).json({ message: "Remove player from lineup first" });
+    }
+
+    const listing = await storage.listPlayerForSale(playerId, decoded.walletAddress, user.teamId, price);
+    res.json(listing);
+  }));
+
+  app.post("/api/market/buy/challenge", asyncHandler(async (req, res) => {
+    const auth = req.headers.authorization?.split(" ")[1];
+    if (!auth) return res.status(401).json({ message: "Unauthorized" });
+    const decoded = verifyToken(auth);
+    if (!decoded) return res.status(401).json({ message: "Invalid token" });
+
+    const { listingId } = req.body;
+    if (!listingId) return res.status(400).json({ message: "listingId required" });
+
+    const listing = await storage.getListingById(listingId);
+    if (!listing || listing.status !== 'active') return res.status(404).json({ message: "Listing not found" });
+    if (listing.sellerWallet === decoded.walletAddress) return res.status(400).json({ message: "Cannot buy your own player" });
+
+    const user = await storage.getUser(decoded.userId);
+    if (!user?.teamId) return res.status(400).json({ message: "No team" });
+
+    const rosterCount = await storage.getPlayerCountForTeam(user.teamId);
+    if (rosterCount >= 20) return res.status(400).json({ message: "Roster full (max 20)" });
+
+    if (listing.sellerWallet !== 'FREE_AGENT') {
+      const tokens = await storage.getUserTokens(decoded.userId);
+      if (!tokens || tokens.balance < listing.price) return res.status(400).json({ message: "Insufficient tokens" });
+    }
+
+    const challenge = generateMarketChallenge(decoded.walletAddress, 'buy', listingId);
+    res.json({ ...challenge, listingId });
+  }));
+
+  app.post("/api/market/buy/confirm", asyncHandler(async (req, res) => {
+    const auth = req.headers.authorization?.split(" ")[1];
+    if (!auth) return res.status(401).json({ message: "Unauthorized" });
+    const decoded = verifyToken(auth);
+    if (!decoded) return res.status(401).json({ message: "Invalid token" });
+
+    const { listingId, signature, message } = req.body;
+    if (!listingId || !signature || !message) return res.status(400).json({ message: "Missing fields" });
+
+    const valid = verifyMarketSignature(decoded.walletAddress, 'buy', listingId, signature, message);
+    if (!valid) return res.status(401).json({ message: "Invalid signature" });
+
+    const user = await storage.getUser(decoded.userId);
+    if (!user?.teamId) return res.status(400).json({ message: "No team" });
+
+    const rosterCount = await storage.getPlayerCountForTeam(user.teamId);
+    if (rosterCount >= 20) return res.status(400).json({ message: "Roster full (max 20)" });
+
+    const result = await storage.buyPlayer(listingId, decoded.walletAddress, user.teamId);
+    res.json(result);
+  }));
+
+  app.post("/api/market/cancel/challenge", asyncHandler(async (req, res) => {
+    const auth = req.headers.authorization?.split(" ")[1];
+    if (!auth) return res.status(401).json({ message: "Unauthorized" });
+    const decoded = verifyToken(auth);
+    if (!decoded) return res.status(401).json({ message: "Invalid token" });
+
+    const { listingId } = req.body;
+    if (!listingId) return res.status(400).json({ message: "listingId required" });
+
+    const listing = await storage.getListingById(listingId);
+    if (!listing || listing.status !== 'active') return res.status(404).json({ message: "Listing not found" });
+    if (listing.sellerWallet !== decoded.walletAddress) return res.status(403).json({ message: "Not your listing" });
+
+    const challenge = generateMarketChallenge(decoded.walletAddress, 'cancel', listingId);
+    res.json({ ...challenge, listingId });
+  }));
+
+  app.post("/api/market/cancel/confirm", asyncHandler(async (req, res) => {
+    const auth = req.headers.authorization?.split(" ")[1];
+    if (!auth) return res.status(401).json({ message: "Unauthorized" });
+    const decoded = verifyToken(auth);
+    if (!decoded) return res.status(401).json({ message: "Invalid token" });
+
+    const { listingId, signature, message } = req.body;
+    if (!listingId || !signature || !message) return res.status(400).json({ message: "Missing fields" });
+
+    const valid = verifyMarketSignature(decoded.walletAddress, 'cancel', listingId, signature, message);
+    if (!valid) return res.status(401).json({ message: "Invalid signature" });
+
+    const result = await storage.cancelListing(listingId, decoded.walletAddress);
+    res.json(result);
   }));
 
   const defaultConfigs = [

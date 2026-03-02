@@ -4,7 +4,7 @@
 Text-based fantasy baseball manager game with retro 80s/90s cyberpunk aesthetic. Target platform: Solana Seeker mobile (Web3 integration planned). Zero MLB licenses - all fictional teams and players.
 
 ## Current State
-Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.18.1 — Schedule storico con `?season=N`, selettore stagione, banner archivio, link "View Full Schedule" da StandingsPage (v1.18.1). Image unity overhaul: fix inter-league promotion bug, welcome animations (confetti/banners), neon style alignment across all pages, collapsible Defense/Admin sections, CoeffBadges in PitchersPage, projected playoff previews in Schedule, admin messaging system (v1.18.0). Lineup order fix, unsaved changes indicator (v1.17.1). Stolen base mechanic, DB coefficients migration (v1.17.0). Pitcher tactics in play log, data loading fix (v1.16.0). Login crash prevention (v1.15.1). Season progression (v1.15.0). Seeker MWA support (v1.14.2). Dynamic Tactic Coefficients (v1.14.0). Per-pitcher pitching staff (v1.13.0).
+Full-stack application with PostgreSQL backend, Express API, and React frontend. Version 1.19.0 — Player Market with wallet-signed buy/sell/cancel, 30 free agent seed, MarketPage + TeamPage SELL button (v1.19.0). Schedule storico con `?season=N`, selettore stagione, banner archivio, link "View Full Schedule" da StandingsPage (v1.18.1). Image unity overhaul: fix inter-league promotion bug, welcome animations (confetti/banners), neon style alignment across all pages, collapsible Defense/Admin sections, CoeffBadges in PitchersPage, projected playoff previews in Schedule, admin messaging system (v1.18.0). Lineup order fix, unsaved changes indicator (v1.17.1). Stolen base mechanic, DB coefficients migration (v1.17.0). Pitcher tactics in play log, data loading fix (v1.16.0). Login crash prevention (v1.15.1). Season progression (v1.15.0). Seeker MWA support (v1.14.2). Dynamic Tactic Coefficients (v1.14.0). Per-pitcher pitching staff (v1.13.0).
 
 ## Branding
 - **Logo**: `client/src/assets/images/logo-neon-dugout.png` — Stylized baseball diamond (neon glow, transparent bg)
@@ -19,28 +19,28 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 - **Design**: Neon pink/cyan palette, Orbitron/VT323/Press Start 2P fonts, mobile-first bottom nav
 
 ## Key Files
-- `shared/schema.ts` - Drizzle schema: users (with isAdmin), teams, players (with _add boost columns), matches, match_details, lineups, pitcher_rotations, tactics, training_results, training_config, user_tokens, token_config
-- `server/routes.ts` - API routes (/api/auth/*, /api/teams, /api/matches, /api/player/:id, /api/training/*, /api/tokens/*, /api/admin/training-config, /api/admin/token-config, /api/admin/reset-tokens, /api/admin/reset-season, /api/admin/wipe-database, /api/simulate-day, /api/new-season, /api/lineup, /api/pitcher-rotation, /api/tactics)
-- `server/auth.ts` - JWT token creation/verification, ed25519 signature validation, challenge nonce management, claim challenge/verify, training challenge/verify
+- `shared/schema.ts` - Drizzle schema: users (with isAdmin), teams, players (with _add boost columns, nullable teamId), matches, match_details, lineups, pitcher_rotations, tactics, training_results, training_config, user_tokens, token_config, market_listings
+- `server/routes.ts` - API routes (/api/auth/*, /api/teams, /api/matches, /api/player/:id, /api/training/*, /api/tokens/*, /api/market/*, /api/admin/*, /api/simulate-day, /api/new-season, /api/lineup, /api/pitcher-rotation, /api/tactics)
+- `server/auth.ts` - JWT token creation/verification, ed25519 signature validation, challenge nonce management, claim challenge/verify, training challenge/verify, market challenge/verify
 - `server/scheduler.ts` - Game day cron scheduler (00:00 CET / 23:00 UTC daily via node-cron)
 - `server/names.ts` - Shared name generation: ~230 first names, ~200 last names (cyberpunk), ~50+50 team prefixes (A/B series), ~56 middles, ~80 mascots, dedup functions via Set
 - `server/expansion.ts` - Dynamic league expansion (capped at MAX_LEAGUES=4): auto-creates new league with 20 teams + 400 players + 228 matches when all teams are owned, blocks expansion beyond L4, uses names.ts
 - `server/storage.ts` - DatabaseStorage class implementing IStorage interface
-- `server/seed.ts` - Seeds 80 teams (4 leagues × 2 series × 10 teams), 1600 players, 14-day schedule per league — team/player names generated dynamically from names.ts (no hardcoded names)
+- `server/seed.ts` - Seeds 80 teams (4 leagues × 2 series × 10 teams), 1600 players, 14-day schedule per league + 30 free agent market listings — team/player names generated dynamically from names.ts (no hardcoded names)
 - `server/simulation.ts` - Server-side batch simulation for match days
 - `server/season.ts` - Playoff matchup resolution + new season generation with promotion/relegation
 - `server/db.ts` - Database connection pool
 - `client/src/lib/store.ts` - Zustand store with wallet auth (loginWithSignature, restoreSession, disconnectWallet), JWT persistence
 - `client/src/components/WalletProvider.tsx` - Solana wallet adapter provider (auto-detects Phantom, Solflare, Backpack, Seeker)
-- `client/src/pages/` - LoginPage, Home, LineupPage, PitchersPage, AttackPage, DefensePage, SimulationPage, SchedulePage, StandingsPage, PlayerDetailPage, MatchDetailPage, TrainingPage, TeamPage, AdminPage
+- `client/src/pages/` - LoginPage, Home, LineupPage, PitchersPage, AttackPage, DefensePage, SimulationPage, SchedulePage, StandingsPage, PlayerDetailPage, MatchDetailPage, TrainingPage, TeamPage, MarketPage, AdminPage
 - `client/src/pages/minigames/` - EyeDrillGame, BattingPracticeGame, PitchControlGame
 - `client/src/lib/calculations/` - Pure simulation engine (matchup, probability, simulate, rng, flavor, types)
-- `client/src/components/Navigation.tsx` - Bottom nav (9 items: Hub, Lineup, Pitch, ATK, DEF, Train, Team, Sched, Rank)
+- `client/src/components/Navigation.tsx` - Bottom nav (10 items: Hub, Lineup, Pitch, ATK, DEF, Train, Team, Mkt, Sched, Rank)
 
 ## Database Tables
 - `users` - wallet-based auth (id, wallet_address, team_id, is_admin)
 - `teams` - 80 teams in 4 leagues × 2 series (id, name, division, league, series, owner_wallet, season_id)
-- `players` - 20 per team with 9 base stats + 9 _add boost columns (pow, con, spd, eye, vel, ctl, mov, sta, def + pow_add, con_add, etc.)
+- `players` - 20 per team with 9 base stats + 9 _add boost columns (pow, con, spd, eye, vel, ctl, mov, sta, def + pow_add, con_add, etc.), nullable teamId for market/free agents
 - `matches` - round-robin schedule with scores (90 per division, 18 days)
 - `match_details` - full game data per match (box_score, flavor_texts, mvp, home_lineup, away_lineup, home_batters, away_batters, home_pitcher, away_pitcher, home_pitchers, away_pitchers, play_log)
 - `lineups` - field positions + batting order (JSON columns)
@@ -52,6 +52,7 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 - `training_config` - admin-configurable reward rules per game type (game_type, reward_attributes[], reward_amount, min_score_for_reward, max_boost_per_season, reward_target, reward_target_role)
 - `user_tokens` - token balance per utente (user_id unique, balance, last_claim_at) — claim certificato con firma wallet
 - `token_config` - configurazione admin token economy (claim_amount, claim_interval_hours)
+- `market_listings` - player market listings (id, playerId, sellerWallet, sellerTeamId, price, listedAt, status, buyerWallet) — wallet-signed buy/sell/cancel with atomic transactions
 
 ## Pages
 0. **Login** (/login) - Solana wallet authentication: select wallet (Phantom/Solflare/Backpack/Seeker), sign challenge message, verify signature
@@ -70,8 +71,9 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 13. **Eye Drill** (/training/eye-drill) - Reaction time minigame: tap baseball as fast as possible, 10 rounds, rewards EYE boost
 14. **Batting Practice** (/training/batting) - Timing minigame: swing at the sweet spot, 10 pitches, rewards CON/POW boost
 15. **Pitch Control** (/training/pitch-control) - Accuracy minigame: tap correct zone in 3x3 grid, 10 rounds, rewards CTL boost
-16. **Team** (/team) - Team overview: user info (wallet, registration), team info (name, color, league), token balance with claim button, full roster table with base + bonus attributes
-17. **Admin** (/admin) - Admin-only panel: match day control, token economy config, training reward rules, and **Tactic Coefficients tuning** (12 tables for layer-based modifiers). First user on empty DB = auto admin
+16. **Team** (/team) - Team overview: user info (wallet, registration), team info (name, color, league), token balance with claim button, full roster table with base + bonus attributes, SELL button per player (price modal + wallet signature)
+17. **Market** (/market) - Player marketplace: browse free agent + user-listed players, grouped stats (ATK/PIT/DEF), expandable career stats, BUY with wallet signature + token transfer, CANCEL own listings
+18. **Admin** (/admin) - Admin-only panel: match day control, token economy config, training reward rules, and **Tactic Coefficients tuning** (12 tables for layer-based modifiers). First user on empty DB = auto admin
 
 ## Deep Navigation Flow
 - Home → Play Match → View Match Report → Player Detail
@@ -119,7 +121,7 @@ All modifiers are multiplicative percentages applied to base probability table i
 ## Design Decisions
 - Meritocratic divisions: all teams generated with same attribute ranges (30-85 gaussian)
 - Zustand with localStorage persistence for dev convenience, API calls for real data
-- Bottom nav with 7 items: Hub, Lineup, Pitch, ATK, DEF, Sched, Rank
+- Bottom nav with 10 items: Hub, Lineup, Pitch, ATK, DEF, Train, Team, Mkt, Sched, Rank
 - Game day auto-simulated daily at 00:00 CET via node-cron scheduler
 - When season ends (all matches played), scheduler auto-generates new season
 - League expansion capped at 4 leagues max (L1-L4)

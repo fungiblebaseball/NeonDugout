@@ -6,6 +6,31 @@ Formato:
   • Dettaglio 2 (file modificati)  
   • Trade-off / note (se rilevanti)
 
+## v1.19.1 – 2 marzo 2026 – Fix transazioni token nel Market
+
+- **Fix — token deduction su tutti gli acquisti**:
+  * Bug: acquisto FREE_AGENT non scalava token dal compratore (blocco token dentro `if !== FREE_AGENT`)
+  * Fix: token deduction avviene per OGNI acquisto, indipendentemente dal venditore
+  * Files: server/storage.ts
+
+- **Fix — proventi FREE_AGENT al wallet admin**:
+  * Bug: proventi acquisto free agent andavano persi (nessun accredito)
+  * Fix: prezzo accreditato sul saldo token del primo admin (is_admin=true)
+  * Files: server/storage.ts
+
+- **Fix — buy/challenge token check per FREE_AGENT**:
+  * Bug: la route buy/challenge non verificava il saldo token per listing FREE_AGENT
+  * Fix: verifica saldo token obbligatoria per tutti gli acquisti
+  * Files: server/routes.ts
+
+- **Fix — listPlayerForSale atomicità e guardie**:
+  * Bug: usava `pool.query('BEGIN')` senza client dedicato (transazione non garantita)
+  * Fix: usa `pool.connect()` con client singolo + BEGIN/COMMIT/ROLLBACK/release
+  * Aggiunta verifica listing duplicati attivi per stesso player
+  * Aggiunta verifica `rowCount` sull'UPDATE player ownership
+  * Aggiunta ri-verifica lineup al confirm (non solo al challenge)
+  * Files: server/storage.ts, server/routes.ts
+
 ## v1.19.0 – 2 marzo 2026 – Player Market con wallet-signed transactions
 
 - **Schema — tabella `market_listings` (T001)**:

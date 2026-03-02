@@ -1,6 +1,7 @@
 import { useGameStore } from "@/lib/store";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import type { AttackStyle, BatterApproach, OffensiveAttack, TacticSchedule, TacticSlot } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -85,6 +86,15 @@ function CoeffBadges({ coefficients, layer, tacticValue }: { coefficients: Tacti
   );
 }
 
+function coeffSummary(coefficients: TacticCoefficient[], layer: string, tacticValue: string): string {
+  const coeff = coefficients.find(c => c.layer === layer && c.tacticValue === tacticValue);
+  if (!coeff) return '';
+  const parts = COEFF_KEYS
+    .filter(k => coeff[k] !== 0)
+    .map(k => `${COEFF_LABELS[k]}${coeff[k] > 0 ? '+' : ''}${coeff[k]}%`);
+  return parts.length > 0 ? parts.join(', ') : '';
+}
+
 export default function AttackPage() {
   const { team, walletAddress } = useGameStore();
   const queryClient = useQueryClient();
@@ -111,6 +121,10 @@ export default function AttackPage() {
   const [approachSchedule, setApproachSchedule] = useState<TacticSchedule>(DEFAULT_APPROACH_SCHEDULE);
   const [styleSchedule, setStyleSchedule] = useState<TacticSchedule>(DEFAULT_STYLE_SCHEDULE);
   const [offensiveSchedule, setOffensiveSchedule] = useState<TacticSchedule>(DEFAULT_OFFENSIVE_SCHEDULE);
+
+  const [approachOpen, setApproachOpen] = useState(true);
+  const [styleOpen, setStyleOpen] = useState(true);
+  const [offensiveOpen, setOffensiveOpen] = useState(true);
 
   useEffect(() => {
     if (saved) {
@@ -234,6 +248,9 @@ export default function AttackPage() {
       optional: 'bg-gray-950/30',
     };
 
+    const layer = coeffLayer(section);
+    const modSummary = coefficients.length > 0 ? coeffSummary(coefficients, layer, data.value) : '';
+
     return (
       <div className={`rounded-xl border p-4 space-y-3 transition-all ${slotBorder[slot]} ${slotBg[slot]} ${slotGlow[slot]}`}>
         <div className="flex items-center justify-between">
@@ -261,13 +278,16 @@ export default function AttackPage() {
           ))}
         </ButtonGroup>
 
-        <div className="text-[10px] text-gray-400 font-mono" data-testid={`text-desc-${section}-${slot}`}>
-          {getDesc(section, data.value)}
+        <div data-testid={`text-desc-${section}-${slot}`}>
+          <p className="text-[10px] text-gray-400 font-mono">{getDesc(section, data.value)}</p>
+          {modSummary && (
+            <p className="text-[9px] font-mono text-cyan-400/80 mt-1">Modifiers: {modSummary}</p>
+          )}
         </div>
 
         {coefficients.length > 0 && (
-          <div className="mt-2">
-            <CoeffBadges coefficients={coefficients} layer={coeffLayer(section)} tacticValue={data.value} />
+          <div className="mt-1">
+            <CoeffBadges coefficients={coefficients} layer={layer} tacticValue={data.value} />
           </div>
         )}
 
@@ -299,6 +319,12 @@ export default function AttackPage() {
     );
   };
 
+  const sectionColors = {
+    approach: { text: 'text-purple-400', border: 'border-purple-500/30' },
+    style: { text: 'text-pink-500', border: 'border-pink-500/30' },
+    offensive: { text: 'text-orange-400', border: 'border-orange-500/30' },
+  };
+
   return (
     <div className="min-h-screen pb-24 bg-black text-cyan-50">
       <header className="p-6 bg-gradient-to-b from-cyan-900/30 to-black border-b border-cyan-500/20 sticky top-0 z-10 backdrop-blur-md">
@@ -309,44 +335,77 @@ export default function AttackPage() {
       </header>
 
       <main className="p-4 space-y-6">
-        <section className="space-y-4">
-          <div className="flex items-center justify-between border-b border-purple-500/30 pb-2">
-            <h2 className="text-sm font-mono text-purple-400 drop-shadow-[0_0_6px_rgba(168,85,247,0.4)]" style={{fontFamily: "'Orbitron', sans-serif"}}>1. BATTER APPROACH</h2>
-            <div className="text-[10px] font-mono text-gray-500">RPS VS PITCHER STYLE</div>
-          </div>
-          <p className="text-[10px] font-mono text-gray-500">Rock-Paper-Scissors matchup against opponent pitcher style</p>
-          <div className="grid grid-cols-1 gap-3">
-            {renderTacticBox('approach', 'primary', BATTER_APPROACH_OPTIONS, approachSchedule)}
-            {renderTacticBox('approach', 'secondary', BATTER_APPROACH_OPTIONS, approachSchedule)}
-            {renderTacticBox('approach', 'optional', BATTER_APPROACH_OPTIONS, approachSchedule)}
-          </div>
-        </section>
+        <div className="space-y-2">
+          <button
+            data-testid="toggle-approach"
+            onClick={() => setApproachOpen(!approachOpen)}
+            className={`w-full flex items-center justify-between text-sm font-mono ${sectionColors.approach.text} ${sectionColors.approach.border} border-b pb-2`}
+          >
+            <div className="flex items-center gap-2">
+              <span style={{fontFamily: "'Orbitron', sans-serif"}}>1. BATTER APPROACH</span>
+              <span className="text-[10px] font-mono text-gray-500">RPS VS PITCHER STYLE</span>
+            </div>
+            {approachOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+          {approachOpen && (
+            <div className="space-y-4 pt-2">
+              <p className="text-[10px] font-mono text-gray-500">Rock-Paper-Scissors matchup against opponent pitcher style</p>
+              <div className="grid grid-cols-1 gap-3">
+                {renderTacticBox('approach', 'primary', BATTER_APPROACH_OPTIONS, approachSchedule)}
+                {renderTacticBox('approach', 'secondary', BATTER_APPROACH_OPTIONS, approachSchedule)}
+                {renderTacticBox('approach', 'optional', BATTER_APPROACH_OPTIONS, approachSchedule)}
+              </div>
+            </div>
+          )}
+        </div>
 
-        <section className="space-y-4">
-          <div className="flex items-center justify-between border-b border-pink-500/30 pb-2">
-            <h2 className="text-sm font-mono text-pink-500 drop-shadow-[0_0_6px_rgba(236,72,153,0.4)]" style={{fontFamily: "'Orbitron', sans-serif"}}>2. OFFENSIVE STRATEGY</h2>
-            <div className="text-[10px] font-mono text-gray-500">PROBABILITY MODIFIERS</div>
-          </div>
-          <p className="text-[10px] font-mono text-gray-500">Each strategy modifies outcome probabilities differently</p>
-          <div className="grid grid-cols-1 gap-3">
-            {renderTacticBox('style', 'primary', ATTACK_OPTIONS, styleSchedule)}
-            {renderTacticBox('style', 'secondary', ATTACK_OPTIONS, styleSchedule)}
-            {renderTacticBox('style', 'optional', ATTACK_OPTIONS, styleSchedule)}
-          </div>
-        </section>
+        <div className="space-y-2">
+          <button
+            data-testid="toggle-style"
+            onClick={() => setStyleOpen(!styleOpen)}
+            className={`w-full flex items-center justify-between text-sm font-mono ${sectionColors.style.text} ${sectionColors.style.border} border-b pb-2`}
+          >
+            <div className="flex items-center gap-2">
+              <span style={{fontFamily: "'Orbitron', sans-serif"}}>2. OFFENSIVE STRATEGY</span>
+              <span className="text-[10px] font-mono text-gray-500">PROBABILITY MODIFIERS</span>
+            </div>
+            {styleOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+          {styleOpen && (
+            <div className="space-y-4 pt-2">
+              <p className="text-[10px] font-mono text-gray-500">Each strategy modifies outcome probabilities differently</p>
+              <div className="grid grid-cols-1 gap-3">
+                {renderTacticBox('style', 'primary', ATTACK_OPTIONS, styleSchedule)}
+                {renderTacticBox('style', 'secondary', ATTACK_OPTIONS, styleSchedule)}
+                {renderTacticBox('style', 'optional', ATTACK_OPTIONS, styleSchedule)}
+              </div>
+            </div>
+          )}
+        </div>
 
-        <section className="space-y-4">
-          <div className="flex items-center justify-between border-b border-orange-500/30 pb-2">
-            <h2 className="text-sm font-mono text-orange-400 drop-shadow-[0_0_6px_rgba(251,146,60,0.4)]" style={{fontFamily: "'Orbitron', sans-serif"}}>3. OFFENSIVE ATTACK</h2>
-            <div className="text-[10px] font-mono text-gray-500">RPS VS DEFENSE SETUP</div>
-          </div>
-          <p className="text-[10px] font-mono text-gray-500">RPS matchup vs opponent's Defense Setup — buffs/debuffs on baserunning</p>
-          <div className="grid grid-cols-1 gap-3">
-            {renderTacticBox('offensive', 'primary', OFFENSIVE_ATTACK_OPTIONS, offensiveSchedule)}
-            {renderTacticBox('offensive', 'secondary', OFFENSIVE_ATTACK_OPTIONS, offensiveSchedule)}
-            {renderTacticBox('offensive', 'optional', OFFENSIVE_ATTACK_OPTIONS, offensiveSchedule)}
-          </div>
-        </section>
+        <div className="space-y-2">
+          <button
+            data-testid="toggle-offensive"
+            onClick={() => setOffensiveOpen(!offensiveOpen)}
+            className={`w-full flex items-center justify-between text-sm font-mono ${sectionColors.offensive.text} ${sectionColors.offensive.border} border-b pb-2`}
+          >
+            <div className="flex items-center gap-2">
+              <span style={{fontFamily: "'Orbitron', sans-serif"}}>3. OFFENSIVE ATTACK</span>
+              <span className="text-[10px] font-mono text-gray-500">RPS VS DEFENSE SETUP</span>
+            </div>
+            {offensiveOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+          {offensiveOpen && (
+            <div className="space-y-4 pt-2">
+              <p className="text-[10px] font-mono text-gray-500">RPS matchup vs opponent's Defense Setup — buffs/debuffs on baserunning</p>
+              <div className="grid grid-cols-1 gap-3">
+                {renderTacticBox('offensive', 'primary', OFFENSIVE_ATTACK_OPTIONS, offensiveSchedule)}
+                {renderTacticBox('offensive', 'secondary', OFFENSIVE_ATTACK_OPTIONS, offensiveSchedule)}
+                {renderTacticBox('offensive', 'optional', OFFENSIVE_ATTACK_OPTIONS, offensiveSchedule)}
+              </div>
+            </div>
+          )}
+        </div>
 
         <button
           data-testid="button-save-attack"

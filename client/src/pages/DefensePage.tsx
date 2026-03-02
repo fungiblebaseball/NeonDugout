@@ -60,6 +60,15 @@ const DEFENSE_SETUP_OPTIONS: { value: DefenseSetup; label: string; desc: string;
   },
 ];
 
+function coeffSummary(coefficients: TacticCoefficient[], layer: string, tacticValue: string): string {
+  const coeff = coefficients.find(c => c.layer === layer && c.tacticValue === tacticValue);
+  if (!coeff) return '';
+  const parts = COEFF_KEYS
+    .filter(k => coeff[k] !== 0)
+    .map(k => `${COEFF_LABELS[k]}${coeff[k] > 0 ? '+' : ''}${coeff[k]}%`);
+  return parts.length > 0 ? parts.join(', ') : '';
+}
+
 function CoeffBadges({ coefficients, layer, tacticValue }: { coefficients: TacticCoefficient[]; layer: string; tacticValue: string }) {
   const coeff = coefficients.find(c => c.layer === layer && c.tacticValue === tacticValue);
   if (!coeff) return null;
@@ -191,6 +200,10 @@ export default function DefensePage() {
                   </div>
                   <p className="text-xs font-mono text-gray-500 leading-relaxed">{opt.desc}</p>
                   <p className="text-[10px] font-mono text-cyan-500/70 mt-2">{opt.counters}</p>
+                  {coefficients.length > 0 && (() => {
+                    const summary = coeffSummary(coefficients, 'defense_counter_infield', opt.value);
+                    return summary ? <p className="text-[9px] font-mono text-cyan-400/80 mt-1">Modifiers: {summary}</p> : null;
+                  })()}
                   {coefficients.length > 0 && (
                     <CoeffBadges coefficients={coefficients} layer="defense_counter_infield" tacticValue={opt.value} />
                   )}
@@ -233,6 +246,10 @@ export default function DefensePage() {
                   </div>
                   <p className="text-xs font-mono text-gray-500 leading-relaxed">{opt.desc}</p>
                   <p className="text-[10px] font-mono text-pink-500/70 mt-2">{opt.counters}</p>
+                  {coefficients.length > 0 && (() => {
+                    const summary = coeffSummary(coefficients, 'defense_counter_outfield', opt.value);
+                    return summary ? <p className="text-[9px] font-mono text-cyan-400/80 mt-1">Modifiers: {summary}</p> : null;
+                  })()}
                   {coefficients.length > 0 && (
                     <CoeffBadges coefficients={coefficients} layer="defense_counter_outfield" tacticValue={opt.value} />
                   )}
@@ -279,6 +296,10 @@ export default function DefensePage() {
                     <span className="text-[10px] font-mono text-green-400">▲ Beats: {opt.beats}</span>
                     <span className="text-[10px] font-mono text-red-400">▼ Weak vs: {opt.losesTo}</span>
                   </div>
+                  {coefficients.length > 0 && (() => {
+                    const summary = coeffSummary(coefficients, 'defense_setup', opt.value);
+                    return summary ? <p className="text-[9px] font-mono text-cyan-400/80 mt-1">Modifiers: {summary}</p> : null;
+                  })()}
                   {coefficients.length > 0 && (
                     <CoeffBadges coefficients={coefficients} layer="defense_setup" tacticValue={opt.value} />
                   )}

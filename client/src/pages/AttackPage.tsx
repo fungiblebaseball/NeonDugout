@@ -202,9 +202,9 @@ export default function AttackPage() {
   }
 
   const coeffLayer = (section: 'approach' | 'style' | 'offensive') => {
-    if (section === 'approach') return 'batterApproach';
-    if (section === 'style') return 'attackStyle';
-    return 'offensiveAttack';
+    if (section === 'approach') return 'batter_approach';
+    if (section === 'style') return 'attack_style';
+    return 'offensive_attack';
   };
 
   const getDesc = (section: 'approach' | 'style' | 'offensive', value: string) => {

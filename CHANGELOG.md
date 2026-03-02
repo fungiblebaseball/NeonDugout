@@ -6,6 +6,25 @@ Formato:
   • Dettaglio 2 (file modificati)  
   • Trade-off / note (se rilevanti)
 
+## v1.18.1 – 2 marzo 2026 – Schedule storico, navigazione stagioni passate
+
+- **SchedulePage — supporto stagioni precedenti (T001)**:
+  * Parametro URL `?season=N` per visualizzare calendario/risultati di qualsiasi stagione
+  * Selettore stagione con frecce avanti/indietro (come StandingsPage)
+  * Banner "SEASON X ARCHIVE" per stagioni passate
+  * Nascosti "Next Match" e "PROJECTED" per stagioni archiviate
+  * Record/stats calcolati per il team del wallet nella stagione selezionata
+  * Files: client/src/pages/SchedulePage.tsx
+
+- **StandingsPage — link "View Full Schedule" (T002)**:
+  * Nuovo bottone "View Full Schedule" sotto la sezione schedule inline
+  * Passa `?season=N` quando si sta visualizzando una stagione passata
+  * Files: client/src/pages/StandingsPage.tsx
+
+- **MatchDetailPage — playLog null verificato (T003)**:
+  * Confermato che boxscore, batting stats e pitching stats sono visibili anche senza playLog
+  * Il guard `detail.playLog && detail.playLog.length > 0` gestisce correttamente il caso null
+
 ## v1.18.0 – 2 marzo 2026 – Image Unity, Playoff Fix, Animations, Admin Messaging
 
 - **Fix bug promozione inter-league (T001)**:

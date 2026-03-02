@@ -1,7 +1,8 @@
 import { useGameStore } from "@/lib/store";
 import { useQuery } from "@tanstack/react-query";
-import { Calendar, Trophy, Clock, FileText, Crosshair } from "lucide-react";
-import { Link } from "wouter";
+import { Calendar, Trophy, Clock, FileText, Crosshair, ChevronLeft, ChevronRight, Archive } from "lucide-react";
+import { Link, useLocation } from "wouter";
+import { useState, useEffect } from "react";
 
 interface MatchData {
   id: number;
@@ -23,6 +24,8 @@ interface TeamData {
   division: string;
   ownerWallet: string | null;
   seasonId: number;
+  league: string;
+  series: string;
 }
 
 interface ProjectedMatch {
@@ -37,6 +40,10 @@ interface ProjectedMatch {
 
 export default function SchedulePage() {
   const { team, walletAddress } = useGameStore();
+  const [location, navigate] = useLocation();
+
+  const urlParams = new URLSearchParams(location.split('?')[1] || '');
+  const urlSeason = urlParams.get('season') ? parseInt(urlParams.get('season')!) : null;
 
   const { data: seasonData } = useQuery<{ seasonId: number }>({
     queryKey: ['current-season'],
@@ -46,6 +53,24 @@ export default function SchedulePage() {
     },
   });
   const currentSeason = seasonData?.seasonId ?? 1;
+
+  const [viewingSeason, setViewingSeason] = useState<number | null>(urlSeason);
+
+  useEffect(() => {
+    setViewingSeason(urlSeason);
+  }, [urlSeason]);
+
+  const displaySeason = viewingSeason ?? currentSeason;
+  const isPastSeason = displaySeason < currentSeason;
+
+  const changeSeason = (newSeason: number) => {
+    setViewingSeason(newSeason);
+    if (newSeason === currentSeason) {
+      navigate('/schedule', { replace: true });
+    } else {
+      navigate(`/schedule?season=${newSeason}`, { replace: true });
+    }
+  };
 
   const { data: allMatchesRaw = [] } = useQuery<MatchData[]>({
     queryKey: ['matches-all'],
@@ -71,10 +96,11 @@ export default function SchedulePage() {
       const res = await fetch('/api/projected-playoffs');
       return res.json();
     },
-    enabled: !!team,
+    enabled: !!team && !isPastSeason,
   });
 
   const getProjectionsForDay = (matches: MatchData[]): Map<number, ProjectedMatch> => {
+    if (isPastSeason) return new Map();
     const result = new Map<number, ProjectedMatch>();
     const tbdMatches = matches.filter(m => (m.homeTeamId === 0 || m.awayTeamId === 0) && !m.played);
     const relevantProjections = projectedPlayoffs.filter(p => 
@@ -96,26 +122,33 @@ export default function SchedulePage() {
     return result;
   };
 
-  const seasonMatches = allMatchesRaw.filter(m => m.seasonId === currentSeason);
-  const seasonTeams = allTeamsRaw.filter(t => t.seasonId === currentSeason);
-  const divTeamIds = new Set(seasonTeams.filter(t => t.division === team?.division).map(t => t.id));
+  const seasonMatches = allMatchesRaw.filter(m => m.seasonId === displaySeason);
+  const allSeasonTeams = allTeamsRaw.filter(t => t.seasonId === displaySeason);
+  const teamMap = new Map(allSeasonTeams.map(t => [t.id, t]));
 
-  const userLeague = team?.league ?? '';
+  const userTeamInSeason = isPastSeason
+    ? allSeasonTeams.find(t => t.ownerWallet === walletAddress)
+    : team;
+
+  const userLeague = userTeamInSeason?.league ?? team?.league ?? '';
+  const userDivision = userTeamInSeason?.division ?? team?.division ?? '';
+  const userTeamId = userTeamInSeason?.id ?? team?.id ?? 0;
+
+  const divTeamIds = new Set(allSeasonTeams.filter(t => t.division === userDivision).map(t => t.id));
+
   const allMatches = seasonMatches.filter(m =>
-    m.division === team?.division ||
+    m.division === userDivision ||
     divTeamIds.has(m.homeTeamId) || divTeamIds.has(m.awayTeamId) ||
     (m.matchType === 'playoff' && m.division === `playoff_${userLeague}`) ||
     (m.matchType === 'promotion' && (m.division.includes(`_${userLeague}`) || m.division.includes(`to_${userLeague}`)))
   );
-  const divTeams = seasonTeams;
 
   if (!walletAddress || !team) {
     return <div className="min-h-screen bg-black p-6 flex items-center justify-center text-center text-pink-500 font-mono text-xl uppercase tracking-widest">ACCESS DENIED</div>;
   }
 
-  const teamMap = new Map(divTeams.map(t => [t.id, t]));
   const getTeamName = (id: number) => id === 0 ? 'TBD' : (teamMap.get(id)?.name ?? `Team #${id}`);
-  const isUserTeam = (id: number) => id !== 0 && id === team.id;
+  const isUserTeam = (id: number) => id !== 0 && id === userTeamId;
   const isTBDMatch = (m: MatchData) => m.homeTeamId === 0 || m.awayTeamId === 0;
 
   const getMatchTypeLabel = (m: MatchData): { label: string; color: string } | null => {
@@ -133,15 +166,15 @@ export default function SchedulePage() {
 
   const sortedDays = Array.from(matchesByDay.keys()).sort((a, b) => a - b);
 
-  const userMatches = allMatches.filter(m => m.homeTeamId === team.id || m.awayTeamId === team.id);
-  const nextMatch = userMatches.find(m => !m.played);
+  const userMatches = allMatches.filter(m => m.homeTeamId === userTeamId || m.awayTeamId === userTeamId);
+  const nextMatch = isPastSeason ? undefined : userMatches.find(m => !m.played);
   const playedMatches = userMatches.filter(m => m.played);
   const wins = playedMatches.filter(m => {
-    if (m.homeTeamId === team.id) return (m.homeScore ?? 0) > (m.awayScore ?? 0);
+    if (m.homeTeamId === userTeamId) return (m.homeScore ?? 0) > (m.awayScore ?? 0);
     return (m.awayScore ?? 0) > (m.homeScore ?? 0);
   }).length;
   const losses = playedMatches.filter(m => {
-    if (m.homeTeamId === team.id) return (m.homeScore ?? 0) < (m.awayScore ?? 0);
+    if (m.homeTeamId === userTeamId) return (m.homeScore ?? 0) < (m.awayScore ?? 0);
     return (m.awayScore ?? 0) < (m.homeScore ?? 0);
   }).length;
 
@@ -151,12 +184,45 @@ export default function SchedulePage() {
         <h1 className="text-2xl font-black uppercase text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.6)]" style={{fontFamily: "'Orbitron', sans-serif"}}>
           Schedule
         </h1>
-        <p className="text-xs font-mono text-cyan-200/60 mt-1">
-          {team.division} — Season {currentSeason}
-        </p>
+        <div className="flex items-center gap-3 mt-1">
+          <p className="text-xs font-mono text-cyan-200/60">
+            {userDivision} — Season {displaySeason}
+          </p>
+          {currentSeason > 1 && (
+            <div className="flex items-center gap-1 ml-auto">
+              <button
+                data-testid="button-prev-season"
+                onClick={() => changeSeason(Math.max(1, displaySeason - 1))}
+                disabled={displaySeason <= 1}
+                className="p-0.5 rounded border border-gray-700 text-gray-400 hover:text-cyan-400 hover:border-cyan-500/50 disabled:opacity-30 transition-colors"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+              <span className="text-[10px] font-mono text-gray-500 min-w-[16px] text-center">{displaySeason}</span>
+              <button
+                data-testid="button-next-season"
+                onClick={() => changeSeason(Math.min(currentSeason, displaySeason + 1))}
+                disabled={displaySeason >= currentSeason}
+                className="p-0.5 rounded border border-gray-700 text-gray-400 hover:text-cyan-400 hover:border-cyan-500/50 disabled:opacity-30 transition-colors"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
       </header>
 
       <main className="p-4 space-y-6">
+        {isPastSeason && (
+          <div data-testid="banner-archive" className="p-3 rounded-xl border border-amber-500/30 bg-amber-950/10 flex items-center gap-3">
+            <Archive className="w-5 h-5 text-amber-400 flex-shrink-0" />
+            <div>
+              <p className="text-xs font-bold font-mono text-amber-300 uppercase" style={{fontFamily: "'Orbitron', sans-serif"}}>Season {displaySeason} Archive</p>
+              <p className="text-[9px] font-mono text-gray-500">Historical results — play-by-play logs removed to save space</p>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-3 gap-3">
           <div className="p-3 rounded-xl border border-cyan-500/30 bg-cyan-950/10 text-center">
             <Trophy className="w-5 h-5 mx-auto text-cyan-400 mb-1" />
@@ -170,12 +236,12 @@ export default function SchedulePage() {
           </div>
           <div className="p-3 rounded-xl border border-cyan-500/30 bg-cyan-950/10 text-center">
             <Clock className="w-5 h-5 mx-auto text-cyan-400 mb-1" />
-            <span data-testid="text-games-remaining" className="text-lg font-black text-cyan-100" style={{fontFamily: "'Orbitron', sans-serif"}}>{userMatches.length - playedMatches.length}</span>
+            <span data-testid="text-games-remaining" className="text-lg font-black text-cyan-100" style={{fontFamily: "'Orbitron', sans-serif"}}>{isPastSeason ? 0 : userMatches.length - playedMatches.length}</span>
             <p className="text-[9px] font-mono text-gray-500">REMAINING</p>
           </div>
         </div>
 
-        {nextMatch && (
+        {nextMatch && !isPastSeason && (
           <div data-testid="next-match-card" className="p-4 rounded-xl border-2 border-cyan-400/50 bg-gradient-to-r from-cyan-950/30 to-pink-950/30">
             <div className="flex items-center gap-2 mb-3">
               <span className="px-2 py-0.5 bg-cyan-500 text-black text-[10px] font-black rounded uppercase">Next</span>
@@ -200,12 +266,14 @@ export default function SchedulePage() {
         )}
 
         <div className="space-y-4">
-          <h2 className="text-sm font-mono text-pink-500 border-b border-pink-500/30 pb-2">FULL SCHEDULE</h2>
+          <h2 className="text-sm font-mono text-pink-500 border-b border-pink-500/30 pb-2">
+            {isPastSeason ? `SEASON ${displaySeason} RESULTS` : 'FULL SCHEDULE'}
+          </h2>
 
           {sortedDays.map(day => {
             const dayMatches = matchesByDay.get(day) || [];
             const dayDate = dayMatches[0]?.matchDate;
-            const hasUserMatch = dayMatches.some(m => m.homeTeamId === team.id || m.awayTeamId === team.id);
+            const hasUserMatch = dayMatches.some(m => m.homeTeamId === userTeamId || m.awayTeamId === userTeamId);
             const dayProjections = getProjectionsForDay(dayMatches);
 
             return (
@@ -228,11 +296,11 @@ export default function SchedulePage() {
 
                 <div className="divide-y divide-gray-800/30">
                   {dayMatches.map(m => {
-                    const isUser = m.homeTeamId === team.id || m.awayTeamId === team.id;
+                    const isUser = m.homeTeamId === userTeamId || m.awayTeamId === userTeamId;
                     const tbdMatch = isTBDMatch(m);
                     const typeLabel = getMatchTypeLabel(m);
                     const projection = dayProjections.get(m.id);
-                    const hasProjection = tbdMatch && !m.played && !!projection;
+                    const hasProjection = !isPastSeason && tbdMatch && !m.played && !!projection;
                     const isClickable = m.played || (!tbdMatch && !m.played);
                     const matchContent = (
                       <div data-testid={`match-${m.id}`} className={`px-3 py-2 flex items-center gap-2 ${hasProjection ? 'opacity-70 border-l-2 border-dashed border-purple-500/50' : ''} ${isUser ? 'bg-cyan-950/10' : ''} ${isClickable ? 'hover:bg-gray-900/40 transition-colors cursor-pointer' : ''}`}>

@@ -489,6 +489,17 @@ export default function StandingsPage() {
               )}
             </div>
           )}
+
+          <Link href={isPastSeason ? `/schedule?season=${displaySeason}` : '/schedule'}>
+            <button
+              data-testid="button-view-full-schedule"
+              className={`w-full py-2 mt-2 rounded-xl border ${isUserDiv ? 'border-cyan-500/30 hover:border-cyan-400/50' : 'border-pink-500/30 hover:border-pink-400/50'} bg-black/40 text-center transition-all`}
+            >
+              <span className={`text-[10px] font-black uppercase tracking-wider ${isUserDiv ? 'text-cyan-400' : 'text-pink-400'}`} style={{fontFamily: "'Orbitron', sans-serif"}}>
+                View Full Schedule {isPastSeason ? `(Season ${displaySeason})` : ''}
+              </span>
+            </button>
+          </Link>
         </div>
 
         {selectedTeamId && (

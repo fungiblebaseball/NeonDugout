@@ -236,9 +236,11 @@ export default function LineupPage() {
               )}
             </div>
             {spPlayer && (
-              <div className="flex flex-col gap-1 w-16 text-right shrink-0">
-                <span className="text-[10px] font-mono text-gray-400">VEL <span className="text-pink-400 font-bold">{spPlayer.vel}</span></span>
-                <span className="text-[10px] font-mono text-gray-400">CTL <span className="text-cyan-400 font-bold">{spPlayer.ctl}</span></span>
+              <div className="flex flex-wrap gap-1.5 shrink-0 justify-end max-w-[140px]">
+                <span data-testid="badge-vel-P" className="text-[9px] font-mono text-gray-500 bg-pink-950/30 border border-pink-500/20 px-1.5 py-0.5 rounded">VEL <span className="text-pink-400 font-bold">{spPlayer.vel}</span></span>
+                <span data-testid="badge-ctl-P" className="text-[9px] font-mono text-gray-500 bg-cyan-950/30 border border-cyan-500/20 px-1.5 py-0.5 rounded">CTL <span className="text-cyan-400 font-bold">{spPlayer.ctl}</span></span>
+                <span data-testid="badge-mov-P" className="text-[9px] font-mono text-gray-500 bg-pink-950/30 border border-pink-500/20 px-1.5 py-0.5 rounded">MOV <span className="text-pink-400 font-bold">{spPlayer.mov}</span></span>
+                <span data-testid="badge-sta-P" className="text-[9px] font-mono text-gray-500 bg-cyan-950/30 border border-cyan-500/20 px-1.5 py-0.5 rounded">STA <span className="text-cyan-400 font-bold">{spPlayer.sta}</span></span>
               </div>
             )}
           </div>
@@ -271,9 +273,11 @@ export default function LineupPage() {
                   </Select>
                 </div>
                 {assignedPlayer && (
-                  <div className="flex flex-col gap-1 w-16 text-right shrink-0">
-                    <span className="text-[10px] font-mono text-gray-400">POW <span className="text-pink-400 font-bold">{assignedPlayer.pow}</span></span>
-                    <span className="text-[10px] font-mono text-gray-400">CON <span className="text-cyan-400 font-bold">{assignedPlayer.con}</span></span>
+                  <div className="flex flex-wrap gap-1.5 shrink-0 justify-end max-w-[140px]">
+                    <span data-testid={`badge-pow-${pos}`} className="text-[9px] font-mono text-gray-500 bg-pink-950/30 border border-pink-500/20 px-1.5 py-0.5 rounded">POW <span className="text-pink-400 font-bold">{assignedPlayer.pow}</span></span>
+                    <span data-testid={`badge-con-${pos}`} className="text-[9px] font-mono text-gray-500 bg-cyan-950/30 border border-cyan-500/20 px-1.5 py-0.5 rounded">CON <span className="text-cyan-400 font-bold">{assignedPlayer.con}</span></span>
+                    <span data-testid={`badge-spd-${pos}`} className="text-[9px] font-mono text-gray-500 bg-green-950/30 border border-green-500/20 px-1.5 py-0.5 rounded">SPD <span className="text-green-400 font-bold">{assignedPlayer.spd}</span></span>
+                    <span data-testid={`badge-def-${pos}`} className="text-[9px] font-mono text-gray-500 bg-purple-950/30 border border-purple-500/20 px-1.5 py-0.5 rounded">DEF <span className="text-purple-400 font-bold">{assignedPlayer.def}</span></span>
                   </div>
                 )}
               </div>

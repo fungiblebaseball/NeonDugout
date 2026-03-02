@@ -1,6 +1,6 @@
 import { useGameStore } from "@/lib/store";
 import { useQuery } from "@tanstack/react-query";
-import { Calendar, Trophy, Clock, FileText } from "lucide-react";
+import { Calendar, Trophy, Clock, FileText, Crosshair } from "lucide-react";
 import { Link } from "wouter";
 
 interface MatchData {
@@ -23,6 +23,16 @@ interface TeamData {
   division: string;
   ownerWallet: string | null;
   seasonId: number;
+}
+
+interface ProjectedMatch {
+  type: string;
+  division: string;
+  day: number;
+  homeTeamId: number;
+  awayTeamId: number;
+  homeTeamName: string;
+  awayTeamName: string;
 }
 
 export default function SchedulePage() {
@@ -54,6 +64,37 @@ export default function SchedulePage() {
     },
     enabled: !!team,
   });
+
+  const { data: projectedPlayoffs = [] } = useQuery<ProjectedMatch[]>({
+    queryKey: ['projected-playoffs'],
+    queryFn: async () => {
+      const res = await fetch('/api/projected-playoffs');
+      return res.json();
+    },
+    enabled: !!team,
+  });
+
+  const getProjectionsForDay = (matches: MatchData[]): Map<number, ProjectedMatch> => {
+    const result = new Map<number, ProjectedMatch>();
+    const tbdMatches = matches.filter(m => (m.homeTeamId === 0 || m.awayTeamId === 0) && !m.played);
+    const relevantProjections = projectedPlayoffs.filter(p => 
+      tbdMatches.some(m => m.division === p.division && m.day === p.day)
+    );
+    
+    const usedProjections = new Set<number>();
+    for (const m of tbdMatches) {
+      for (let i = 0; i < relevantProjections.length; i++) {
+        if (usedProjections.has(i)) continue;
+        const p = relevantProjections[i];
+        if (p.division === m.division && p.day === m.day) {
+          result.set(m.id, p);
+          usedProjections.add(i);
+          break;
+        }
+      }
+    }
+    return result;
+  };
 
   const seasonMatches = allMatchesRaw.filter(m => m.seasonId === currentSeason);
   const seasonTeams = allTeamsRaw.filter(t => t.seasonId === currentSeason);
@@ -165,6 +206,7 @@ export default function SchedulePage() {
             const dayMatches = matchesByDay.get(day) || [];
             const dayDate = dayMatches[0]?.matchDate;
             const hasUserMatch = dayMatches.some(m => m.homeTeamId === team.id || m.awayTeamId === team.id);
+            const dayProjections = getProjectionsForDay(dayMatches);
 
             return (
               <div key={day} className={`rounded-lg border ${hasUserMatch ? 'border-cyan-500/30 bg-cyan-950/5' : 'border-gray-800 bg-black/20'}`}>
@@ -189,9 +231,11 @@ export default function SchedulePage() {
                     const isUser = m.homeTeamId === team.id || m.awayTeamId === team.id;
                     const tbdMatch = isTBDMatch(m);
                     const typeLabel = getMatchTypeLabel(m);
+                    const projection = dayProjections.get(m.id);
+                    const hasProjection = tbdMatch && !m.played && !!projection;
                     const isClickable = m.played || (!tbdMatch && !m.played);
                     const matchContent = (
-                      <div data-testid={`match-${m.id}`} className={`px-3 py-2 flex items-center gap-2 ${isUser ? 'bg-cyan-950/10' : ''} ${isClickable ? 'hover:bg-gray-900/40 transition-colors cursor-pointer' : ''}`}>
+                      <div data-testid={`match-${m.id}`} className={`px-3 py-2 flex items-center gap-2 ${hasProjection ? 'opacity-70 border-l-2 border-dashed border-purple-500/50' : ''} ${isUser ? 'bg-cyan-950/10' : ''} ${isClickable ? 'hover:bg-gray-900/40 transition-colors cursor-pointer' : ''}`}>
                         {typeLabel && (
                           <span className={`px-1.5 py-0.5 text-[8px] font-black rounded uppercase shrink-0 ${
                             typeLabel.color === 'red' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
@@ -203,10 +247,11 @@ export default function SchedulePage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between text-xs">
                             <span className={`font-mono truncate ${
+                              hasProjection ? 'text-purple-300 italic' :
                               m.awayTeamId === 0 ? 'text-gray-500 italic' :
                               isUserTeam(m.awayTeamId) ? 'text-cyan-400 font-bold' : 'text-gray-300'
                             }`}>
-                              {getTeamName(m.awayTeamId)}
+                              {hasProjection ? projection.awayTeamName : getTeamName(m.awayTeamId)}
                             </span>
                             {m.played ? (
                               <span className={`font-black px-1 ${m.awayScore! > m.homeScore! ? 'text-cyan-400' : 'text-gray-500'}`}>
@@ -216,10 +261,11 @@ export default function SchedulePage() {
                           </div>
                           <div className="flex items-center justify-between text-xs mt-0.5">
                             <span className={`font-mono truncate ${
+                              hasProjection ? 'text-purple-300 italic' :
                               m.homeTeamId === 0 ? 'text-gray-500 italic' :
                               isUserTeam(m.homeTeamId) ? 'text-cyan-400 font-bold' : 'text-gray-300'
                             }`}>
-                              {getTeamName(m.homeTeamId)}
+                              {hasProjection ? projection.homeTeamName : getTeamName(m.homeTeamId)}
                             </span>
                             {m.played ? (
                               <span className={`font-black px-1 ${m.homeScore! > m.awayScore! ? 'text-cyan-400' : 'text-gray-500'}`}>
@@ -228,7 +274,13 @@ export default function SchedulePage() {
                             ) : null}
                           </div>
                         </div>
-                        {!m.played && tbdMatch && (
+                        {hasProjection && (
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Crosshair className="w-3 h-3 text-purple-400" />
+                            <span className="text-[9px] font-mono text-purple-400 shrink-0 italic">PROJECTED</span>
+                          </div>
+                        )}
+                        {!m.played && tbdMatch && !hasProjection && (
                           <span className="text-[9px] font-mono text-gray-600 shrink-0 italic">PENDING</span>
                         )}
                         {!m.played && !tbdMatch && (

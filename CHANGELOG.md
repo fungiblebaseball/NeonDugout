@@ -6,6 +6,58 @@ Formato:
   • Dettaglio 2 (file modificati)  
   • Trade-off / note (se rilevanti)
 
+## v1.18.0 – 2 marzo 2026 – Image Unity, Playoff Fix, Animations, Admin Messaging
+
+- **Fix bug promozione inter-league (T001)**:
+  * `applyPromotionRelegation` in season.ts usava vincitori di ogni match Day 14 anziché bracket Day 13
+  * Fix: promossi = entrambi i team dal bracket vincitori (Day 14[0]), relegati = entrambi dal bracket perdenti (Day 14[1])
+  * Logica corretta: Day 13 determina destino, Day 14 solo per piazzamento 1°/2° e 7°/8°
+
+- **Animazioni benvenuto Home (T002)**:
+  * Effetto confetti (canvas-confetti) dopo vittoria e vittoria playoff
+  * Banner "YOU WON!", "PLAYOFF!", "CHAMPION!", "NEW SEASON" con icone e glow
+  * One-shot via sessionStorage per evitare ripetizioni al refresh
+
+- **PNG icone pop-up messaggi (T003)**:
+  * 5 icone cyberpunk neon generate: info, win, playoff, graduated, declassified
+  * Salvate in client/src/assets/images/icons/
+
+- **LineupPage attributi stile PitchersPage (T004)**:
+  * Badge POW/CON/SPD/DEF per fielder e VEL/CTL/MOV/STA per pitcher
+  * Stile compatto colorato coerente con PitchersPage
+
+- **PitchersPage modificatori esiti (T005)**:
+  * CoeffBadges sotto bottoni Velocity/Movement/Command con dati freschi DB
+  * Badge verdi/rossi/arancioni per HR/XBH/1B/SO/BB/STEAL
+
+- **AttackPage stile neon allineato (T006)**:
+  * Sezioni con gradienti, glow e bordi neon come Defense/Home
+  * CoeffBadges verificati freschi dal DB, badge con bordi migliorati
+
+- **DefensePage sezioni collassabili (T007)**:
+  * 3 sezioni: Infield Positioning, Outfield Positioning, Defense Setup
+  * Toggle ChevronDown/Up, default espanse
+
+- **TrainingPage stile allineato (T008)**:
+  * Header sticky con gradiente, tipografia Orbitron, glow neon per card
+  * Badge reward e best score con background tinting
+
+- **SchedulePage anteprime playoff proiettate (T009)**:
+  * Endpoint `/api/projected-playoffs` calcola combinazioni da classifica corrente
+  * TBD matches mostrano nomi proiettati in viola con etichetta "PROJECTED"
+
+- **AdminPage sezioni collassabili (T010)**:
+  * 5 categorie: Match Day, Token Economy, Training, Coefficients, Messaging
+  * Prime 2 aperte, ultime 3 collassate di default
+
+- **Sistema messaggistica admin (T011)**:
+  * Tabelle DB: admin_messages + dismissed_messages
+  * Admin UI: textarea + select target (all/league/series/team) + invio/elimina
+  * Home UI: pop-up persistenti con ✓ per dismiss per-utente
+  * API: CRUD messaggi admin + fetch/dismiss per utente
+
+- **File Modificati**: server/season.ts, server/routes.ts, server/storage.ts, shared/schema.ts, client/src/pages/Home.tsx, LineupPage.tsx, PitchersPage.tsx, AttackPage.tsx, DefensePage.tsx, TrainingPage.tsx, SchedulePage.tsx, AdminPage.tsx, CHANGELOG.md, replit.md
+
 ## v1.17.1 – 2 marzo 2026 – Lineup Order Fix, Unsaved Changes Indicator, Batting Order Display
 
 - **Fix race condition batting order (T001)**:

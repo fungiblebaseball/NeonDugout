@@ -3,10 +3,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
 import { Terminal, ShieldAlert, Calendar, Swords, Shield, ListOrdered, RotateCcw, Zap, Trophy, Play, Pencil, Check, X, ScrollText, Dumbbell, Users, Coins, Clock, Eye, Target, Crosshair, ChevronDown, ChevronUp } from "lucide-react";
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import type { SimPlayer } from "@/lib/calculations";
 import logoImg from "@/assets/images/logo-neon-dugout.png";
+import confetti from "canvas-confetti";
+import winIcon from "@/assets/images/icons/win.png";
+import playoffIcon from "@/assets/images/icons/playoff.png";
 
 interface MatchData {
   id: number;
@@ -291,6 +294,87 @@ export default function Home() {
   const unfilledPlayoffs = allMatchesRaw.filter(m => (m.homeTeamId === 0 || m.awayTeamId === 0) && !m.played);
   const seasonFinished = realMatches.length > 0 && realMatches.every(m => m.played) && unfilledPlayoffs.length === 0;
 
+  const [welcomeBanner, setWelcomeBanner] = useState<{ type: 'win' | 'playoff' | 'champion' | 'new_season'; text: string } | null>(null);
+
+  const { data: adminMessages = [], refetch: refetchMessages } = useQuery<any[]>({
+    queryKey: ['admin-messages', walletAddress],
+    queryFn: async () => {
+      const res = await fetch(`/api/messages?wallet=${walletAddress}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!walletAddress,
+  });
+
+  const dismissAdminMessage = async (msgId: number) => {
+    await fetch(`/api/messages/${msgId}/dismiss`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ wallet: walletAddress }) });
+    refetchMessages();
+  };
+
+  const fireConfetti = useCallback(() => {
+    const duration = 1500;
+    const end = Date.now() + duration;
+    const frame = () => {
+      confetti({ particleCount: 3, angle: 60, spread: 55, origin: { x: 0 }, colors: ['#22d3ee', '#ec4899', '#f59e0b'] });
+      confetti({ particleCount: 3, angle: 120, spread: 55, origin: { x: 1 }, colors: ['#22d3ee', '#ec4899', '#f59e0b'] });
+      if (Date.now() < end) requestAnimationFrame(frame);
+    };
+    frame();
+  }, []);
+
+  useEffect(() => {
+    if (!team || !allMatchesRaw.length || !allTeamsRaw.length) return;
+    const storageKey = `nd_welcome_${team.id}_s${currentSeason}`;
+    if (sessionStorage.getItem(storageKey)) return;
+
+    const myMatches = allMatchesRaw.filter(m => m.homeTeamId === team.id || m.awayTeamId === team.id);
+    const playedMatches = myMatches.filter(m => m.played).sort((a, b) => b.day - a.day);
+
+    const myPlayoffMatches = myMatches.filter(m => m.matchType === 'playoff' || m.matchType === 'interleague');
+    const playedPlayoffs = myPlayoffMatches.filter(m => m.played).sort((a, b) => b.day - a.day);
+
+    const isInPlayoff = myPlayoffMatches.length > 0 && myPlayoffMatches.some(m => !m.played);
+
+    const allMyMatchesPlayed = myMatches.length > 0 && myMatches.every(m => m.played);
+    const wonLastPlayoff = playedPlayoffs.length > 0 && (() => {
+      const last = playedPlayoffs[0];
+      const isHome = last.homeTeamId === team.id;
+      return isHome ? (last.homeScore ?? 0) > (last.awayScore ?? 0) : (last.awayScore ?? 0) > (last.homeScore ?? 0);
+    })();
+
+    if (allMyMatchesPlayed && playedPlayoffs.length > 0 && wonLastPlayoff) {
+      setWelcomeBanner({ type: 'champion', text: 'CHAMPION!' });
+      sessionStorage.setItem(storageKey, 'champion');
+      setTimeout(fireConfetti, 300);
+      return;
+    }
+
+    if (isInPlayoff) {
+      setWelcomeBanner({ type: 'playoff', text: 'PLAYOFF!' });
+      sessionStorage.setItem(storageKey, 'playoff');
+      return;
+    }
+
+    if (playedMatches.length === 0) {
+      setWelcomeBanner({ type: 'new_season', text: 'NEW SEASON' });
+      sessionStorage.setItem(storageKey, 'new_season');
+      return;
+    }
+
+    const lastMatch = playedMatches[0];
+    const isHome = lastMatch.homeTeamId === team.id;
+    const won = isHome ? (lastMatch.homeScore ?? 0) > (lastMatch.awayScore ?? 0) : (lastMatch.awayScore ?? 0) > (lastMatch.homeScore ?? 0);
+
+    if (won) {
+      setWelcomeBanner({ type: 'win', text: 'YOU WON!' });
+      sessionStorage.setItem(storageKey, 'win');
+      setTimeout(fireConfetti, 300);
+      return;
+    }
+
+    sessionStorage.setItem(storageKey, 'none');
+  }, [team, allMatchesRaw, allTeamsRaw, currentSeason, fireConfetti]);
+
   const oppPlayerMap = useMemo(() => {
     const map = new Map<number, PlayerInfo>();
     if (opponentPlayers) {
@@ -416,6 +500,101 @@ export default function Home() {
       </header>
 
       <main className="space-y-4">
+        {welcomeBanner && (
+          <div
+            data-testid={`banner-${welcomeBanner.type}`}
+            className={`relative overflow-hidden rounded-2xl border-2 p-4 text-center animate-in fade-in slide-in-from-top-4 duration-700 ${
+              welcomeBanner.type === 'win'
+                ? 'border-cyan-400/60 bg-gradient-to-r from-cyan-950/40 to-cyan-900/20'
+                : welcomeBanner.type === 'champion'
+                ? 'border-amber-400/60 bg-gradient-to-r from-amber-950/40 to-pink-950/20'
+                : welcomeBanner.type === 'playoff'
+                ? 'border-pink-400/60 bg-gradient-to-r from-pink-950/40 to-cyan-950/20'
+                : 'border-cyan-500/40 bg-gradient-to-r from-cyan-950/30 to-pink-950/20'
+            }`}
+            style={{
+              boxShadow: welcomeBanner.type === 'champion'
+                ? '0 0 30px rgba(245,158,11,0.4), inset 0 0 30px rgba(245,158,11,0.1)'
+                : welcomeBanner.type === 'playoff'
+                ? '0 0 25px rgba(236,72,153,0.4), inset 0 0 25px rgba(236,72,153,0.1)'
+                : welcomeBanner.type === 'win'
+                ? '0 0 20px rgba(34,211,238,0.3)'
+                : '0 0 15px rgba(34,211,238,0.2)',
+            }}
+          >
+            {(welcomeBanner.type === 'win' || welcomeBanner.type === 'champion') && (
+              <img
+                src={welcomeBanner.type === 'champion' ? winIcon : winIcon}
+                alt=""
+                className="w-10 h-10 mx-auto mb-2 drop-shadow-[0_0_8px_rgba(245,158,11,0.6)]"
+              />
+            )}
+            {welcomeBanner.type === 'playoff' && (
+              <img
+                src={playoffIcon}
+                alt=""
+                className="w-10 h-10 mx-auto mb-2 drop-shadow-[0_0_8px_rgba(236,72,153,0.6)]"
+              />
+            )}
+            <h2
+              className={`text-2xl font-black uppercase tracking-wider ${
+                welcomeBanner.type === 'champion'
+                  ? 'text-amber-400 drop-shadow-[0_0_15px_rgba(245,158,11,0.8)]'
+                  : welcomeBanner.type === 'playoff'
+                  ? 'text-pink-400 drop-shadow-[0_0_15px_rgba(236,72,153,0.8)]'
+                  : welcomeBanner.type === 'win'
+                  ? 'text-cyan-400 drop-shadow-[0_0_12px_rgba(34,211,238,0.6)]'
+                  : 'text-cyan-300'
+              }`}
+              style={{ fontFamily: "'Orbitron', sans-serif" }}
+            >
+              {welcomeBanner.text}
+            </h2>
+            <p className="text-[10px] font-mono text-gray-400 mt-1 uppercase tracking-wider">
+              {welcomeBanner.type === 'champion' ? 'You conquered the bracket!'
+                : welcomeBanner.type === 'playoff' ? 'Your team made the playoffs!'
+                : welcomeBanner.type === 'win' ? 'Great game, manager!'
+                : `Season ${currentSeason} has begun`}
+            </p>
+            <button
+              data-testid="button-dismiss-banner"
+              onClick={() => setWelcomeBanner(null)}
+              className="absolute top-2 right-2 text-gray-600 hover:text-gray-400 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {adminMessages.length > 0 && (
+          <div className="space-y-2">
+            {adminMessages.map((msg: any) => (
+              <div
+                key={msg.id}
+                data-testid={`admin-msg-${msg.id}`}
+                className="relative p-3 rounded-xl border border-amber-500/40 bg-amber-950/20 flex items-start gap-3"
+              >
+                <div className="w-6 h-6 rounded-full bg-amber-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span className="text-amber-400 text-xs font-bold">!</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-mono text-amber-200 leading-relaxed">{msg.message}</p>
+                  <p className="text-[9px] font-mono text-gray-500 mt-1">
+                    {msg.targetType === 'all' ? 'ALL' : msg.targetType.toUpperCase()}: {msg.targetValue || 'everyone'}
+                  </p>
+                </div>
+                <button
+                  data-testid={`dismiss-msg-${msg.id}`}
+                  onClick={() => dismissAdminMessage(msg.id)}
+                  className="flex-shrink-0 w-6 h-6 rounded-full bg-green-500/20 hover:bg-green-500/40 border border-green-500/40 flex items-center justify-center transition-colors"
+                >
+                  <Check className="w-3 h-3 text-green-400" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         {(() => {
           const display = lastResult || (() => {
             const lastPlayed = recentResults[0];

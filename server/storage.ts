@@ -2,7 +2,7 @@ import { db, pool } from "./db";
 import { eq, and, sql, desc } from "drizzle-orm";
 import {
   users, teams, players, matches, lineups, pitcherRotations, tactics, matchDetails, playerSeasonStats, teamSnapshots,
-  trainingResults, trainingConfig, userTokens, tokenConfig, tacticCoefficients,
+  trainingResults, trainingConfig, userTokens, tokenConfig, tacticCoefficients, adminMessages, dismissedMessages,
   type User, type InsertUser, type Team, type InsertTeam,
   type Player, type Match, type Lineup, type InsertLineup,
   type PitcherRotation, type InsertPitcherRotation,
@@ -91,6 +91,13 @@ export interface IStorage {
   updateTokenConfig(claimAmount: number, claimIntervalHours: number): Promise<TokenConfig>;
   updateTeamColor(teamId: number, color: string): Promise<Team>;
   consolidatePlayerBonuses(): Promise<void>;
+
+  createAdminMessage(message: string, targetType: string, targetValue: string | null): Promise<any>;
+  getAdminMessages(): Promise<any[]>;
+  deactivateAdminMessage(id: number): Promise<void>;
+  getActiveMessagesForTeam(league: string, series: string, teamName: string): Promise<any[]>;
+  dismissMessage(messageId: number, walletAddress: string): Promise<void>;
+  getDismissedMessageIds(walletAddress: string): Promise<number[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -730,6 +737,39 @@ export class DatabaseStorage implements IStorage {
       defAdd: 0,
     } as any);
     console.log('Consolidated player bonuses: floor(add/2) merged into base attributes, _add reset to 0');
+  }
+
+  async createAdminMessage(message: string, targetType: string, targetValue: string | null): Promise<any> {
+    const [msg] = await db.insert(adminMessages).values({ message, targetType, targetValue: targetValue || null, active: true }).returning();
+    return msg;
+  }
+
+  async getAdminMessages(): Promise<any[]> {
+    return db.select().from(adminMessages).orderBy(desc(adminMessages.createdAt));
+  }
+
+  async deactivateAdminMessage(id: number): Promise<void> {
+    await db.update(adminMessages).set({ active: false }).where(eq(adminMessages.id, id));
+  }
+
+  async getActiveMessagesForTeam(league: string, series: string, teamName: string): Promise<any[]> {
+    const allActive = await db.select().from(adminMessages).where(eq(adminMessages.active, true)).orderBy(desc(adminMessages.createdAt));
+    return allActive.filter(m => {
+      if (m.targetType === 'all') return true;
+      if (m.targetType === 'league') return m.targetValue === league;
+      if (m.targetType === 'series') return m.targetValue === series;
+      if (m.targetType === 'team') return m.targetValue === teamName;
+      return false;
+    });
+  }
+
+  async dismissMessage(messageId: number, walletAddress: string): Promise<void> {
+    await db.insert(dismissedMessages).values({ messageId, walletAddress });
+  }
+
+  async getDismissedMessageIds(walletAddress: string): Promise<number[]> {
+    const rows = await db.select({ messageId: dismissedMessages.messageId }).from(dismissedMessages).where(eq(dismissedMessages.walletAddress, walletAddress));
+    return rows.map(r => r.messageId);
   }
 }
 

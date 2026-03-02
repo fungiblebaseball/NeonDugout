@@ -6,6 +6,51 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { PitcherStyle } from "@/lib/types";
 import { useLocation } from "wouter";
 
+interface TacticCoefficient {
+  id: number;
+  layer: string;
+  tacticValue: string;
+  hr: number;
+  xbh: number;
+  single: number;
+  bb: number;
+  so: number;
+  go: number;
+  fo: number;
+  tacSt: number;
+}
+
+const COEFF_KEYS = ['hr', 'xbh', 'single', 'bb', 'so', 'go', 'fo', 'tacSt'] as const;
+const COEFF_LABELS: Record<string, string> = { hr: 'HR', xbh: 'XBH', single: '1B', bb: 'BB', so: 'SO', go: 'GO', fo: 'FO', tacSt: 'STEAL' };
+
+function CoeffBadges({ coefficients, layer, tacticValue }: { coefficients: TacticCoefficient[]; layer: string; tacticValue: string }) {
+  const coeff = coefficients.find(c => c.layer === layer && c.tacticValue === tacticValue);
+  if (!coeff) return null;
+
+  const badges = COEFF_KEYS
+    .filter(k => coeff[k] !== 0)
+    .map(k => ({ key: k, val: coeff[k] }));
+
+  if (badges.length === 0) return <span className="text-[9px] text-gray-500 font-mono">BASE</span>;
+
+  return (
+    <div className="flex flex-wrap gap-1 mt-2">
+      {badges.map(b => (
+        <span
+          key={b.key}
+          data-testid={`badge-coeff-${layer}-${tacticValue}-${b.key}`}
+          className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono font-bold ${
+            b.key === 'tacSt' ? 'bg-orange-500/20 text-orange-400' :
+            b.val > 0 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+          }`}
+        >
+          {COEFF_LABELS[b.key]} {b.val > 0 ? '+' : ''}{b.val}%
+        </span>
+      ))}
+    </div>
+  );
+}
+
 type PitcherRoles = { sp: number | null; r1: number | null; closer: number | null; nextSp: number | null };
 
 interface PitcherRoleConfig {
@@ -75,10 +120,12 @@ function SwitchConditionsPanel({
   config,
   onChange,
   roleLabel,
+  coefficients,
 }: {
   config: PitcherRoleConfig;
   onChange: (c: PitcherRoleConfig) => void;
   roleLabel: string;
+  coefficients: TacticCoefficient[];
 }) {
   return (
     <div className="space-y-4 mt-3 pt-3 border-t border-gray-800/50">
@@ -131,6 +178,9 @@ function SwitchConditionsPanel({
               </span>
               <span className="text-[7px] font-mono text-green-500 block">▲{opt.beats}</span>
               <span className="text-[7px] font-mono text-red-500 block">▼{opt.losesTo}</span>
+              {coefficients.length > 0 && (
+                <CoeffBadges coefficients={coefficients} layer="pitcher_style" tacticValue={opt.value} />
+              )}
             </button>
           ))}
         </div>
@@ -162,6 +212,15 @@ export default function PitchersPage() {
       return res.json();
     },
     enabled: !!team,
+    refetchOnMount: 'always',
+  });
+
+  const { data: coefficients = [] } = useQuery<TacticCoefficient[]>({
+    queryKey: ['tactic-coefficients'],
+    queryFn: async () => {
+      const res = await fetch('/api/tactic-coefficients');
+      return res.json();
+    },
     refetchOnMount: 'always',
   });
 
@@ -342,6 +401,7 @@ export default function PitchersPage() {
                     config={pitcherConfigs[configKey]}
                     onChange={(c) => setPitcherConfigs(prev => ({ ...prev, [configKey]: c }))}
                     roleLabel={configKey}
+                    coefficients={coefficients}
                   />
                 </div>
               )}

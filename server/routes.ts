@@ -782,6 +782,112 @@ export async function registerRoutes(
     }
   }));
 
+  app.post("/api/admin/messages", asyncHandler(async (req, res) => {
+    const adminData = await requireAdmin(req, res);
+    if (!adminData) return;
+    const { message, targetType, targetValue } = req.body;
+    if (!message || !targetType) {
+      return res.status(400).json({ message: "message and targetType required" });
+    }
+    const msg = await storage.createAdminMessage(message, targetType, targetValue || null);
+    res.json(msg);
+  }));
+
+  app.get("/api/admin/messages", asyncHandler(async (req, res) => {
+    const adminData = await requireAdmin(req, res);
+    if (!adminData) return;
+    const msgs = await storage.getAdminMessages();
+    res.json(msgs);
+  }));
+
+  app.delete("/api/admin/messages/:id", asyncHandler(async (req, res) => {
+    const adminData = await requireAdmin(req, res);
+    if (!adminData) return;
+    await storage.deactivateAdminMessage(parseInt(req.params.id));
+    res.json({ success: true });
+  }));
+
+  app.get("/api/messages", asyncHandler(async (req, res) => {
+    const wallet = req.query.wallet as string;
+    if (!wallet) return res.json([]);
+    const user = await storage.getUserByWallet(wallet);
+    if (!user || !user.teamId) return res.json([]);
+    const team = await storage.getTeam(user.teamId);
+    if (!team) return res.json([]);
+    const messages = await storage.getActiveMessagesForTeam(team.league, team.series, team.name);
+    const dismissed = await storage.getDismissedMessageIds(wallet);
+    const filtered = messages.filter(m => !dismissed.includes(m.id));
+    res.json(filtered);
+  }));
+
+  app.post("/api/messages/:id/dismiss", asyncHandler(async (req, res) => {
+    const wallet = req.body.wallet as string;
+    if (!wallet) return res.status(400).json({ message: "wallet required" });
+    await storage.dismissMessage(parseInt(req.params.id), wallet);
+    res.json({ success: true });
+  }));
+
+  app.get("/api/projected-playoffs", asyncHandler(async (_req, res) => {
+    const currentSeasonId = await storage.getCurrentSeasonId();
+    const allMatchesRaw = await storage.getAllMatches();
+    const allMatches = allMatchesRaw.filter(m => m.seasonId === currentSeasonId);
+    const allTeamsRaw = await storage.getTeams();
+    const allTeams = allTeamsRaw.filter(t => t.seasonId === currentSeasonId);
+    const projections: any[] = [];
+
+    const leagues = Array.from(new Set(allTeams.map(t => t.league))).sort((a, b) => (parseInt(a.replace('L', '')) || 0) - (parseInt(b.replace('L', '')) || 0));
+
+    function computeStandings(teamIds: number[]) {
+      const records: Record<number, { w: number; l: number; rs: number; ra: number }> = {};
+      for (const id of teamIds) records[id] = { w: 0, l: 0, rs: 0, ra: 0 };
+      for (const m of allMatches) {
+        if (!m.played || m.matchType !== 'regular') continue;
+        if (records[m.homeTeamId]) { records[m.homeTeamId].w += (m.homeScore ?? 0) > (m.awayScore ?? 0) ? 1 : 0; records[m.homeTeamId].l += (m.homeScore ?? 0) <= (m.awayScore ?? 0) ? 1 : 0; records[m.homeTeamId].rs += m.homeScore ?? 0; records[m.homeTeamId].ra += m.awayScore ?? 0; }
+        if (records[m.awayTeamId]) { records[m.awayTeamId].w += (m.awayScore ?? 0) > (m.homeScore ?? 0) ? 1 : 0; records[m.awayTeamId].l += (m.awayScore ?? 0) <= (m.homeScore ?? 0) ? 1 : 0; records[m.awayTeamId].rs += m.awayScore ?? 0; records[m.awayTeamId].ra += m.homeScore ?? 0; }
+      }
+      return teamIds.map(id => ({ id, ...records[id] })).sort((a, b) => b.w - a.w || (b.rs - b.ra) - (a.rs - a.ra));
+    }
+
+    for (const league of leagues) {
+      const leagueTeams = allTeams.filter(t => t.league === league);
+      const seriesKeys = Array.from(new Set(leagueTeams.map(t => t.series))).sort();
+      if (seriesKeys.length < 2) continue;
+      const topSeries = seriesKeys[0];
+      const bottomSeries = seriesKeys[seriesKeys.length - 1];
+      const topTeams = leagueTeams.filter(t => t.series === topSeries);
+      const bottomTeams = leagueTeams.filter(t => t.series === bottomSeries);
+      const standingsTop = computeStandings(topTeams.map(t => t.id));
+      const standingsBottom = computeStandings(bottomTeams.map(t => t.id));
+      const topLen = standingsTop.length;
+      if (topLen >= 2 && standingsBottom.length >= 2) {
+        projections.push({ type: 'playoff', division: `playoff_${league}`, day: 13, homeTeamId: standingsTop[topLen - 2]?.id, awayTeamId: standingsBottom[0]?.id, homeTeamName: allTeams.find(t => t.id === standingsTop[topLen - 2]?.id)?.name, awayTeamName: allTeams.find(t => t.id === standingsBottom[0]?.id)?.name });
+        projections.push({ type: 'playoff', division: `playoff_${league}`, day: 13, homeTeamId: standingsTop[topLen - 1]?.id, awayTeamId: standingsBottom[1]?.id, homeTeamName: allTeams.find(t => t.id === standingsTop[topLen - 1]?.id)?.name, awayTeamName: allTeams.find(t => t.id === standingsBottom[1]?.id)?.name });
+      }
+    }
+
+    for (let i = 0; i < leagues.length - 1; i++) {
+      const upperLeague = leagues[i];
+      const lowerLeague = leagues[i + 1];
+      const upperTeams = allTeams.filter(t => t.league === upperLeague);
+      const lowerTeams = allTeams.filter(t => t.league === lowerLeague);
+      const upperSeriesKeys = Array.from(new Set(upperTeams.map(t => t.series))).sort();
+      const lowerSeriesKeys = Array.from(new Set(lowerTeams.map(t => t.series))).sort();
+      const upperBottomSeries = upperSeriesKeys[upperSeriesKeys.length - 1];
+      const lowerTopSeries = lowerSeriesKeys[0];
+      const upperBottomTeams = upperTeams.filter(t => t.series === upperBottomSeries);
+      const lowerTopTeams = lowerTeams.filter(t => t.series === lowerTopSeries);
+      const standingsUB = computeStandings(upperBottomTeams.map(t => t.id));
+      const standingsLT = computeStandings(lowerTopTeams.map(t => t.id));
+      const ubLen = standingsUB.length;
+      if (ubLen >= 2 && standingsLT.length >= 2) {
+        projections.push({ type: 'promotion', division: `promo_${lowerLeague}_to_${upperLeague}`, day: 13, homeTeamId: standingsUB[ubLen - 2]?.id, awayTeamId: standingsLT[0]?.id, homeTeamName: allTeams.find(t => t.id === standingsUB[ubLen - 2]?.id)?.name, awayTeamName: allTeams.find(t => t.id === standingsLT[0]?.id)?.name });
+        projections.push({ type: 'promotion', division: `promo_${lowerLeague}_to_${upperLeague}`, day: 13, homeTeamId: standingsUB[ubLen - 1]?.id, awayTeamId: standingsLT[1]?.id, homeTeamName: allTeams.find(t => t.id === standingsUB[ubLen - 1]?.id)?.name, awayTeamName: allTeams.find(t => t.id === standingsLT[1]?.id)?.name });
+      }
+    }
+
+    res.json(projections);
+  }));
+
   const defaultConfigs = [
     { gameType: "eye_drill", rewardAttributes: ["eye"], rewardAmount: 1, minScoreForReward: 200, maxBoostPerSeason: 10 },
     { gameType: "batting_practice", rewardAttributes: ["con", "pow"], rewardAmount: 1, minScoreForReward: 200, maxBoostPerSeason: 10 },

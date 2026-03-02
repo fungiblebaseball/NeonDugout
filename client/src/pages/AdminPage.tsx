@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useGameStore } from "@/lib/store";
 import { useLocation } from "wouter";
-import { ArrowLeft, Save, Coins, Trash2, Play, Trophy, RotateCcw, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Save, Coins, Trash2, Play, Trophy, RotateCcw, AlertTriangle, ChevronDown, ChevronUp, MessageSquare, Send } from "lucide-react";
 import { useState, useEffect } from "react";
 
 interface TrainingConfig {
@@ -43,6 +43,22 @@ interface TacticCoefficient {
   tacSt: number;
 }
 
+interface AdminMessage {
+  id: number;
+  message: string;
+  targetType: string;
+  targetValue: string | null;
+  createdAt: string;
+  active: boolean;
+}
+
+interface TeamData {
+  id: number;
+  name: string;
+  league: string;
+  series: string;
+}
+
 const ALL_ATTRIBUTES = ["pow", "con", "spd", "eye", "vel", "ctl", "mov", "sta", "def"];
 const ALL_POSITIONS = ["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF", "DH"];
 
@@ -51,6 +67,40 @@ const GAME_LABELS: Record<string, string> = {
   batting_practice: "Batting Practice",
   pitch_control: "Pitch Control",
 };
+
+function CollapsibleSection({
+  title,
+  defaultOpen,
+  children,
+  testId,
+}: {
+  title: string;
+  defaultOpen: boolean;
+  children: React.ReactNode;
+  testId: string;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <div className="mb-6" data-testid={testId}>
+      <button
+        onClick={() => setOpen(!open)}
+        data-testid={`toggle-${testId}`}
+        className="flex items-center justify-between w-full text-left mb-4"
+      >
+        <h2 className="text-sm text-gray-400 uppercase tracking-wider" style={{ fontFamily: "Orbitron, sans-serif" }}>
+          {title}
+        </h2>
+        {open ? (
+          <ChevronUp className="w-4 h-4 text-gray-400" />
+        ) : (
+          <ChevronDown className="w-4 h-4 text-gray-400" />
+        )}
+      </button>
+      {open && children}
+    </div>
+  );
+}
 
 export default function AdminPage() {
   const { token, user } = useGameStore();
@@ -110,37 +160,32 @@ export default function AdminPage() {
         </h1>
       </div>
 
-      <h2 className="text-sm text-gray-400 uppercase tracking-wider mb-4" style={{ fontFamily: "Orbitron, sans-serif" }}>
-        Match Day Control
-      </h2>
+      <CollapsibleSection title="Match Day Control" defaultOpen={true} testId="section-match-day">
+        <GameDayCard allMatches={allMatches || []} token={token!} queryClient={queryClient} />
+      </CollapsibleSection>
 
-      <GameDayCard allMatches={allMatches || []} token={token!} queryClient={queryClient} />
+      <CollapsibleSection title="Token Economy Config" defaultOpen={true} testId="section-token-economy">
+        {tokenConfig && (
+          <TokenConfigCard config={tokenConfig} token={token!} queryClient={queryClient} />
+        )}
+      </CollapsibleSection>
 
-      <h2 className="text-sm text-gray-400 uppercase tracking-wider mb-4 mt-8" style={{ fontFamily: "Orbitron, sans-serif" }}>
-        Token Economy Config
-      </h2>
+      <CollapsibleSection title="Training Reward Config" defaultOpen={false} testId="section-training-reward">
+        {isLoading && <p className="text-gray-500 text-sm">Loading...</p>}
+        <div className="space-y-4">
+          {configs?.map((config) => (
+            <ConfigCard key={config.id} config={config} token={token!} queryClient={queryClient} />
+          ))}
+        </div>
+      </CollapsibleSection>
 
-      {tokenConfig && (
-        <TokenConfigCard config={tokenConfig} token={token!} queryClient={queryClient} />
-      )}
+      <CollapsibleSection title="Tactic Coefficients" defaultOpen={false} testId="section-tactic-coefficients">
+        <TacticCoefficientsCard token={token!} queryClient={queryClient} />
+      </CollapsibleSection>
 
-      <h2 className="text-sm text-gray-400 uppercase tracking-wider mb-4 mt-8" style={{ fontFamily: "Orbitron, sans-serif" }}>
-        Training Reward Config
-      </h2>
-
-      {isLoading && <p className="text-gray-500 text-sm">Loading...</p>}
-
-      <div className="space-y-4">
-        {configs?.map((config) => (
-          <ConfigCard key={config.id} config={config} token={token!} queryClient={queryClient} />
-        ))}
-      </div>
-
-      <h2 className="text-sm text-gray-400 uppercase tracking-wider mb-4 mt-8" style={{ fontFamily: "Orbitron, sans-serif" }}>
-        Tactic Coefficients
-      </h2>
-
-      <TacticCoefficientsCard token={token!} queryClient={queryClient} />
+      <CollapsibleSection title="Messaging" defaultOpen={false} testId="section-messaging">
+        <MessagingCard token={token!} queryClient={queryClient} />
+      </CollapsibleSection>
     </div>
   );
 }
@@ -839,6 +884,210 @@ function TacticCoefficientsCard({
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function MessagingCard({
+  token,
+  queryClient,
+}: {
+  token: string;
+  queryClient: any;
+}) {
+  const [message, setMessage] = useState("");
+  const [targetType, setTargetType] = useState("all");
+  const [targetValue, setTargetValue] = useState("");
+  const [sending, setSending] = useState(false);
+
+  const { data: messages } = useQuery<AdminMessage[]>({
+    queryKey: ["admin-messages"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/messages", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to load messages");
+      return res.json();
+    },
+    enabled: !!token,
+  });
+
+  const { data: teams } = useQuery<TeamData[]>({
+    queryKey: ["teams-all"],
+    queryFn: async () => {
+      const res = await fetch("/api/teams");
+      if (!res.ok) throw new Error("Failed to load teams");
+      return res.json();
+    },
+    enabled: !!token,
+  });
+
+  const leagues = teams ? Array.from(new Set(teams.map(t => t.league))).sort() : [];
+  const seriesList = teams ? Array.from(new Set(teams.map(t => t.series))).sort() : [];
+  const teamNames = teams ? teams.map(t => t.name).sort() : [];
+
+  useEffect(() => {
+    setTargetValue("");
+  }, [targetType]);
+
+  const handleSend = async () => {
+    if (!message.trim()) return;
+    setSending(true);
+    try {
+      await fetch("/api/admin/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          message: message.trim(),
+          targetType,
+          targetValue: targetType === "all" ? null : targetValue || null,
+        }),
+      });
+      setMessage("");
+      setTargetType("all");
+      setTargetValue("");
+      queryClient.invalidateQueries({ queryKey: ["admin-messages"] });
+    } catch {}
+    setSending(false);
+  };
+
+  const handleDelete = async (id: number) => {
+    try {
+      await fetch(`/api/admin/messages/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      queryClient.invalidateQueries({ queryKey: ["admin-messages"] });
+    } catch {}
+  };
+
+  const targetTypeOptions = [
+    { value: "all", label: "Tutti" },
+    { value: "league", label: "Lega" },
+    { value: "series", label: "Serie" },
+    { value: "team", label: "Team" },
+  ];
+
+  const getTargetValueOptions = (): string[] => {
+    switch (targetType) {
+      case "league": return leagues;
+      case "series": return seriesList;
+      case "team": return teamNames;
+      default: return [];
+    }
+  };
+
+  const targetValueOptions = getTargetValueOptions();
+  const activeMessages = messages?.filter(m => m.active) || [];
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-gray-900 border border-purple-500/30 rounded-xl p-4 space-y-4" data-testid="card-messaging">
+        <div className="flex items-center gap-2">
+          <MessageSquare className="w-4 h-4 text-purple-400" />
+          <h3 className="text-sm font-bold tracking-wider text-purple-400" style={{ fontFamily: "Orbitron, sans-serif" }}>
+            Send Message
+          </h3>
+        </div>
+
+        <div>
+          <label className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">Message</label>
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            maxLength={200}
+            rows={3}
+            data-testid="input-message-text"
+            className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm text-white resize-none"
+            placeholder="Write a short message..."
+          />
+          <p className="text-[10px] text-gray-600 text-right">{message.length}/200</p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">Target Type</label>
+            <select
+              value={targetType}
+              onChange={(e) => setTargetType(e.target.value)}
+              data-testid="select-target-type"
+              className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm text-white"
+            >
+              {targetTypeOptions.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {targetType !== "all" && (
+            <div>
+              <label className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">Target Value</label>
+              <select
+                value={targetValue}
+                onChange={(e) => setTargetValue(e.target.value)}
+                data-testid="select-target-value"
+                className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm text-white"
+              >
+                <option value="">-- Select --</option>
+                {targetValueOptions.map(val => (
+                  <option key={val} value={val}>{val}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
+        <button
+          onClick={handleSend}
+          disabled={sending || !message.trim()}
+          data-testid="button-send-message"
+          className="flex items-center gap-2 px-4 py-2 bg-purple-600 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-purple-500 disabled:opacity-50 transition-colors"
+        >
+          <Send className="w-3 h-3" />
+          {sending ? "Sending..." : "Send"}
+        </button>
+      </div>
+
+      {activeMessages.length > 0 && (
+        <div className="bg-gray-900 border border-gray-700 rounded-xl p-4 space-y-3" data-testid="card-active-messages">
+          <h3 className="text-sm font-bold tracking-wider text-gray-400" style={{ fontFamily: "Orbitron, sans-serif" }}>
+            Active Messages ({activeMessages.length})
+          </h3>
+          <div className="space-y-2">
+            {activeMessages.map((msg) => (
+              <div
+                key={msg.id}
+                className="flex items-start justify-between gap-2 bg-gray-800/50 border border-gray-700 rounded-lg p-3"
+                data-testid={`message-item-${msg.id}`}
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-white break-words">{msg.message}</p>
+                  <div className="flex gap-2 mt-1">
+                    <span className="text-[10px] text-purple-400 font-mono uppercase">
+                      {targetTypeOptions.find(t => t.value === msg.targetType)?.label || msg.targetType}
+                    </span>
+                    {msg.targetValue && (
+                      <span className="text-[10px] text-cyan-400 font-mono">{msg.targetValue}</span>
+                    )}
+                    {msg.createdAt && (
+                      <span className="text-[10px] text-gray-600 font-mono">
+                        {new Date(msg.createdAt).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleDelete(msg.id)}
+                  data-testid={`button-delete-message-${msg.id}`}
+                  className="text-red-400 hover:text-red-300 transition-colors shrink-0"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

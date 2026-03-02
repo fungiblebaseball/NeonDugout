@@ -302,3 +302,27 @@ export type InsertTacticCoefficients = z.infer<typeof insertTacticCoefficientsSc
 export type TacticCoefficient = typeof tacticCoefficients.$inferSelect;
 export type InsertTokenConfig = z.infer<typeof insertTokenConfigSchema>;
 export type TokenConfig = typeof tokenConfig.$inferSelect;
+
+export const adminMessages = pgTable("admin_messages", {
+  id: serial("id").primaryKey(),
+  message: text("message").notNull(),
+  targetType: text("target_type").notNull().default("all"),
+  targetValue: text("target_value"),
+  createdAt: timestamp("created_at").defaultNow(),
+  active: boolean("active").notNull().default(true),
+});
+
+export const insertAdminMessageSchema = createInsertSchema(adminMessages).omit({ id: true, createdAt: true });
+export type InsertAdminMessage = z.infer<typeof insertAdminMessageSchema>;
+export type AdminMessage = typeof adminMessages.$inferSelect;
+
+export const dismissedMessages = pgTable("dismissed_messages", {
+  id: serial("id").primaryKey(),
+  messageId: integer("message_id").notNull(),
+  walletAddress: text("wallet_address").notNull(),
+  dismissedAt: timestamp("dismissed_at").defaultNow(),
+});
+
+export const insertDismissedMessageSchema = createInsertSchema(dismissedMessages).omit({ id: true, dismissedAt: true });
+export type InsertDismissedMessage = z.infer<typeof insertDismissedMessageSchema>;
+export type DismissedMessage = typeof dismissedMessages.$inferSelect;

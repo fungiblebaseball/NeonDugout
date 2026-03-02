@@ -1,6 +1,6 @@
 import { useGameStore } from "@/lib/store";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import type { AttackStyle, BatterApproach, OffensiveAttack, TacticSchedule, TacticSlot } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -71,12 +71,12 @@ function CoeffBadges({ coefficients, layer, tacticValue }: { coefficients: Tacti
   if (badges.length === 0) return <span className="text-[9px] text-gray-500 font-mono">BASE</span>;
 
   return (
-    <div className="flex flex-wrap gap-1">
+    <div className="flex flex-wrap gap-1 mt-2">
       {badges.map(b => (
         <span
           key={b.key}
           data-testid={`badge-coeff-${layer}-${tacticValue}-${b.key}`}
-          className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono font-bold ${b.key === 'tacSt' ? (b.val > 0 ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30') : (b.val > 0 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400')}`}
+          className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono font-bold ${b.key === 'tacSt' ? (b.val > 0 ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30') : (b.val > 0 ? 'bg-green-500/20 text-green-400 border border-green-500/20' : 'bg-red-500/20 text-red-400 border border-red-500/20')}`}
         >
           {COEFF_LABELS[b.key]} {b.val > 0 ? '+' : ''}{b.val}%
         </span>
@@ -218,8 +218,24 @@ export default function AttackPage() {
       { label: 'Max H', key: 'maxHitsAllowed' as const, min: 1, max: 20 },
     ];
 
+    const slotGlow = {
+      primary: 'shadow-[0_0_12px_rgba(34,211,238,0.15)]',
+      secondary: 'shadow-[0_0_12px_rgba(234,179,8,0.15)]',
+      optional: '',
+    };
+    const slotBorder = {
+      primary: 'border-cyan-500/30',
+      secondary: 'border-yellow-500/30',
+      optional: 'border-gray-700/50',
+    };
+    const slotBg = {
+      primary: 'bg-gradient-to-br from-cyan-950/20 to-black/40',
+      secondary: 'bg-gradient-to-br from-yellow-950/20 to-black/40',
+      optional: 'bg-gray-950/30',
+    };
+
     return (
-      <div className="bg-gray-900/40 border border-gray-800 rounded-lg p-3 space-y-3">
+      <div className={`rounded-xl border p-4 space-y-3 transition-all ${slotBorder[slot]} ${slotBg[slot]} ${slotGlow[slot]}`}>
         <div className="flex items-center justify-between">
           <Badge className={`uppercase font-black text-[10px] tracking-widest ${badgeColors[slot]}`}>
             {slot}
@@ -235,7 +251,7 @@ export default function AttackPage() {
               key={opt.value}
               size="sm"
               variant={data.value === opt.value ? "default" : "outline"}
-              className={`flex-1 text-[10px] h-8 ${data.value === opt.value ? (slot === 'primary' ? 'bg-cyan-600 border-cyan-400' : slot === 'secondary' ? 'bg-yellow-600 border-yellow-400' : 'bg-gray-600 border-gray-400') : 'bg-transparent border-gray-800 text-gray-400'}`}
+              className={`flex-1 text-[10px] h-8 rounded-lg transition-all ${data.value === opt.value ? (slot === 'primary' ? 'bg-cyan-600 border-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.3)]' : slot === 'secondary' ? 'bg-yellow-600 border-yellow-400 shadow-[0_0_8px_rgba(234,179,8,0.3)]' : 'bg-gray-600 border-gray-400') : 'bg-transparent border-gray-800 text-gray-400 hover:border-gray-600'}`}
               data-testid={`button-schedule-${section}-${slot}-${opt.value}`}
               onClick={() => updateSchedule(section, slot, { value: opt.value })}
             >
@@ -250,11 +266,13 @@ export default function AttackPage() {
         </div>
 
         {coefficients.length > 0 && (
-          <CoeffBadges coefficients={coefficients} layer={coeffLayer(section)} tacticValue={data.value} />
+          <div className="mt-2">
+            <CoeffBadges coefficients={coefficients} layer={coeffLayer(section)} tacticValue={data.value} />
+          </div>
         )}
 
         {slot !== 'optional' && (
-          <div className="grid grid-cols-2 gap-x-4 gap-y-2 pt-1 border-t border-gray-800/60">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 pt-2 border-t border-gray-800/40">
             <div className="col-span-2 text-[9px] font-mono text-gray-500 uppercase tracking-wider">Condition Limits</div>
             {CONDITIONS.map(cond => (
               <div key={cond.key} className="flex items-center justify-between gap-2">
@@ -271,7 +289,7 @@ export default function AttackPage() {
                     updateCondition(section, slot as any, cond.key, v);
                   }}
                   data-testid={`input-${section}-${slot}-${cond.key}`}
-                  className="w-14 h-6 text-center text-[10px] font-mono bg-black border border-gray-700 rounded text-cyan-400 focus:border-cyan-500 focus:outline-none"
+                  className="w-14 h-6 text-center text-[10px] font-mono bg-black/80 border border-gray-700 rounded text-cyan-400 focus:border-cyan-500 focus:outline-none"
                 />
               </div>
             ))}
@@ -290,12 +308,13 @@ export default function AttackPage() {
         <p className="text-xs font-mono text-cyan-200/60 mt-1">{team.name}</p>
       </header>
 
-      <main className="p-4 space-y-8">
+      <main className="p-4 space-y-6">
         <section className="space-y-4">
           <div className="flex items-center justify-between border-b border-purple-500/30 pb-2">
-            <h2 className="text-sm font-mono text-purple-400">1. BATTER APPROACH</h2>
+            <h2 className="text-sm font-mono text-purple-400 drop-shadow-[0_0_6px_rgba(168,85,247,0.4)]" style={{fontFamily: "'Orbitron', sans-serif"}}>1. BATTER APPROACH</h2>
             <div className="text-[10px] font-mono text-gray-500">RPS VS PITCHER STYLE</div>
           </div>
+          <p className="text-[10px] font-mono text-gray-500">Rock-Paper-Scissors matchup against opponent pitcher style</p>
           <div className="grid grid-cols-1 gap-3">
             {renderTacticBox('approach', 'primary', BATTER_APPROACH_OPTIONS, approachSchedule)}
             {renderTacticBox('approach', 'secondary', BATTER_APPROACH_OPTIONS, approachSchedule)}
@@ -305,9 +324,10 @@ export default function AttackPage() {
 
         <section className="space-y-4">
           <div className="flex items-center justify-between border-b border-pink-500/30 pb-2">
-            <h2 className="text-sm font-mono text-pink-500">2. OFFENSIVE STRATEGY</h2>
+            <h2 className="text-sm font-mono text-pink-500 drop-shadow-[0_0_6px_rgba(236,72,153,0.4)]" style={{fontFamily: "'Orbitron', sans-serif"}}>2. OFFENSIVE STRATEGY</h2>
             <div className="text-[10px] font-mono text-gray-500">PROBABILITY MODIFIERS</div>
           </div>
+          <p className="text-[10px] font-mono text-gray-500">Each strategy modifies outcome probabilities differently</p>
           <div className="grid grid-cols-1 gap-3">
             {renderTacticBox('style', 'primary', ATTACK_OPTIONS, styleSchedule)}
             {renderTacticBox('style', 'secondary', ATTACK_OPTIONS, styleSchedule)}
@@ -317,9 +337,10 @@ export default function AttackPage() {
 
         <section className="space-y-4">
           <div className="flex items-center justify-between border-b border-orange-500/30 pb-2">
-            <h2 className="text-sm font-mono text-orange-400">3. OFFENSIVE ATTACK</h2>
+            <h2 className="text-sm font-mono text-orange-400 drop-shadow-[0_0_6px_rgba(251,146,60,0.4)]" style={{fontFamily: "'Orbitron', sans-serif"}}>3. OFFENSIVE ATTACK</h2>
             <div className="text-[10px] font-mono text-gray-500">RPS VS DEFENSE SETUP</div>
           </div>
+          <p className="text-[10px] font-mono text-gray-500">RPS matchup vs opponent's Defense Setup — buffs/debuffs on baserunning</p>
           <div className="grid grid-cols-1 gap-3">
             {renderTacticBox('offensive', 'primary', OFFENSIVE_ATTACK_OPTIONS, offensiveSchedule)}
             {renderTacticBox('offensive', 'secondary', OFFENSIVE_ATTACK_OPTIONS, offensiveSchedule)}
@@ -327,14 +348,14 @@ export default function AttackPage() {
           </div>
         </section>
 
-        <Button
+        <button
           data-testid="button-save-attack"
           onClick={() => saveMutation.mutate()}
           disabled={saveMutation.isPending}
-          className="w-full py-6 bg-cyan-500 hover:bg-cyan-400 text-black font-black uppercase tracking-widest rounded-xl transition-all shadow-[0_0_15px_rgba(34,211,238,0.4)] disabled:opacity-50"
+          className="w-full py-4 bg-cyan-500 hover:bg-cyan-400 text-black font-black uppercase tracking-widest rounded-xl transition-all shadow-[0_0_15px_rgba(34,211,238,0.4)] disabled:opacity-50"
         >
           {saveMutation.isPending ? "SAVING..." : "COMMIT TACTICAL OVERRIDE"}
-        </Button>
+        </button>
       </main>
     </div>
   );

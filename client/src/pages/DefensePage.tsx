@@ -1,6 +1,7 @@
 import { useGameStore } from "@/lib/store";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import type { InfieldPosition, OutfieldPosition, DefenseSetup } from "@/lib/types";
 
 interface TacticCoefficient {
@@ -111,6 +112,10 @@ export default function DefensePage() {
   const [outfieldPosition, setOutfieldPosition] = useState<OutfieldPosition>('neutral');
   const [defenseSetup, setDefenseSetup] = useState<DefenseSetup>('balanced');
 
+  const [infieldOpen, setInfieldOpen] = useState(true);
+  const [outfieldOpen, setOutfieldOpen] = useState(true);
+  const [setupOpen, setSetupOpen] = useState(true);
+
   useEffect(() => {
     if (saved) {
       setInfieldPosition((saved.infieldPosition as InfieldPosition) || 'neutral');
@@ -153,102 +158,134 @@ export default function DefensePage() {
       </header>
 
       <main className="p-4 space-y-6">
-        <div className="space-y-4">
-          <h2 className="text-sm font-mono text-cyan-500 border-b border-cyan-500/30 pb-2">INFIELD POSITIONING</h2>
-          <p className="text-[10px] font-mono text-gray-500">Each position counters specific offensive strategies</p>
-          {INFIELD_OPTIONS.map(opt => (
-            <button
-              key={opt.value}
-              data-testid={`button-infield-${opt.value}`}
-              onClick={() => setInfieldPosition(opt.value)}
-              className={`w-full text-left p-4 rounded-xl border transition-all ${
-                infieldPosition === opt.value
-                  ? 'border-pink-400 bg-pink-950/30 shadow-[0_0_15px_rgba(236,72,153,0.2)]'
-                  : 'border-gray-800 bg-gray-950/30 hover:border-gray-600'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <span className={`font-black text-base ${infieldPosition === opt.value ? 'text-pink-400' : 'text-gray-400'}`} style={{fontFamily: "'Orbitron', sans-serif"}}>
-                  {opt.label}
-                </span>
-                {infieldPosition === opt.value && (
-                  <span className="text-xs font-mono text-pink-400 bg-pink-400/10 px-2 py-1 rounded">ACTIVE</span>
-                )}
-              </div>
-              <p className="text-xs font-mono text-gray-500 leading-relaxed">{opt.desc}</p>
-              <p className="text-[10px] font-mono text-cyan-500/70 mt-2">{opt.counters}</p>
-              {coefficients.length > 0 && (
-                <CoeffBadges coefficients={coefficients} layer="defense_counter_infield" tacticValue={opt.value} />
-              )}
-            </button>
-          ))}
+        <div className="space-y-2">
+          <button
+            data-testid="toggle-infield"
+            onClick={() => setInfieldOpen(!infieldOpen)}
+            className="w-full flex items-center justify-between text-sm font-mono text-cyan-500 border-b border-cyan-500/30 pb-2"
+          >
+            <span>INFIELD POSITIONING</span>
+            {infieldOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+          {infieldOpen && (
+            <div className="space-y-4 pt-2">
+              <p className="text-[10px] font-mono text-gray-500">Each position counters specific offensive strategies</p>
+              {INFIELD_OPTIONS.map(opt => (
+                <button
+                  key={opt.value}
+                  data-testid={`button-infield-${opt.value}`}
+                  onClick={() => setInfieldPosition(opt.value)}
+                  className={`w-full text-left p-4 rounded-xl border transition-all ${
+                    infieldPosition === opt.value
+                      ? 'border-pink-400 bg-pink-950/30 shadow-[0_0_15px_rgba(236,72,153,0.2)]'
+                      : 'border-gray-800 bg-gray-950/30 hover:border-gray-600'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`font-black text-base ${infieldPosition === opt.value ? 'text-pink-400' : 'text-gray-400'}`} style={{fontFamily: "'Orbitron', sans-serif"}}>
+                      {opt.label}
+                    </span>
+                    {infieldPosition === opt.value && (
+                      <span className="text-xs font-mono text-pink-400 bg-pink-400/10 px-2 py-1 rounded">ACTIVE</span>
+                    )}
+                  </div>
+                  <p className="text-xs font-mono text-gray-500 leading-relaxed">{opt.desc}</p>
+                  <p className="text-[10px] font-mono text-cyan-500/70 mt-2">{opt.counters}</p>
+                  {coefficients.length > 0 && (
+                    <CoeffBadges coefficients={coefficients} layer="defense_counter_infield" tacticValue={opt.value} />
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        <div className="space-y-4">
-          <h2 className="text-sm font-mono text-pink-500 border-b border-pink-500/30 pb-2">OUTFIELD POSITIONING</h2>
-          <p className="text-[10px] font-mono text-gray-500">Outfield depth affects fly ball coverage and power hits</p>
-          {OUTFIELD_OPTIONS.map(opt => (
-            <button
-              key={opt.value}
-              data-testid={`button-outfield-${opt.value}`}
-              onClick={() => setOutfieldPosition(opt.value)}
-              className={`w-full text-left p-4 rounded-xl border transition-all ${
-                outfieldPosition === opt.value
-                  ? 'border-cyan-400 bg-cyan-950/30 shadow-[0_0_15px_rgba(34,211,238,0.2)]'
-                  : 'border-gray-800 bg-gray-950/30 hover:border-gray-600'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <span className={`font-black text-base ${outfieldPosition === opt.value ? 'text-cyan-400' : 'text-gray-400'}`} style={{fontFamily: "'Orbitron', sans-serif"}}>
-                  {opt.label}
-                </span>
-                {outfieldPosition === opt.value && (
-                  <span className="text-xs font-mono text-cyan-400 bg-cyan-400/10 px-2 py-1 rounded">ACTIVE</span>
-                )}
-              </div>
-              <p className="text-xs font-mono text-gray-500 leading-relaxed">{opt.desc}</p>
-              <p className="text-[10px] font-mono text-pink-500/70 mt-2">{opt.counters}</p>
-              {coefficients.length > 0 && (
-                <CoeffBadges coefficients={coefficients} layer="defense_counter_outfield" tacticValue={opt.value} />
-              )}
-            </button>
-          ))}
+        <div className="space-y-2">
+          <button
+            data-testid="toggle-outfield"
+            onClick={() => setOutfieldOpen(!outfieldOpen)}
+            className="w-full flex items-center justify-between text-sm font-mono text-pink-500 border-b border-pink-500/30 pb-2"
+          >
+            <span>OUTFIELD POSITIONING</span>
+            {outfieldOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+          {outfieldOpen && (
+            <div className="space-y-4 pt-2">
+              <p className="text-[10px] font-mono text-gray-500">Outfield depth affects fly ball coverage and power hits</p>
+              {OUTFIELD_OPTIONS.map(opt => (
+                <button
+                  key={opt.value}
+                  data-testid={`button-outfield-${opt.value}`}
+                  onClick={() => setOutfieldPosition(opt.value)}
+                  className={`w-full text-left p-4 rounded-xl border transition-all ${
+                    outfieldPosition === opt.value
+                      ? 'border-cyan-400 bg-cyan-950/30 shadow-[0_0_15px_rgba(34,211,238,0.2)]'
+                      : 'border-gray-800 bg-gray-950/30 hover:border-gray-600'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`font-black text-base ${outfieldPosition === opt.value ? 'text-cyan-400' : 'text-gray-400'}`} style={{fontFamily: "'Orbitron', sans-serif"}}>
+                      {opt.label}
+                    </span>
+                    {outfieldPosition === opt.value && (
+                      <span className="text-xs font-mono text-cyan-400 bg-cyan-400/10 px-2 py-1 rounded">ACTIVE</span>
+                    )}
+                  </div>
+                  <p className="text-xs font-mono text-gray-500 leading-relaxed">{opt.desc}</p>
+                  <p className="text-[10px] font-mono text-pink-500/70 mt-2">{opt.counters}</p>
+                  {coefficients.length > 0 && (
+                    <CoeffBadges coefficients={coefficients} layer="defense_counter_outfield" tacticValue={opt.value} />
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        <div className="space-y-4">
-          <h2 className="text-sm font-mono text-purple-400 border-b border-purple-500/30 pb-2">DEFENSE SETUP</h2>
-          <p className="text-[10px] font-mono text-gray-500">RPS matchup vs opponent's Offensive Attack — buffs/debuffs on fielding and base prevention</p>
-
-          {DEFENSE_SETUP_OPTIONS.map(opt => (
-            <button
-              key={opt.value}
-              data-testid={`button-defense-setup-${opt.value}`}
-              onClick={() => setDefenseSetup(opt.value)}
-              className={`w-full text-left p-4 rounded-xl border transition-all ${
-                defenseSetup === opt.value
-                  ? 'border-purple-400 bg-purple-950/30 shadow-[0_0_15px_rgba(168,85,247,0.2)]'
-                  : 'border-gray-800 bg-gray-950/30 hover:border-gray-600'
-              }`}
-            >
-              <div className="flex items-center gap-3 mb-2">
-                <span className="text-2xl">{opt.icon}</span>
-                <span className={`font-black text-lg ${defenseSetup === opt.value ? 'text-purple-400' : 'text-gray-400'}`} style={{fontFamily: "'Orbitron', sans-serif"}}>
-                  {opt.label}
-                </span>
-                {defenseSetup === opt.value && (
-                  <span className="ml-auto text-xs font-mono text-purple-400 bg-purple-400/10 px-2 py-1 rounded">ACTIVE</span>
-                )}
-              </div>
-              <p className="text-xs font-mono text-gray-500 leading-relaxed mb-2">{opt.desc}</p>
-              <div className="flex gap-4">
-                <span className="text-[10px] font-mono text-green-400">▲ Beats: {opt.beats}</span>
-                <span className="text-[10px] font-mono text-red-400">▼ Weak vs: {opt.losesTo}</span>
-              </div>
-              {coefficients.length > 0 && (
-                <CoeffBadges coefficients={coefficients} layer="defense_setup" tacticValue={opt.value} />
-              )}
-            </button>
-          ))}
+        <div className="space-y-2">
+          <button
+            data-testid="toggle-defense-setup"
+            onClick={() => setSetupOpen(!setupOpen)}
+            className="w-full flex items-center justify-between text-sm font-mono text-purple-400 border-b border-purple-500/30 pb-2"
+          >
+            <span>DEFENSE SETUP</span>
+            {setupOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+          {setupOpen && (
+            <div className="space-y-4 pt-2">
+              <p className="text-[10px] font-mono text-gray-500">RPS matchup vs opponent's Offensive Attack — buffs/debuffs on fielding and base prevention</p>
+              {DEFENSE_SETUP_OPTIONS.map(opt => (
+                <button
+                  key={opt.value}
+                  data-testid={`button-defense-setup-${opt.value}`}
+                  onClick={() => setDefenseSetup(opt.value)}
+                  className={`w-full text-left p-4 rounded-xl border transition-all ${
+                    defenseSetup === opt.value
+                      ? 'border-purple-400 bg-purple-950/30 shadow-[0_0_15px_rgba(168,85,247,0.2)]'
+                      : 'border-gray-800 bg-gray-950/30 hover:border-gray-600'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="text-2xl">{opt.icon}</span>
+                    <span className={`font-black text-lg ${defenseSetup === opt.value ? 'text-purple-400' : 'text-gray-400'}`} style={{fontFamily: "'Orbitron', sans-serif"}}>
+                      {opt.label}
+                    </span>
+                    {defenseSetup === opt.value && (
+                      <span className="ml-auto text-xs font-mono text-purple-400 bg-purple-400/10 px-2 py-1 rounded">ACTIVE</span>
+                    )}
+                  </div>
+                  <p className="text-xs font-mono text-gray-500 leading-relaxed mb-2">{opt.desc}</p>
+                  <div className="flex gap-4">
+                    <span className="text-[10px] font-mono text-green-400">▲ Beats: {opt.beats}</span>
+                    <span className="text-[10px] font-mono text-red-400">▼ Weak vs: {opt.losesTo}</span>
+                  </div>
+                  {coefficients.length > 0 && (
+                    <CoeffBadges coefficients={coefficients} layer="defense_setup" tacticValue={opt.value} />
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <button

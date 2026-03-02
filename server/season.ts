@@ -334,29 +334,24 @@ export async function applyPromotionRelegation(): Promise<void> {
 
     if (promoDay14.length < 2) continue;
 
-    const match1 = promoDay14[0];
-    const match2 = promoDay14[1];
+    const winnersMatch = promoDay14[0];
+    const losersMatch = promoDay14[1];
 
-    const winner1 = (match1.homeScore ?? 0) > (match1.awayScore ?? 0) ? match1.homeTeamId : match1.awayTeamId;
-    const loser1 = (match1.homeScore ?? 0) > (match1.awayScore ?? 0) ? match1.awayTeamId : match1.homeTeamId;
-    const winner2 = (match2.homeScore ?? 0) > (match2.awayScore ?? 0) ? match2.homeTeamId : match2.awayTeamId;
-    const loser2 = (match2.homeScore ?? 0) > (match2.awayScore ?? 0) ? match2.awayTeamId : match2.homeTeamId;
-
-    const winners = [winner1, winner2];
-    const losers = [loser1, loser2];
+    const promoted = [winnersMatch.homeTeamId, winnersMatch.awayTeamId];
+    const relegated = [losersMatch.homeTeamId, losersMatch.awayTeamId];
 
     const upperSeries = Array.from(new Set(allTeams.filter(t => t.league === upperLeague).map(t => t.series))).sort();
     const lowerSeries = Array.from(new Set(allTeams.filter(t => t.league === lowerLeague).map(t => t.series))).sort();
     const upperBottomSeries = upperSeries[upperSeries.length - 1];
     const lowerTopSeries = lowerSeries[0];
 
-    for (const teamId of winners) {
+    for (const teamId of promoted) {
       const team = allTeams.find(t => t.id === teamId);
       if (team && team.league === lowerLeague) {
         await storage.updateTeamLeague(teamId, upperLeague, upperBottomSeries, `${upperLeague}${upperBottomSeries}`);
       }
     }
-    for (const teamId of losers) {
+    for (const teamId of relegated) {
       const team = allTeams.find(t => t.id === teamId);
       if (team && team.league === upperLeague) {
         await storage.updateTeamLeague(teamId, lowerLeague, lowerTopSeries, `${lowerLeague}${lowerTopSeries}`);

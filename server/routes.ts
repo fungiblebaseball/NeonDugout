@@ -975,10 +975,8 @@ export async function registerRoutes(
     const rosterCount = await storage.getPlayerCountForTeam(user.teamId);
     if (rosterCount >= 20) return res.status(400).json({ message: "Roster full (max 20)" });
 
-    if (listing.sellerWallet !== 'FREE_AGENT') {
-      const tokens = await storage.getUserTokens(decoded.userId);
-      if (!tokens || tokens.balance < listing.price) return res.status(400).json({ message: "Insufficient tokens" });
-    }
+    const tokens = await storage.getUserTokens(decoded.userId);
+    if (!tokens || tokens.balance < listing.price) return res.status(400).json({ message: "Insufficient tokens" });
 
     const challenge = generateMarketChallenge(decoded.walletAddress, 'buy', listingId);
     res.json({ ...challenge, listingId });

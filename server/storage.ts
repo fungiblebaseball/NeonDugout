@@ -817,13 +817,23 @@ export class DatabaseStorage implements IStorage {
       const { rows: [listing] } = await client.query('SELECT * FROM market_listings WHERE id = $1 AND status = $2 FOR UPDATE', [listingId, 'active']);
       if (!listing) throw new Error('Listing not found or already sold');
 
-      if (listing.seller_wallet !== 'FREE_AGENT') {
-        const { rows: [buyer] } = await client.query('SELECT id FROM users WHERE wallet_address = $1', [buyerWallet]);
-        const { rows: [buyerTokens] } = await client.query('SELECT * FROM user_tokens WHERE user_id = $1 FOR UPDATE', [buyer.id]);
-        if (!buyerTokens || buyerTokens.balance < listing.price) throw new Error('Insufficient tokens');
+      const { rows: [buyer] } = await client.query('SELECT id FROM users WHERE wallet_address = $1', [buyerWallet]);
+      const { rows: [buyerTokens] } = await client.query('SELECT * FROM user_tokens WHERE user_id = $1 FOR UPDATE', [buyer.id]);
+      if (!buyerTokens || buyerTokens.balance < listing.price) throw new Error('Insufficient tokens');
 
-        await client.query('UPDATE user_tokens SET balance = balance - $1 WHERE user_id = $2', [listing.price, buyer.id]);
+      await client.query('UPDATE user_tokens SET balance = balance - $1 WHERE user_id = $2', [listing.price, buyer.id]);
 
+      if (listing.seller_wallet === 'FREE_AGENT') {
+        const { rows: [admin] } = await client.query('SELECT id FROM users WHERE is_admin = true ORDER BY id ASC LIMIT 1');
+        if (admin) {
+          const { rows: [adminTokens] } = await client.query('SELECT * FROM user_tokens WHERE user_id = $1', [admin.id]);
+          if (adminTokens) {
+            await client.query('UPDATE user_tokens SET balance = balance + $1 WHERE user_id = $2', [listing.price, admin.id]);
+          } else {
+            await client.query('INSERT INTO user_tokens (user_id, balance) VALUES ($1, $2)', [admin.id, listing.price]);
+          }
+        }
+      } else {
         const { rows: [seller] } = await client.query('SELECT id FROM users WHERE wallet_address = $1', [listing.seller_wallet]);
         if (seller) {
           const { rows: [sellerTokens] } = await client.query('SELECT * FROM user_tokens WHERE user_id = $1', [seller.id]);

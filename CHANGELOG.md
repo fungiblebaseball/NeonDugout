@@ -6,6 +6,37 @@ Formato:
   • Dettaglio 2 (file modificati)  
   • Trade-off / note (se rilevanti)
 
+## v1.22.0 – 3 March 2026 – Tutorial System
+
+- **Onboarding Modal (5 slides)**:
+  * Full-screen walkthrough shown once after first login
+  * Covers: welcome, hub overview, strategy setup, training, and marketplace
+  * Cyberpunk styling with Orbitron/VT323 fonts, dot navigation, skip button
+  * Files: client/src/components/TutorialModal.tsx
+
+- **Per-Page Tips (10 pages)**:
+  * Contextual tooltip shown on first visit to each page (after onboarding)
+  * Auto-dismisses after 8 seconds with animated progress bar
+  * Pages: Home, Lineup, Pitchers, Attack, Defense, Training, Team, Market, Schedule, Standings
+  * Files: client/src/components/PageTip.tsx, all 10 page components
+
+- **Tutorial State (zustand)**:
+  * tutorialCompleted, seenPageTips, showTutorial fields
+  * markTutorialComplete(), markPageTipSeen(route), resetTutorial() actions
+  * Persisted to localStorage
+  * Files: client/src/lib/store.ts
+
+- **Replay Tutorial**:
+  * "REPLAY TUTORIAL" button on Team page resets all tutorial state
+  * Re-triggers onboarding modal and all page tips
+  * Files: client/src/pages/TeamPage.tsx
+
+- **Documentation**:
+  * Tutorial.md — full reference for tutorial content and architecture
+  * Files: Tutorial.md
+
+---
+
 ## v1.20.0 – 3 marzo 2026 – Acquisto Token con SOL (Solana on-chain)
 
 - **Schema — tabelle `token_packages` + `token_purchases` (T001)**:

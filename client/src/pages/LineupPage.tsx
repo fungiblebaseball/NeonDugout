@@ -1,4 +1,5 @@
 import { useGameStore } from "@/lib/store";
+import PageTip from "@/components/PageTip";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -386,6 +387,7 @@ export default function LineupPage() {
           </div>
         </div>
       </main>
+      <PageTip route="/lineup" message="Drag players to set field positions and batting order. SP is set in Pitchers page." />
     </div>
   );
 }

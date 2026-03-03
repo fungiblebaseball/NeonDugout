@@ -1,6 +1,7 @@
 import { useGameStore } from "@/lib/store";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Coins, Users, RotateCcw, DollarSign, ShoppingCart } from "lucide-react";
+import PageTip from "@/components/PageTip";
+import { ArrowLeft, Coins, Users, RotateCcw, DollarSign, ShoppingCart, HelpCircle } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useState, useMemo } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -64,7 +65,7 @@ function getTotal(p: PlayerData, key: string): number {
 }
 
 export default function TeamPage() {
-  const { walletAddress, user, team, token } = useGameStore();
+  const { walletAddress, user, team, token, resetTutorial } = useGameStore();
   const [, navigate] = useLocation();
   const queryClient = useQueryClient();
   const [sortKey, setSortKey] = useState<string | null>(null);
@@ -446,6 +447,17 @@ export default function TeamPage() {
           )}
         </div>
 
+        <div className="flex justify-end">
+          <button
+            data-testid="button-replay-tutorial"
+            onClick={() => resetTutorial()}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-cyan-500/30 hover:border-cyan-400/60 bg-black/40 hover:bg-cyan-500/10 text-cyan-400 font-mono text-[10px] uppercase tracking-wider transition-all"
+          >
+            <HelpCircle className="w-3.5 h-3.5" />
+            REPLAY TUTORIAL
+          </button>
+        </div>
+
         <div className="rounded-xl border border-cyan-500/30 bg-black/40 overflow-hidden">
           <div className="px-3 py-2 border-b border-cyan-500/20 flex items-center gap-2">
             <Users className="w-3.5 h-3.5 text-cyan-400" />
@@ -600,6 +612,7 @@ export default function TeamPage() {
           </div>
         </div>
       )}
+      <PageTip route="/team" message="View your roster, claim tokens, buy players, and manage your team." />
     </div>
   );
 }

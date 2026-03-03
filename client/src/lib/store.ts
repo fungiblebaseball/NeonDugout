@@ -43,9 +43,16 @@ interface GameState {
   players: PlayerData[];
   loading: boolean;
 
+  tutorialCompleted: boolean;
+  seenPageTips: string[];
+  showTutorial: boolean;
+
   loginWithSignature: (walletAddress: string, signature: string, message: string) => Promise<{ success: boolean; error?: string }>;
   restoreSession: () => Promise<boolean>;
   disconnectWallet: () => void;
+  markTutorialComplete: () => void;
+  markPageTipSeen: (route: string) => void;
+  resetTutorial: () => void;
 }
 
 export const useGameStore = create<GameState>()(
@@ -57,6 +64,10 @@ export const useGameStore = create<GameState>()(
       team: null,
       players: [],
       loading: false,
+
+      tutorialCompleted: false,
+      seenPageTips: [],
+      showTutorial: false,
 
       loginWithSignature: async (walletAddress: string, signature: string, message: string) => {
         set({ loading: true });
@@ -80,6 +91,7 @@ export const useGameStore = create<GameState>()(
 
           const data = await res.json();
 
+          const { tutorialCompleted } = get();
           set({
             walletAddress,
             token: data.token,
@@ -87,6 +99,7 @@ export const useGameStore = create<GameState>()(
             team: data.team,
             players: data.players || [],
             loading: false,
+            showTutorial: !tutorialCompleted,
           });
 
           return { success: true };
@@ -126,11 +139,13 @@ export const useGameStore = create<GameState>()(
           }
 
           const data = await res.json();
+          const { tutorialCompleted } = get();
           set({
             walletAddress: data.user.walletAddress,
             user: data.user,
             team: data.team,
             players: data.players || [],
+            showTutorial: !tutorialCompleted,
           });
           return true;
         } catch {
@@ -146,6 +161,20 @@ export const useGameStore = create<GameState>()(
         team: null,
         players: [],
       }),
+
+      markTutorialComplete: () => set({ tutorialCompleted: true, showTutorial: false }),
+
+      markPageTipSeen: (route: string) => set((state) => ({
+        seenPageTips: state.seenPageTips.includes(route)
+          ? state.seenPageTips
+          : [...state.seenPageTips, route],
+      })),
+
+      resetTutorial: () => set({
+        tutorialCompleted: false,
+        seenPageTips: [],
+        showTutorial: true,
+      }),
     }),
     {
       name: 'neon-dugout-v1',
@@ -155,6 +184,8 @@ export const useGameStore = create<GameState>()(
         user: state.user,
         team: state.team,
         players: state.players,
+        tutorialCompleted: state.tutorialCompleted,
+        seenPageTips: state.seenPageTips,
       }),
     }
   )

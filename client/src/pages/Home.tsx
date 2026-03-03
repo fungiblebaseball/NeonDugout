@@ -1,5 +1,6 @@
 import { useGameStore } from "@/lib/store";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import PageTip from "@/components/PageTip";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
 import { Terminal, ShieldAlert, Calendar, Swords, Shield, ListOrdered, RotateCcw, Zap, Trophy, Play, Pencil, Check, X, ScrollText, Dumbbell, Users, Coins, Clock, Eye, Target, Crosshair, ChevronDown, ChevronUp } from "lucide-react";
@@ -908,6 +909,7 @@ export default function Home() {
           </p>
         </div>
       </main>
+      <PageTip route="/" message="This is your command center. Check match results and prepare for the next game." />
     </div>
   );
 }

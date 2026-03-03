@@ -1,4 +1,5 @@
 import { useGameStore } from "@/lib/store";
+import PageTip from "@/components/PageTip";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Trophy, Eye, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, X, FileText, Calendar } from "lucide-react";
@@ -815,6 +816,7 @@ function MatchPreview({ match, userTeamId, allTeams }: { match: MatchData; userT
           })}
         </div>
       </div>
+      <PageTip route="/standings" message="Division rankings. Navigate between seasons to see historical results." />
     </div>
   );
 }

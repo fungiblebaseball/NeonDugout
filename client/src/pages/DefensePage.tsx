@@ -1,4 +1,5 @@
 import { useGameStore } from "@/lib/store";
+import PageTip from "@/components/PageTip";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
@@ -318,6 +319,7 @@ export default function DefensePage() {
           {saveMutation.isPending ? "SAVING..." : "SAVE DEFENSE"}
         </button>
       </main>
+      <PageTip route="/defense" message="Configure infield/outfield positioning and defensive setup." />
     </div>
   );
 }

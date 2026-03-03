@@ -1,4 +1,5 @@
 import { useGameStore } from "@/lib/store";
+import PageTip from "@/components/PageTip";
 import { useQuery } from "@tanstack/react-query";
 import { Calendar, Trophy, Clock, FileText, Crosshair, ChevronLeft, ChevronRight, Archive } from "lucide-react";
 import { Link, useLocation } from "wouter";
@@ -398,6 +399,7 @@ export default function SchedulePage() {
           })}
         </div>
       </main>
+      <PageTip route="/schedule" message="Your division calendar. Tap played matches to see full reports." />
     </div>
   );
 }

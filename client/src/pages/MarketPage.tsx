@@ -1,4 +1,5 @@
 import { useGameStore } from "@/lib/store";
+import PageTip from "@/components/PageTip";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Store, ChevronDown, ChevronUp } from "lucide-react";
 import { useLocation } from "wouter";
@@ -357,6 +358,7 @@ export default function MarketPage() {
           );
         })}
       </main>
+      <PageTip route="/market" message="Browse and buy free agents or players listed by other managers." />
     </div>
   );
 }

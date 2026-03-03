@@ -1,4 +1,5 @@
 import { useGameStore } from "@/lib/store";
+import PageTip from "@/components/PageTip";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
@@ -416,6 +417,7 @@ export default function AttackPage() {
           {saveMutation.isPending ? "SAVING..." : "COMMIT TACTICAL OVERRIDE"}
         </button>
       </main>
+      <PageTip route="/attack" message="Set batter approach, attack style, and offensive strategy with mid-game switching." />
     </div>
   );
 }

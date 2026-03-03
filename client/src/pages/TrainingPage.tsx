@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useGameStore } from "@/lib/store";
+import PageTip from "@/components/PageTip";
 import { Link, useLocation } from "wouter";
 import { ArrowLeft, Eye, Target, Crosshair, Dumbbell } from "lucide-react";
 
@@ -137,6 +138,7 @@ export default function TrainingPage() {
           );
         })}
       </main>
+      <PageTip route="/training" message="Play minigames to boost player stats. Rewards depend on your score." />
     </div>
   );
 }

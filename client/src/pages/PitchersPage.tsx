@@ -1,4 +1,5 @@
 import { useGameStore } from "@/lib/store";
+import PageTip from "@/components/PageTip";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { Slider } from "@/components/ui/slider";
@@ -438,6 +439,7 @@ export default function PitchersPage() {
           {saveMutation.isPending ? "SAVING..." : "SAVE PITCHING STAFF"}
         </button>
       </main>
+      <PageTip route="/pitchers" message="Assign pitcher roles (SP, R1, Closer) and set switch conditions for each." />
     </div>
   );
 }

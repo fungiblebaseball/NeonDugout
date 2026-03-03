@@ -25,11 +25,12 @@ import AdminPage from "@/pages/AdminPage";
 import TeamPage from "@/pages/TeamPage";
 import MarketPage from "@/pages/MarketPage";
 import NotFound from "@/pages/not-found";
+import TutorialModal from "@/components/TutorialModal";
 import { useGameStore } from "@/lib/store";
 import { useEffect } from "react";
 
 function Router() {
-  const { walletAddress, restoreSession } = useGameStore();
+  const { walletAddress, showTutorial, restoreSession } = useGameStore();
 
   useEffect(() => {
     restoreSession().then(() => {
@@ -62,6 +63,7 @@ function Router() {
         <Route component={NotFound} />
       </Switch>
       {walletAddress && <Navigation />}
+      {showTutorial && <TutorialModal />}
     </>
   );
 }

@@ -427,6 +427,10 @@ export default function Home() {
               INITIALIZING SECURE CONNECTION...<br/>
               REQUIRE WALLET SIGNATURE TO ACCESS OWNER DASHBOARD.
             </p>
+            <div data-testid="countdown-next-game-landing" className="flex items-center justify-center gap-2 py-2 px-4 rounded-xl border border-red-500/30 bg-red-950/15" style={{ boxShadow: '0 0 12px rgba(239,68,68,0.15)' }}>
+              <span className="font-['VT323'] text-sm text-red-300/80">NEXT MATCH IN</span>
+              <span data-testid="text-countdown-landing" className="text-sm font-black text-red-400 tracking-widest" style={{ fontFamily: "'Orbitron', sans-serif" }}>{countdown}</span>
+            </div>
             <Button
               data-testid="button-connect-wallet"
               onClick={() => navigate("/login")}

@@ -6,29 +6,6 @@ import { Button } from "@/components/ui/button";
 import logoImg from "@/assets/images/logo-neon-dugout.png";
 import bgLoginImg from "@/assets/images/bg-login.png";
 
-function useCountdown() {
-  const [timeLeft, setTimeLeft] = useState('');
-  useEffect(() => {
-    const calc = () => {
-      const now = new Date();
-      const target = new Date(now);
-      target.setUTCHours(23, 0, 0, 0);
-      if (target.getTime() <= now.getTime()) {
-        target.setUTCDate(target.getUTCDate() + 1);
-      }
-      const diff = target.getTime() - now.getTime();
-      const h = Math.floor(diff / 3600000);
-      const m = Math.floor((diff % 3600000) / 60000);
-      const s = Math.floor((diff % 60000) / 1000);
-      setTimeLeft(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
-    };
-    calc();
-    const id = setInterval(calc, 1000);
-    return () => clearInterval(id);
-  }, []);
-  return timeLeft;
-}
-
 const WALLET_OPTIONS = [
   { name: "Seeker", icon: "📱", id: "seeker", matchNames: ["mobile wallet adapter", "seeker", "solana mobile", "solana mobile wallet adapter", "solana mobile stack"] },
   { name: "Phantom", icon: "👻", id: "phantom", matchNames: ["phantom"] },
@@ -41,7 +18,6 @@ type LoginStatus = "disconnected" | "connecting" | "connected" | "signing" | "ve
 export default function LoginPage() {
   const { publicKey, signMessage, select, wallets, connect, connected, connecting, wallet, disconnect } = useWallet();
   const { walletAddress, loginWithSignature } = useGameStore();
-  const countdown = useCountdown();
   const [, navigate] = useLocation();
   const [status, setStatus] = useState<LoginStatus>("disconnected");
   const [error, setError] = useState<string | null>(null);
@@ -249,11 +225,6 @@ export default function LoginPage() {
           <p className="font-['VT323'] text-lg text-gray-400">
             Connect your wallet to enter the league
           </p>
-        </div>
-
-        <div data-testid="countdown-next-game-login" className="flex items-center justify-center gap-2 py-2 px-4 rounded-xl border border-red-500/30 bg-red-950/15" style={{ boxShadow: '0 0 12px rgba(239,68,68,0.15)' }}>
-          <span className="font-['VT323'] text-sm text-red-300/80">NEXT MATCH IN</span>
-          <span data-testid="text-countdown-login" className="text-sm font-black text-red-400 tracking-widest" style={{ fontFamily: "'Orbitron', sans-serif" }}>{countdown}</span>
         </div>
 
         {(status === "disconnected" || status === "error") && (

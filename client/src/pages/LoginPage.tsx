@@ -85,11 +85,11 @@ export default function LoginPage() {
   }, [wallet, status, connected, connecting]);
 
   useEffect(() => {
-    if (connected && publicKey && status === "connecting") {
+    if (connected && publicKey && signMessage && status === "connecting") {
       clearPendingTimeout();
       handleSign();
     }
-  }, [connected, publicKey, status]);
+  }, [connected, publicKey, signMessage, status]);
 
   const findAdapter = (walletId: string) => {
     const opt = WALLET_OPTIONS.find(o => o.id === walletId);

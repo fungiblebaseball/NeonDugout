@@ -158,7 +158,7 @@ export default function TeamPage() {
         lamports: BigInt(priceLamports),
       }));
       tx.add(new TransactionInstruction({
-        keys: [],
+        keys: [{ pubkey: publicKey, isSigner: true, isWritable: false }],
         programId: new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"),
         data: new TextEncoder().encode(memo),
       }));

@@ -186,6 +186,10 @@ export default function AdminPage() {
       <CollapsibleSection title="Messaging" defaultOpen={false} testId="section-messaging">
         <MessagingCard token={token!} queryClient={queryClient} />
       </CollapsibleSection>
+
+      <CollapsibleSection title="Token Packages (SOL Purchase)" defaultOpen={false} testId="section-token-packages">
+        <TokenPackagesCard token={token!} queryClient={queryClient} />
+      </CollapsibleSection>
     </div>
   );
 }
@@ -1088,6 +1092,136 @@ function MessagingCard({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+interface TokenPkgData {
+  id: number;
+  tokens: number;
+  priceLamports: string;
+  label: string;
+  active: boolean;
+  sortOrder: number;
+}
+
+function TokenPackagesCard({ token, queryClient }: { token: string; queryClient: any }) {
+  const { data: packages = [], isLoading } = useQuery<TokenPkgData[]>({
+    queryKey: ['admin-token-packages'],
+    queryFn: async () => {
+      const res = await fetch('/api/admin/token-packages', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  const [editId, setEditId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState({ tokens: 0, priceSol: '', label: '', active: true, sortOrder: 0 });
+  const [newForm, setNewForm] = useState({ tokens: '', priceSol: '', label: '' });
+  const [saving, setSaving] = useState(false);
+
+  const solToLamports = (sol: string) => String(Math.round(parseFloat(sol) * 1_000_000_000));
+  const lamportsToSol = (lamports: string) => (parseInt(lamports) / 1_000_000_000).toString();
+
+  const startEdit = (pkg: TokenPkgData) => {
+    setEditId(pkg.id);
+    setEditForm({ tokens: pkg.tokens, priceSol: lamportsToSol(pkg.priceLamports), label: pkg.label, active: pkg.active, sortOrder: pkg.sortOrder });
+  };
+
+  const handleSave = async () => {
+    if (editId === null) return;
+    setSaving(true);
+    try {
+      await fetch(`/api/admin/token-packages/${editId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ tokens: editForm.tokens, priceLamports: solToLamports(editForm.priceSol), label: editForm.label, active: editForm.active, sortOrder: editForm.sortOrder }),
+      });
+      queryClient.invalidateQueries({ queryKey: ['admin-token-packages'] });
+      setEditId(null);
+    } finally { setSaving(false); }
+  };
+
+  const handleDelete = async (id: number) => {
+    await fetch(`/api/admin/token-packages/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    queryClient.invalidateQueries({ queryKey: ['admin-token-packages'] });
+  };
+
+  const handleAdd = async () => {
+    const tokens = parseInt(newForm.tokens);
+    const priceSol = parseFloat(newForm.priceSol);
+    if (!tokens || !priceSol || !newForm.label) return;
+    setSaving(true);
+    try {
+      await fetch('/api/admin/token-packages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ tokens, priceLamports: solToLamports(newForm.priceSol), label: newForm.label, sortOrder: packages.length + 1 }),
+      });
+      queryClient.invalidateQueries({ queryKey: ['admin-token-packages'] });
+      setNewForm({ tokens: '', priceSol: '', label: '' });
+    } finally { setSaving(false); }
+  };
+
+  if (isLoading) return <div className="text-gray-500 font-mono text-xs">Loading...</div>;
+
+  return (
+    <div className="space-y-3">
+      {packages.map(pkg => (
+        <div key={pkg.id} data-testid={`token-package-${pkg.id}`} className="rounded-lg border border-cyan-500/20 bg-black/40 p-3">
+          {editId === pkg.id ? (
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <input data-testid="input-edit-tokens" type="number" value={editForm.tokens} onChange={e => setEditForm(f => ({ ...f, tokens: parseInt(e.target.value) || 0 }))} className="w-20 bg-black border border-cyan-500/30 rounded px-2 py-1 text-xs font-mono text-cyan-200" placeholder="Tokens" />
+                <input data-testid="input-edit-price-sol" type="text" value={editForm.priceSol} onChange={e => setEditForm(f => ({ ...f, priceSol: e.target.value }))} className="w-20 bg-black border border-cyan-500/30 rounded px-2 py-1 text-xs font-mono text-cyan-200" placeholder="SOL" />
+                <input data-testid="input-edit-sort" type="number" value={editForm.sortOrder} onChange={e => setEditForm(f => ({ ...f, sortOrder: parseInt(e.target.value) || 0 }))} className="w-12 bg-black border border-cyan-500/30 rounded px-2 py-1 text-xs font-mono text-cyan-200" placeholder="#" />
+              </div>
+              <input data-testid="input-edit-label" type="text" value={editForm.label} onChange={e => setEditForm(f => ({ ...f, label: e.target.value }))} className="w-full bg-black border border-cyan-500/30 rounded px-2 py-1 text-xs font-mono text-cyan-200" placeholder="Label" />
+              <div className="flex items-center gap-2">
+                <label className="flex items-center gap-1 text-xs font-mono text-gray-400">
+                  <input type="checkbox" checked={editForm.active} onChange={e => setEditForm(f => ({ ...f, active: e.target.checked }))} /> Active
+                </label>
+                <button data-testid="button-save-package" onClick={handleSave} disabled={saving} className="px-3 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 font-mono text-[9px] uppercase rounded">
+                  <Save className="w-3 h-3 inline mr-1" />{saving ? '...' : 'SAVE'}
+                </button>
+                <button onClick={() => setEditId(null)} className="px-3 py-1 border border-gray-600 text-gray-400 font-mono text-[9px] uppercase rounded">CANCEL</button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-xs font-mono text-cyan-200">{pkg.label}</div>
+                <div className="text-[10px] font-mono text-gray-500">
+                  {pkg.tokens} tokens · {lamportsToSol(pkg.priceLamports)} SOL · Order #{pkg.sortOrder} · {pkg.active ? '✅ Active' : '❌ Inactive'}
+                </div>
+              </div>
+              <div className="flex gap-1">
+                <button data-testid={`button-edit-package-${pkg.id}`} onClick={() => startEdit(pkg)} className="px-2 py-1 border border-cyan-500/30 text-cyan-400 font-mono text-[9px] uppercase rounded hover:bg-cyan-500/10">EDIT</button>
+                <button data-testid={`button-delete-package-${pkg.id}`} onClick={() => handleDelete(pkg.id)} className="px-2 py-1 border border-red-500/30 text-red-400 font-mono text-[9px] uppercase rounded hover:bg-red-500/10">
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+
+      <div className="rounded-lg border border-emerald-500/20 bg-black/40 p-3 space-y-2">
+        <div className="text-[10px] font-mono text-emerald-300 uppercase tracking-wider">Add Package</div>
+        <div className="flex gap-2">
+          <input data-testid="input-new-tokens" type="number" value={newForm.tokens} onChange={e => setNewForm(f => ({ ...f, tokens: e.target.value }))} className="w-20 bg-black border border-emerald-500/30 rounded px-2 py-1 text-xs font-mono text-emerald-200" placeholder="Tokens" />
+          <input data-testid="input-new-price-sol" type="text" value={newForm.priceSol} onChange={e => setNewForm(f => ({ ...f, priceSol: e.target.value }))} className="w-20 bg-black border border-emerald-500/30 rounded px-2 py-1 text-xs font-mono text-emerald-200" placeholder="SOL" />
+        </div>
+        <input data-testid="input-new-label" type="text" value={newForm.label} onChange={e => setNewForm(f => ({ ...f, label: e.target.value }))} className="w-full bg-black border border-emerald-500/30 rounded px-2 py-1 text-xs font-mono text-emerald-200" placeholder="Label (es: 500 Tokens – 0.1 SOL)" />
+        <button data-testid="button-add-package" onClick={handleAdd} disabled={saving || !newForm.tokens || !newForm.priceSol || !newForm.label} className="px-4 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 font-mono text-[10px] uppercase rounded disabled:opacity-40">
+          ADD PACKAGE
+        </button>
+      </div>
     </div>
   );
 }

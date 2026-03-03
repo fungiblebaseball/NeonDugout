@@ -1,10 +1,12 @@
 import { useGameStore } from "@/lib/store";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Coins, Users, RotateCcw, DollarSign } from "lucide-react";
+import { ArrowLeft, Coins, Users, RotateCcw, DollarSign, ShoppingCart } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useState, useMemo } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
+import { useConnection } from "@solana/wallet-adapter-react";
 import { useToast } from "@/hooks/use-toast";
+import { SystemProgram, PublicKey, Transaction, TransactionInstruction, ComputeBudgetProgram } from "@solana/web3.js";
 
 interface PlayerData {
   id: number;
@@ -72,7 +74,11 @@ export default function TeamPage() {
   const [sellPlayer, setSellPlayer] = useState<PlayerData | null>(null);
   const [sellPrice, setSellPrice] = useState('10');
   const [sellStatus, setSellStatus] = useState<'idle' | 'signing' | 'confirming' | 'done' | 'error'>('idle');
-  const { signMessage } = useWallet();
+  const [buyTokensOpen, setBuyTokensOpen] = useState(false);
+  const [purchaseStatus, setPurchaseStatus] = useState<'idle' | 'preparing' | 'signing' | 'verifying' | 'done' | 'error'>('idle');
+  const [purchaseMessage, setPurchaseMessage] = useState('');
+  const { signMessage, sendTransaction, publicKey } = useWallet();
+  const { connection } = useConnection();
   const { toast } = useToast();
 
   const colorMutation = useMutation({
@@ -112,6 +118,77 @@ export default function TeamPage() {
     },
     enabled: !!token,
   });
+
+  const { data: tokenPackagesData = [] } = useQuery<{ id: number; tokens: number; priceLamports: string; label: string }[]>({
+    queryKey: ['token-packages'],
+    queryFn: async () => {
+      const res = await fetch('/api/token-packages');
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: buyTokensOpen,
+  });
+
+  const handleBuyTokens = async (packageId: number) => {
+    if (!token || !sendTransaction || !publicKey) return;
+    setPurchaseStatus('preparing');
+    setPurchaseMessage('');
+    try {
+      const prepRes = await fetch('/api/tokens/purchase/prepare', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ packageId }),
+      });
+      if (!prepRes.ok) {
+        const err = await prepRes.json();
+        throw new Error(err.message || 'Failed to prepare purchase');
+      }
+      const { orderId, memo, merchantAddress, priceLamports } = await prepRes.json();
+
+      setPurchaseStatus('signing');
+      const tx = new Transaction();
+      tx.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 5000 }));
+      tx.add(SystemProgram.transfer({
+        fromPubkey: publicKey,
+        toPubkey: new PublicKey(merchantAddress),
+        lamports: BigInt(priceLamports),
+      }));
+      tx.add(new TransactionInstruction({
+        keys: [],
+        programId: new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"),
+        data: Buffer.from(memo, "utf-8"),
+      }));
+
+      const signature = await sendTransaction(tx, connection);
+
+      setPurchaseStatus('verifying');
+      setPurchaseMessage('Payment sent, verifying on-chain...');
+
+      await connection.confirmTransaction(signature, 'confirmed');
+
+      const confirmRes = await fetch('/api/tokens/purchase/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ orderId, txSignature: signature }),
+      });
+      if (!confirmRes.ok) {
+        const err = await confirmRes.json();
+        throw new Error(err.message || 'Verification failed');
+      }
+      const result = await confirmRes.json();
+      setPurchaseStatus('done');
+      setPurchaseMessage(result.message || 'Tokens credited!');
+      toast({ title: 'Purchase complete!', description: result.message });
+      queryClient.invalidateQueries({ queryKey: ['token-balance'] });
+      setTimeout(() => { setPurchaseStatus('idle'); setPurchaseMessage(''); }, 3000);
+    } catch (err: any) {
+      console.error('Purchase failed:', err);
+      setPurchaseStatus('error');
+      setPurchaseMessage(err.message || 'Purchase failed');
+      toast({ title: 'Error', description: err.message || 'Purchase failed', variant: 'destructive' });
+      setTimeout(() => { setPurchaseStatus('idle'); setPurchaseMessage(''); }, 5000);
+    }
+  };
 
   const { data: lineupData } = useQuery<LineupData | null>({
     queryKey: ['lineup', team?.id],
@@ -323,7 +400,46 @@ export default function TeamPage() {
                 </span>
               )}
             </div>
+            <button
+              data-testid="button-buy-tokens"
+              onClick={() => setBuyTokensOpen(!buyTokensOpen)}
+              className="px-3 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 font-mono text-[9px] uppercase tracking-wider rounded transition-all flex items-center gap-1"
+            >
+              <ShoppingCart className="w-3 h-3" />
+              BUY
+            </button>
           </div>
+          {buyTokensOpen && (
+            <div className="mt-2 p-2 rounded-lg border border-emerald-500/20 bg-emerald-900/10">
+              <div className="text-[10px] font-mono text-emerald-300 uppercase mb-2 tracking-wider">Buy Tokens with SOL</div>
+              {purchaseStatus !== 'idle' && (
+                <div className={`text-[10px] font-mono mb-2 px-2 py-1 rounded ${purchaseStatus === 'done' ? 'bg-emerald-500/20 text-emerald-300' : purchaseStatus === 'error' ? 'bg-red-500/20 text-red-300' : 'bg-amber-500/20 text-amber-300 animate-pulse'}`}>
+                  {purchaseStatus === 'preparing' && 'Preparing order...'}
+                  {purchaseStatus === 'signing' && 'Approve transaction in wallet...'}
+                  {purchaseStatus === 'verifying' && (purchaseMessage || 'Verifying on-chain...')}
+                  {purchaseStatus === 'done' && (purchaseMessage || 'Tokens credited!')}
+                  {purchaseStatus === 'error' && (purchaseMessage || 'Purchase failed')}
+                </div>
+              )}
+              <div className="flex flex-col gap-1.5">
+                {tokenPackagesData.map(pkg => (
+                  <button
+                    key={pkg.id}
+                    data-testid={`button-buy-package-${pkg.id}`}
+                    onClick={() => handleBuyTokens(pkg.id)}
+                    disabled={purchaseStatus !== 'idle'}
+                    className="flex items-center justify-between px-3 py-2 rounded-lg border border-emerald-500/30 bg-black/30 hover:bg-emerald-500/10 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                  >
+                    <span className="font-mono text-[11px] text-emerald-200">{pkg.label}</span>
+                    <span className="font-mono text-[10px] text-amber-400">🪙 {pkg.tokens}</span>
+                  </button>
+                ))}
+                {tokenPackagesData.length === 0 && (
+                  <span className="text-[10px] font-mono text-gray-500">No packages available</span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="rounded-xl border border-cyan-500/30 bg-black/40 overflow-hidden">

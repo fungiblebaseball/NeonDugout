@@ -3,7 +3,7 @@ import { eq, and, sql, desc } from "drizzle-orm";
 import {
   users, teams, players, matches, lineups, pitcherRotations, tactics, matchDetails, playerSeasonStats, teamSnapshots,
   trainingResults, trainingConfig, userTokens, tokenConfig, tacticCoefficients, adminMessages, dismissedMessages,
-  marketListings,
+  marketListings, tokenPackages, tokenPurchases,
   type User, type InsertUser, type Team, type InsertTeam,
   type Player, type Match, type Lineup, type InsertLineup,
   type PitcherRotation, type InsertPitcherRotation,
@@ -15,6 +15,7 @@ import {
   type UserTokens, type TokenConfig,
   type TacticCoefficient, type InsertTacticCoefficients,
   type MarketListing,
+  type TokenPackage, type TokenPurchase,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -107,6 +108,16 @@ export interface IStorage {
   getActiveListings(): Promise<(MarketListing & { player: Player })[]>;
   getListingById(id: number): Promise<MarketListing | undefined>;
   getPlayerCountForTeam(teamId: number): Promise<number>;
+
+  getActiveTokenPackages(): Promise<TokenPackage[]>;
+  getAllTokenPackages(): Promise<TokenPackage[]>;
+  createTokenPackage(pkg: { tokens: number; priceLamports: string; label: string; active?: boolean; sortOrder?: number }): Promise<TokenPackage>;
+  updateTokenPackage(id: number, pkg: Partial<{ tokens: number; priceLamports: string; label: string; active: boolean; sortOrder: number }>): Promise<TokenPackage>;
+  deleteTokenPackage(id: number): Promise<void>;
+  createTokenPurchase(data: { userId: number; walletAddress: string; packageId: number; tokens: number; priceLamports: string; txSignature: string; memo: string }): Promise<TokenPurchase>;
+  confirmTokenPurchase(purchaseId: number, userId: number, tokens: number): Promise<TokenPurchase>;
+  failTokenPurchase(id: number): Promise<void>;
+  getPurchaseBySignature(sig: string): Promise<TokenPurchase | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -922,6 +933,89 @@ export class DatabaseStorage implements IStorage {
   async getPlayerCountForTeam(teamId: number): Promise<number> {
     const result = await db.select({ count: sql<number>`count(*)` }).from(players).where(eq(players.teamId, teamId));
     return Number(result[0]?.count ?? 0);
+  }
+
+  async getActiveTokenPackages(): Promise<TokenPackage[]> {
+    return db.select().from(tokenPackages).where(eq(tokenPackages.active, true)).orderBy(tokenPackages.sortOrder);
+  }
+
+  async getAllTokenPackages(): Promise<TokenPackage[]> {
+    return db.select().from(tokenPackages).orderBy(tokenPackages.sortOrder);
+  }
+
+  async createTokenPackage(pkg: { tokens: number; priceLamports: string; label: string; active?: boolean; sortOrder?: number }): Promise<TokenPackage> {
+    const [created] = await db.insert(tokenPackages).values({
+      tokens: pkg.tokens,
+      priceLamports: pkg.priceLamports,
+      label: pkg.label,
+      active: pkg.active ?? true,
+      sortOrder: pkg.sortOrder ?? 0,
+    }).returning();
+    return created;
+  }
+
+  async updateTokenPackage(id: number, pkg: Partial<{ tokens: number; priceLamports: string; label: string; active: boolean; sortOrder: number }>): Promise<TokenPackage> {
+    const [updated] = await db.update(tokenPackages).set(pkg).where(eq(tokenPackages.id, id)).returning();
+    return updated;
+  }
+
+  async deleteTokenPackage(id: number): Promise<void> {
+    await db.delete(tokenPackages).where(eq(tokenPackages.id, id));
+  }
+
+  async createTokenPurchase(data: { userId: number; walletAddress: string; packageId: number; tokens: number; priceLamports: string; txSignature: string; memo: string }): Promise<TokenPurchase> {
+    const [created] = await db.insert(tokenPurchases).values({
+      userId: data.userId,
+      walletAddress: data.walletAddress,
+      packageId: data.packageId,
+      tokens: data.tokens,
+      priceLamports: data.priceLamports,
+      txSignature: data.txSignature,
+      memo: data.memo,
+      status: "pending",
+    }).returning();
+    return created;
+  }
+
+  async confirmTokenPurchase(purchaseId: number, userId: number, tokens: number): Promise<TokenPurchase> {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { rows: [purchase] } = await client.query(
+        `UPDATE token_purchases SET status = 'confirmed', confirmed_at = NOW() WHERE id = $1 AND status = 'pending' RETURNING *`,
+        [purchaseId]
+      );
+      if (!purchase) throw new Error('Purchase not found or already processed');
+
+      const { rows: [existing] } = await client.query('SELECT * FROM user_tokens WHERE user_id = $1', [userId]);
+      if (existing) {
+        await client.query('UPDATE user_tokens SET balance = balance + $1 WHERE user_id = $2', [tokens, userId]);
+      } else {
+        await client.query('INSERT INTO user_tokens (user_id, balance) VALUES ($1, $2)', [userId, tokens]);
+      }
+
+      await client.query('COMMIT');
+      return {
+        id: purchase.id, userId: purchase.user_id, walletAddress: purchase.wallet_address,
+        packageId: purchase.package_id, tokens: purchase.tokens, priceLamports: purchase.price_lamports,
+        txSignature: purchase.tx_signature, memo: purchase.memo, status: purchase.status,
+        createdAt: purchase.created_at, confirmedAt: purchase.confirmed_at,
+      };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  async failTokenPurchase(id: number): Promise<void> {
+    await db.update(tokenPurchases).set({ status: "failed" }).where(eq(tokenPurchases.id, id));
+  }
+
+  async getPurchaseBySignature(sig: string): Promise<TokenPurchase | undefined> {
+    const [purchase] = await db.select().from(tokenPurchases).where(eq(tokenPurchases.txSignature, sig));
+    return purchase;
   }
 }
 

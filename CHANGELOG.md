@@ -6,6 +6,52 @@ Formato:
   • Dettaglio 2 (file modificati)  
   • Trade-off / note (se rilevanti)
 
+## v1.20.0 – 3 marzo 2026 – Acquisto Token con SOL (Solana on-chain)
+
+- **Schema — tabelle `token_packages` + `token_purchases` (T001)**:
+  * `token_packages`: id, tokens, priceLamports (text per bigint), label, active, sortOrder
+  * `token_purchases`: id, userId, walletAddress, packageId, tokens, priceLamports, txSignature (unique), memo, status, createdAt, confirmedAt
+  * Files: shared/schema.ts
+
+- **Storage — CRUD packages e purchases (T002)**:
+  * `getActiveTokenPackages()`, `getAllTokenPackages()`, `createTokenPackage()`, `updateTokenPackage()`, `deleteTokenPackage()`
+  * `createTokenPurchase()`, `confirmTokenPurchase()` (atomico con client transaction: marca confirmed + accredita token), `failTokenPurchase()`, `getPurchaseBySignature()` (anti double-spend)
+  * Files: server/storage.ts
+
+- **Verifica on-chain Solana (T003)**:
+  * Nuovo file `server/solana.ts`: `verifySolanaPayment(signature, expectedLamports, expectedMemo, merchantAddress)`
+  * Usa `getParsedTransaction` con commitment 'confirmed'
+  * Verifiche: tx esiste + confirmed, SOL transfer verso MERCHANT_WALLET >= importo, memo match, blockTime < 10 min
+  * Files: server/solana.ts
+
+- **Routes — API acquisto token + admin CRUD (T004)**:
+  * `GET /api/token-packages` — pacchetti attivi
+  * `GET /api/tokens/merchant-info` — indirizzo merchant per frontend
+  * `POST /api/tokens/purchase/prepare` — genera orderId + memo, prepara ordine in-memory (TTL 10 min)
+  * `POST /api/tokens/purchase/confirm` — riceve txSignature, verifica on-chain, accredita token
+  * Admin: `GET/POST/PUT/DELETE /api/admin/token-packages`
+  * Anti double-spend: verifica txSignature unica in DB
+  * Files: server/routes.ts
+
+- **Frontend — BUY TOKENS nella TeamPage (T005)**:
+  * Box espandibile "BUY" accanto al saldo token
+  * Card per ogni pacchetto con label e prezzo
+  * Click → prepare order → costruisce Transaction (SystemProgram.transfer + Memo + ComputeBudget priority fee) → sendTransaction → confirm on-chain → POST verify → token accreditati
+  * Status feedback: preparing/signing/verifying/done/error
+  * Files: client/src/pages/TeamPage.tsx
+
+- **Frontend — Admin Token Packages (T006)**:
+  * Nuova CollapsibleSection "Token Packages (SOL Purchase)" in AdminPage
+  * CRUD completo: lista pacchetti, edit inline (tokens, SOL, label, active, sortOrder), add/delete
+  * Files: client/src/pages/AdminPage.tsx
+
+- **Seed — 3 pacchetti default (T007)**:
+  * 500 Tokens – 0.1 SOL, 1300 Tokens – 0.25 SOL, 6300 Tokens – 1 SOL
+  * Idempotente (skip se già presenti)
+  * Files: server/seed.ts
+
+- **Environment**: Secrets `MERCHANT_WALLET` e `SOLANA_RPC_URL` configurati
+
 ## v1.19.1 – 2 marzo 2026 – Fix transazioni token nel Market
 
 - **Fix — token deduction su tutti gli acquisti**:

@@ -5,6 +5,8 @@ import { simulateMatchDay, updatePlayoffMatchups } from "./simulation";
 import { generateNewSeason } from "./season";
 import { generateChallenge, verifySignature, createToken, verifyToken, generateClaimChallenge, verifyClaimSignature, generateTrainingChallenge, verifyTrainingSignature, generateMarketChallenge, verifyMarketSignature } from "./auth";
 import { expandLeague, ensureExtraLeague } from "./expansion";
+import { verifySolanaPayment } from "./solana";
+import { v4 as uuidv4 } from "uuid";
 
 type AsyncHandler = (req: Request, res: Response, next: NextFunction) => Promise<any>;
 
@@ -1035,6 +1037,149 @@ export async function registerRoutes(
 
     const result = await storage.cancelListing(listingId, decoded.walletAddress);
     res.json(result);
+  }));
+
+  const pendingOrders = new Map<string, { userId: number; walletAddress: string; packageId: number; tokens: number; priceLamports: string; memo: string; createdAt: number }>();
+
+  setInterval(() => {
+    const now = Date.now();
+    for (const [orderId, order] of pendingOrders) {
+      if (now - order.createdAt > 600_000) pendingOrders.delete(orderId);
+    }
+  }, 60_000);
+
+  app.get("/api/token-packages", asyncHandler(async (req, res) => {
+    const packages = await storage.getActiveTokenPackages();
+    res.json(packages);
+  }));
+
+  app.get("/api/tokens/merchant-info", asyncHandler(async (req, res) => {
+    const auth = req.headers.authorization?.split(" ")[1];
+    if (!auth) return res.status(401).json({ message: "Unauthorized" });
+    const decoded = verifyToken(auth);
+    if (!decoded) return res.status(401).json({ message: "Invalid token" });
+
+    const merchantAddress = process.env.MERCHANT_WALLET;
+    if (!merchantAddress) return res.status(500).json({ message: "Merchant wallet not configured" });
+    res.json({ merchantAddress });
+  }));
+
+  app.post("/api/tokens/purchase/prepare", asyncHandler(async (req, res) => {
+    const auth = req.headers.authorization?.split(" ")[1];
+    if (!auth) return res.status(401).json({ message: "Unauthorized" });
+    const decoded = verifyToken(auth);
+    if (!decoded) return res.status(401).json({ message: "Invalid token" });
+
+    const { packageId } = req.body;
+    if (!packageId) return res.status(400).json({ message: "packageId required" });
+
+    const packages = await storage.getActiveTokenPackages();
+    const pkg = packages.find(p => p.id === packageId);
+    if (!pkg) return res.status(404).json({ message: "Package not found" });
+
+    const merchantAddress = process.env.MERCHANT_WALLET;
+    if (!merchantAddress) return res.status(500).json({ message: "Merchant wallet not configured" });
+
+    const orderId = uuidv4().slice(0, 12);
+    const memo = `neon-dugout:${orderId}:${pkg.tokens}`;
+
+    pendingOrders.set(orderId, {
+      userId: decoded.userId,
+      walletAddress: decoded.walletAddress,
+      packageId: pkg.id,
+      tokens: pkg.tokens,
+      priceLamports: pkg.priceLamports,
+      memo,
+      createdAt: Date.now(),
+    });
+
+    res.json({ orderId, memo, merchantAddress, priceLamports: pkg.priceLamports, tokens: pkg.tokens });
+  }));
+
+  app.post("/api/tokens/purchase/confirm", asyncHandler(async (req, res) => {
+    const auth = req.headers.authorization?.split(" ")[1];
+    if (!auth) return res.status(401).json({ message: "Unauthorized" });
+    const decoded = verifyToken(auth);
+    if (!decoded) return res.status(401).json({ message: "Invalid token" });
+
+    const { orderId, txSignature } = req.body;
+    if (!orderId || !txSignature) return res.status(400).json({ message: "orderId and txSignature required" });
+
+    const order = pendingOrders.get(orderId);
+    if (!order) return res.status(404).json({ message: "Order not found or expired" });
+    if (order.userId !== decoded.userId) return res.status(403).json({ message: "Order belongs to another user" });
+
+    const existingPurchase = await storage.getPurchaseBySignature(txSignature);
+    if (existingPurchase) return res.status(409).json({ message: "Transaction already processed" });
+
+    const merchantAddress = process.env.MERCHANT_WALLET;
+    if (!merchantAddress) return res.status(500).json({ message: "Merchant wallet not configured" });
+
+    const purchase = await storage.createTokenPurchase({
+      userId: order.userId,
+      walletAddress: order.walletAddress,
+      packageId: order.packageId,
+      tokens: order.tokens,
+      priceLamports: order.priceLamports,
+      txSignature,
+      memo: order.memo,
+    });
+
+    const verification = await verifySolanaPayment(
+      txSignature,
+      BigInt(order.priceLamports),
+      order.memo,
+      merchantAddress,
+      order.walletAddress
+    );
+
+    if (!verification.valid) {
+      await storage.failTokenPurchase(purchase.id);
+      pendingOrders.delete(orderId);
+      return res.status(400).json({ message: verification.error || "Payment verification failed" });
+    }
+
+    const confirmed = await storage.confirmTokenPurchase(purchase.id, order.userId, order.tokens);
+    pendingOrders.delete(orderId);
+    res.json({ success: true, tokens: confirmed.tokens, message: `${confirmed.tokens} tokens credited!` });
+  }));
+
+  app.get("/api/admin/token-packages", asyncHandler(async (req, res) => {
+    const adminData = await requireAdmin(req, res);
+    if (!adminData) return;
+    const packages = await storage.getAllTokenPackages();
+    res.json(packages);
+  }));
+
+  app.post("/api/admin/token-packages", asyncHandler(async (req, res) => {
+    const adminData = await requireAdmin(req, res);
+    if (!adminData) return;
+    const { tokens, priceLamports, label, active, sortOrder } = req.body;
+    if (!tokens || !priceLamports || !label) return res.status(400).json({ message: "tokens, priceLamports, and label required" });
+    const pkg = await storage.createTokenPackage({ tokens, priceLamports: String(priceLamports), label, active, sortOrder });
+    res.json(pkg);
+  }));
+
+  app.put("/api/admin/token-packages/:id", asyncHandler(async (req, res) => {
+    const adminData = await requireAdmin(req, res);
+    if (!adminData) return;
+    const id = parseInt(req.params.id);
+    const updates: any = {};
+    if (req.body.tokens !== undefined) updates.tokens = req.body.tokens;
+    if (req.body.priceLamports !== undefined) updates.priceLamports = String(req.body.priceLamports);
+    if (req.body.label !== undefined) updates.label = req.body.label;
+    if (req.body.active !== undefined) updates.active = req.body.active;
+    if (req.body.sortOrder !== undefined) updates.sortOrder = req.body.sortOrder;
+    const pkg = await storage.updateTokenPackage(id, updates);
+    res.json(pkg);
+  }));
+
+  app.delete("/api/admin/token-packages/:id", asyncHandler(async (req, res) => {
+    const adminData = await requireAdmin(req, res);
+    if (!adminData) return;
+    const id = parseInt(req.params.id);
+    await storage.deleteTokenPackage(id);
+    res.json({ success: true });
   }));
 
   const defaultConfigs = [

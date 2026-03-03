@@ -341,3 +341,34 @@ export const marketListings = pgTable("market_listings", {
 export const insertMarketListingSchema = createInsertSchema(marketListings).omit({ id: true, listedAt: true });
 export type InsertMarketListing = z.infer<typeof insertMarketListingSchema>;
 export type MarketListing = typeof marketListings.$inferSelect;
+
+export const tokenPackages = pgTable("token_packages", {
+  id: serial("id").primaryKey(),
+  tokens: integer("tokens").notNull(),
+  priceLamports: text("price_lamports").notNull(),
+  label: text("label").notNull(),
+  active: boolean("active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+});
+
+export const tokenPurchases = pgTable("token_purchases", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  walletAddress: text("wallet_address").notNull(),
+  packageId: integer("package_id").notNull(),
+  tokens: integer("tokens").notNull(),
+  priceLamports: text("price_lamports").notNull(),
+  txSignature: text("tx_signature").notNull().unique(),
+  memo: text("memo").notNull(),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").defaultNow(),
+  confirmedAt: timestamp("confirmed_at"),
+});
+
+export const insertTokenPackageSchema = createInsertSchema(tokenPackages).omit({ id: true });
+export type InsertTokenPackage = z.infer<typeof insertTokenPackageSchema>;
+export type TokenPackage = typeof tokenPackages.$inferSelect;
+
+export const insertTokenPurchaseSchema = createInsertSchema(tokenPurchases).omit({ id: true, createdAt: true, confirmedAt: true });
+export type InsertTokenPurchase = z.infer<typeof insertTokenPurchaseSchema>;
+export type TokenPurchase = typeof tokenPurchases.$inferSelect;

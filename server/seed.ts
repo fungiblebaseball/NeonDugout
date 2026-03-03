@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { teams, players, matches, marketListings } from "@shared/schema";
+import { teams, players, matches, marketListings, tokenPackages } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { generateUniqueName, generateUniqueTeamName } from "./names";
 
@@ -191,6 +191,7 @@ export async function seedDatabase() {
   if (existingTeams.length > 0) {
     console.log("Database already seeded, skipping...");
     await seedFreeAgents();
+    await seedTokenPackages();
     return;
   }
 
@@ -272,6 +273,7 @@ export async function seedDatabase() {
   console.log(`Name pools: ${usedTeamNames.size} unique team names, ${usedPlayerNames.size} unique player names`);
 
   await seedFreeAgents(usedPlayerNames);
+  await seedTokenPackages();
 }
 
 export async function seedFreeAgents(existingNames?: Set<string>) {
@@ -325,4 +327,17 @@ export async function seedFreeAgents(existingNames?: Set<string>) {
   }));
   await db.insert(marketListings).values(listings);
   console.log(`Seeded ${FREE_AGENT_COUNT} free agent players in market`);
+}
+
+export async function seedTokenPackages() {
+  const existing = await db.select({ id: tokenPackages.id }).from(tokenPackages).limit(1);
+  if (existing.length > 0) return;
+
+  const defaults = [
+    { tokens: 500, priceLamports: "100000000", label: "500 Tokens – 0.1 SOL", sortOrder: 1 },
+    { tokens: 1300, priceLamports: "250000000", label: "1300 Tokens – 0.25 SOL", sortOrder: 2 },
+    { tokens: 6300, priceLamports: "1000000000", label: "6300 Tokens – 1 SOL", sortOrder: 3 },
+  ];
+  await db.insert(tokenPackages).values(defaults);
+  console.log("Seeded 3 default token packages");
 }

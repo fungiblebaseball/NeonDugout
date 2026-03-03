@@ -163,7 +163,7 @@ export default function TeamPage() {
         data: new TextEncoder().encode(memo),
       }));
 
-      const signature = await sendTransaction(tx, connection);
+      const signature = await sendTransaction(tx, connection, { skipPreflight: true, maxRetries: 3 });
 
       setPurchaseStatus('verifying');
       setPurchaseMessage('Payment sent, verifying on-chain...');

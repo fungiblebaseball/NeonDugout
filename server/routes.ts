@@ -1048,6 +1048,10 @@ export async function registerRoutes(
     }
   }, 60_000);
 
+  app.get("/api/solana/rpc-url", (req, res) => {
+    res.json({ rpcUrl: process.env.SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com" });
+  });
+
   app.get("/api/token-packages", asyncHandler(async (req, res) => {
     const packages = await storage.getActiveTokenPackages();
     res.json(packages);

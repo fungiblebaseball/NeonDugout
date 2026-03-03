@@ -1,7 +1,7 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
 
-const RPC_URL = process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com";
+const RPC_URL = process.env.SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
 const connection = new Connection(RPC_URL, "confirmed");
 
 interface VerifyResult {

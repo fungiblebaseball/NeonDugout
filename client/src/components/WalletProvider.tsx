@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, useEffect, type ReactNode } from "react";
 import { ConnectionProvider, WalletProvider as SolanaWalletProvider } from "@solana/wallet-adapter-react";
 import { WalletAdapterNetwork } from "@solana/wallet-adapter-base";
 import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
@@ -9,15 +9,23 @@ import {
   createDefaultAddressSelector,
   createDefaultAuthorizationResultCache,
 } from "@solana-mobile/wallet-adapter-mobile";
-import { clusterApiUrl } from "@solana/web3.js";
+
+const MAINNET_FALLBACK = "https://api.mainnet-beta.solana.com";
 
 interface Props {
   children: ReactNode;
 }
 
 export default function WalletProvider({ children }: Props) {
-  const network = WalletAdapterNetwork.Devnet;
-  const endpoint = useMemo(() => clusterApiUrl(network), [network]);
+  const network = WalletAdapterNetwork.Mainnet;
+  const [endpoint, setEndpoint] = useState(MAINNET_FALLBACK);
+
+  useEffect(() => {
+    fetch("/api/solana/rpc-url")
+      .then(r => r.json())
+      .then(data => { if (data.rpcUrl) setEndpoint(data.rpcUrl); })
+      .catch(() => {});
+  }, []);
 
   const wallets = useMemo(
     () => [
@@ -29,13 +37,13 @@ export default function WalletProvider({ children }: Props) {
           icon: "/logo-neon-dugout.png",
         },
         authorizationResultCache: createDefaultAuthorizationResultCache(),
-        cluster: network,
+        cluster: "mainnet-beta",
       }),
       new PhantomWalletAdapter(),
       new SolflareWalletAdapter(),
       new BackpackWalletAdapter(),
     ],
-    [network]
+    []
   );
 
   return (

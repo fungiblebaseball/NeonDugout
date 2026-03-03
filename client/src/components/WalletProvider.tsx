@@ -14,18 +14,20 @@ const MAINNET_FALLBACK = "https://api.mainnet-beta.solana.com";
 
 interface Props {
   children: ReactNode;
+  authToken?: string | null;
 }
 
-export default function WalletProvider({ children }: Props) {
+export default function WalletProvider({ children, authToken }: Props) {
   const network = WalletAdapterNetwork.Mainnet;
   const [endpoint, setEndpoint] = useState(MAINNET_FALLBACK);
 
   useEffect(() => {
-    fetch("/api/solana/rpc-url")
-      .then(r => r.json())
+    if (!authToken) return;
+    fetch("/api/solana/rpc-url", { headers: { Authorization: `Bearer ${authToken}` } })
+      .then(r => { if (r.ok) return r.json(); throw new Error(); })
       .then(data => { if (data.rpcUrl) setEndpoint(data.rpcUrl); })
       .catch(() => {});
-  }, []);
+  }, [authToken]);
 
   const wallets = useMemo(
     () => [

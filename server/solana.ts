@@ -29,7 +29,7 @@ export async function verifySolanaPayment(
     const blockTime = tx.blockTime;
     if (!blockTime) return { valid: false, error: "Transaction has no block time" };
     const ageSeconds = Math.floor(Date.now() / 1000) - blockTime;
-    if (ageSeconds > 600) return { valid: false, error: "Transaction too old (>10 minutes)" };
+    if (ageSeconds > 300) return { valid: false, error: "Transaction too old (>5 minutes)" };
 
     const feePayer = tx.transaction.message.accountKeys[0]?.pubkey?.toString();
 

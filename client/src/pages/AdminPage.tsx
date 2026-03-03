@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useGameStore } from "@/lib/store";
 import { useLocation } from "wouter";
-import { ArrowLeft, Save, Coins, Trash2, Play, Trophy, RotateCcw, AlertTriangle, ChevronDown, ChevronUp, MessageSquare, Send } from "lucide-react";
+import { ArrowLeft, Save, Coins, Trash2, Play, Trophy, RotateCcw, AlertTriangle, ChevronDown, ChevronUp, MessageSquare, Send, ExternalLink } from "lucide-react";
 import { useState, useEffect } from "react";
 
 interface TrainingConfig {
@@ -189,6 +189,10 @@ export default function AdminPage() {
 
       <CollapsibleSection title="Token Packages (SOL Purchase)" defaultOpen={false} testId="section-token-packages">
         <TokenPackagesCard token={token!} queryClient={queryClient} />
+      </CollapsibleSection>
+
+      <CollapsibleSection title="Purchase History" defaultOpen={false} testId="section-purchase-history">
+        <PurchaseHistoryCard token={token!} />
       </CollapsibleSection>
     </div>
   );
@@ -1222,6 +1226,167 @@ function TokenPackagesCard({ token, queryClient }: { token: string; queryClient:
           ADD PACKAGE
         </button>
       </div>
+    </div>
+  );
+}
+
+interface MarketPurchase {
+  id: number;
+  playerId: number;
+  playerName: string;
+  playerPositions: string[];
+  sellerWallet: string;
+  buyerWallet: string;
+  price: number;
+  soldAt: string | null;
+  listedAt: string;
+}
+
+interface TokenPurchaseRecord {
+  id: number;
+  walletAddress: string;
+  tokens: number;
+  priceLamports: string;
+  txSignature: string | null;
+  confirmedAt: string | null;
+}
+
+function PurchaseHistoryCard({ token }: { token: string }) {
+  const [tab, setTab] = useState<"market" | "sol">("market");
+
+  const { data: marketHistory = [], isLoading: loadingMarket } = useQuery<MarketPurchase[]>({
+    queryKey: ["admin-purchase-history-market"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/purchase-history/market", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  const { data: tokenHistory = [], isLoading: loadingTokens } = useQuery<TokenPurchaseRecord[]>({
+    queryKey: ["admin-purchase-history-tokens"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/purchase-history/tokens", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  const truncateWallet = (w: string) => w ? `${w.slice(0, 4)}...${w.slice(-4)}` : "—";
+  const lamportsToSol = (l: string) => (parseInt(l) / 1_000_000_000).toFixed(4);
+  const formatDate = (d: string | null) => d ? new Date(d).toLocaleDateString() + " " + new Date(d).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—";
+
+  return (
+    <div className="space-y-3" data-testid="card-purchase-history">
+      <div className="flex gap-1">
+        <button
+          onClick={() => setTab("market")}
+          data-testid="tab-market-purchases"
+          className={`px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider rounded-t transition-colors ${
+            tab === "market" ? "bg-pink-500/20 text-pink-300 border border-pink-500/40 border-b-0" : "bg-gray-900 text-gray-500 border border-gray-700"
+          }`}
+        >
+          Market ({marketHistory.length})
+        </button>
+        <button
+          onClick={() => setTab("sol")}
+          data-testid="tab-sol-purchases"
+          className={`px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider rounded-t transition-colors ${
+            tab === "sol" ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 border-b-0" : "bg-gray-900 text-gray-500 border border-gray-700"
+          }`}
+        >
+          SOL Purchases ({tokenHistory.length})
+        </button>
+      </div>
+
+      {tab === "market" && (
+        <div className="bg-gray-900 border border-pink-500/20 rounded-b-xl rounded-tr-xl p-3">
+          {loadingMarket ? (
+            <p className="text-gray-500 text-xs font-mono">Loading...</p>
+          ) : marketHistory.length === 0 ? (
+            <p className="text-gray-500 text-xs font-mono">No market purchases yet</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-[10px] font-mono">
+                <thead>
+                  <tr className="text-gray-500 uppercase border-b border-gray-700">
+                    <th className="text-left py-1 px-1">Player</th>
+                    <th className="text-left py-1 px-1">Buyer</th>
+                    <th className="text-left py-1 px-1">Seller</th>
+                    <th className="text-right py-1 px-1">Price</th>
+                    <th className="text-right py-1 px-1">Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {marketHistory.map((p) => (
+                    <tr key={p.id} className="border-b border-gray-800 hover:bg-gray-800/50" data-testid={`market-purchase-${p.id}`}>
+                      <td className="py-1.5 px-1 text-pink-300">{p.playerName}</td>
+                      <td className="py-1.5 px-1 text-cyan-300">{truncateWallet(p.buyerWallet)}</td>
+                      <td className="py-1.5 px-1 text-gray-400">{truncateWallet(p.sellerWallet)}</td>
+                      <td className="py-1.5 px-1 text-right text-amber-300">{p.price} T</td>
+                      <td className="py-1.5 px-1 text-right text-gray-500">{formatDate(p.soldAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "sol" && (
+        <div className="bg-gray-900 border border-cyan-500/20 rounded-b-xl rounded-tl-xl p-3">
+          {loadingTokens ? (
+            <p className="text-gray-500 text-xs font-mono">Loading...</p>
+          ) : tokenHistory.length === 0 ? (
+            <p className="text-gray-500 text-xs font-mono">No SOL purchases yet</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-[10px] font-mono">
+                <thead>
+                  <tr className="text-gray-500 uppercase border-b border-gray-700">
+                    <th className="text-left py-1 px-1">Wallet</th>
+                    <th className="text-right py-1 px-1">Tokens</th>
+                    <th className="text-right py-1 px-1">SOL</th>
+                    <th className="text-left py-1 px-1">Tx</th>
+                    <th className="text-right py-1 px-1">Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tokenHistory.map((p) => (
+                    <tr key={p.id} className="border-b border-gray-800 hover:bg-gray-800/50" data-testid={`sol-purchase-${p.id}`}>
+                      <td className="py-1.5 px-1 text-cyan-300">{truncateWallet(p.walletAddress)}</td>
+                      <td className="py-1.5 px-1 text-right text-amber-300">{p.tokens}</td>
+                      <td className="py-1.5 px-1 text-right text-green-300">{lamportsToSol(p.priceLamports)}</td>
+                      <td className="py-1.5 px-1">
+                        {p.txSignature ? (
+                          <a
+                            href={`https://solscan.io/tx/${p.txSignature}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            data-testid={`link-tx-${p.id}`}
+                            className="text-purple-400 hover:text-purple-300 flex items-center gap-0.5"
+                          >
+                            {p.txSignature.slice(0, 8)}...
+                            <ExternalLink className="w-2.5 h-2.5" />
+                          </a>
+                        ) : (
+                          <span className="text-gray-600">—</span>
+                        )}
+                      </td>
+                      <td className="py-1.5 px-1 text-right text-gray-500">{formatDate(p.confirmedAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

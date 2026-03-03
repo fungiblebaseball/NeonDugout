@@ -114,10 +114,15 @@ export interface IStorage {
   createTokenPackage(pkg: { tokens: number; priceLamports: string; label: string; active?: boolean; sortOrder?: number }): Promise<TokenPackage>;
   updateTokenPackage(id: number, pkg: Partial<{ tokens: number; priceLamports: string; label: string; active: boolean; sortOrder: number }>): Promise<TokenPackage>;
   deleteTokenPackage(id: number): Promise<void>;
-  createTokenPurchase(data: { userId: number; walletAddress: string; packageId: number; tokens: number; priceLamports: string; txSignature: string; memo: string }): Promise<TokenPurchase>;
-  confirmTokenPurchase(purchaseId: number, userId: number, tokens: number): Promise<TokenPurchase>;
+  createPreparedOrder(data: { orderId: string; userId: number; walletAddress: string; packageId: number; tokens: number; priceLamports: string; memo: string }): Promise<TokenPurchase>;
+  getPreparedOrder(orderId: string): Promise<TokenPurchase | undefined>;
+  countPreparedOrdersForUser(userId: number): Promise<number>;
+  expireStaleOrders(): Promise<number>;
+  confirmTokenPurchase(purchaseId: number, userId: number, tokens: number, txSignature: string): Promise<TokenPurchase>;
   failTokenPurchase(id: number): Promise<void>;
   getPurchaseBySignature(sig: string): Promise<TokenPurchase | undefined>;
+  getMarketPurchaseHistory(): Promise<any[]>;
+  getTokenPurchaseHistory(): Promise<TokenPurchase[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -858,11 +863,11 @@ export class DatabaseStorage implements IStorage {
 
       await client.query('UPDATE players SET team_id = $1 WHERE id = $2', [buyerTeamId, listing.player_id]);
       const { rows: [updated] } = await client.query(
-        `UPDATE market_listings SET status = 'sold', buyer_wallet = $1 WHERE id = $2 RETURNING *`,
+        `UPDATE market_listings SET status = 'sold', buyer_wallet = $1, sold_at = NOW() WHERE id = $2 RETURNING *`,
         [buyerWallet, listingId]
       );
       await client.query('COMMIT');
-      return { id: updated.id, playerId: updated.player_id, sellerWallet: updated.seller_wallet, sellerTeamId: updated.seller_team_id, price: updated.price, status: updated.status, buyerWallet: updated.buyer_wallet, listedAt: updated.listed_at };
+      return { id: updated.id, playerId: updated.player_id, sellerWallet: updated.seller_wallet, sellerTeamId: updated.seller_team_id, price: updated.price, status: updated.status, buyerWallet: updated.buyer_wallet, listedAt: updated.listed_at, soldAt: updated.sold_at };
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
@@ -963,29 +968,62 @@ export class DatabaseStorage implements IStorage {
     await db.delete(tokenPackages).where(eq(tokenPackages.id, id));
   }
 
-  async createTokenPurchase(data: { userId: number; walletAddress: string; packageId: number; tokens: number; priceLamports: string; txSignature: string; memo: string }): Promise<TokenPurchase> {
+  async createPreparedOrder(data: { orderId: string; userId: number; walletAddress: string; packageId: number; tokens: number; priceLamports: string; memo: string }): Promise<TokenPurchase> {
     const [created] = await db.insert(tokenPurchases).values({
+      orderId: data.orderId,
       userId: data.userId,
       walletAddress: data.walletAddress,
       packageId: data.packageId,
       tokens: data.tokens,
       priceLamports: data.priceLamports,
-      txSignature: data.txSignature,
       memo: data.memo,
-      status: "pending",
+      status: "prepared",
     }).returning();
     return created;
   }
 
-  async confirmTokenPurchase(purchaseId: number, userId: number, tokens: number): Promise<TokenPurchase> {
+  async getPreparedOrder(orderId: string): Promise<TokenPurchase | undefined> {
+    const [order] = await db.select().from(tokenPurchases)
+      .where(eq(tokenPurchases.orderId, orderId));
+    return order;
+  }
+
+  async countPreparedOrdersForUser(userId: number): Promise<number> {
+    const result = await db.select({ count: sql<number>`count(*)::int` })
+      .from(tokenPurchases)
+      .where(and(
+        eq(tokenPurchases.userId, userId),
+        eq(tokenPurchases.status, "prepared"),
+        sql`created_at > NOW() - INTERVAL '5 minutes'`
+      ));
+    return result[0]?.count ?? 0;
+  }
+
+  async expireStaleOrders(): Promise<number> {
+    const result = await db.update(tokenPurchases)
+      .set({ status: "failed" })
+      .where(and(
+        eq(tokenPurchases.status, "prepared"),
+        sql`created_at <= NOW() - INTERVAL '10 minutes'`
+      ))
+      .returning();
+    return result.length;
+  }
+
+  async confirmTokenPurchase(purchaseId: number, userId: number, tokens: number, txSignature: string): Promise<TokenPurchase> {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
       const { rows: [purchase] } = await client.query(
-        `UPDATE token_purchases SET status = 'confirmed', confirmed_at = NOW() WHERE id = $1 AND status = 'pending' RETURNING *`,
+        `SELECT * FROM token_purchases WHERE id = $1 AND status = 'prepared' FOR UPDATE`,
         [purchaseId]
       );
       if (!purchase) throw new Error('Purchase not found or already processed');
+
+      const { rows: [updated] } = await client.query(
+        `UPDATE token_purchases SET status = 'confirmed', confirmed_at = NOW(), tx_signature = $1 WHERE id = $2 RETURNING *`,
+        [txSignature, purchaseId]
+      );
 
       const { rows: [existing] } = await client.query('SELECT * FROM user_tokens WHERE user_id = $1', [userId]);
       if (existing) {
@@ -996,10 +1034,10 @@ export class DatabaseStorage implements IStorage {
 
       await client.query('COMMIT');
       return {
-        id: purchase.id, userId: purchase.user_id, walletAddress: purchase.wallet_address,
-        packageId: purchase.package_id, tokens: purchase.tokens, priceLamports: purchase.price_lamports,
-        txSignature: purchase.tx_signature, memo: purchase.memo, status: purchase.status,
-        createdAt: purchase.created_at, confirmedAt: purchase.confirmed_at,
+        id: updated.id, orderId: updated.order_id, userId: updated.user_id, walletAddress: updated.wallet_address,
+        packageId: updated.package_id, tokens: updated.tokens, priceLamports: updated.price_lamports,
+        txSignature: updated.tx_signature, memo: updated.memo, status: updated.status,
+        createdAt: updated.created_at, confirmedAt: updated.confirmed_at,
       };
     } catch (err) {
       await client.query('ROLLBACK');
@@ -1016,6 +1054,31 @@ export class DatabaseStorage implements IStorage {
   async getPurchaseBySignature(sig: string): Promise<TokenPurchase | undefined> {
     const [purchase] = await db.select().from(tokenPurchases).where(eq(tokenPurchases.txSignature, sig));
     return purchase;
+  }
+
+  async getMarketPurchaseHistory(): Promise<any[]> {
+    const { rows } = await pool.query(`
+      SELECT ml.id, ml.player_id, ml.seller_wallet, ml.buyer_wallet, ml.price, ml.sold_at, ml.listed_at,
+             p.name as player_name, p.positions as player_positions
+      FROM market_listings ml
+      JOIN players p ON p.id = ml.player_id
+      WHERE ml.status = 'sold'
+      ORDER BY ml.sold_at DESC NULLS LAST
+      LIMIT 100
+    `);
+    return rows.map(r => ({
+      id: r.id, playerId: r.player_id, playerName: r.player_name, playerPositions: r.player_positions,
+      sellerWallet: r.seller_wallet, buyerWallet: r.buyer_wallet,
+      price: r.price, soldAt: r.sold_at, listedAt: r.listed_at,
+    }));
+  }
+
+  async getTokenPurchaseHistory(): Promise<TokenPurchase[]> {
+    const results = await db.select().from(tokenPurchases)
+      .where(eq(tokenPurchases.status, "confirmed"))
+      .orderBy(desc(tokenPurchases.confirmedAt))
+      .limit(100);
+    return results;
   }
 }
 

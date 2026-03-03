@@ -336,9 +336,10 @@ export const marketListings = pgTable("market_listings", {
   status: text("status").notNull().default("active"),
   buyerWallet: text("buyer_wallet"),
   listedAt: timestamp("listed_at").defaultNow(),
+  soldAt: timestamp("sold_at"),
 });
 
-export const insertMarketListingSchema = createInsertSchema(marketListings).omit({ id: true, listedAt: true });
+export const insertMarketListingSchema = createInsertSchema(marketListings).omit({ id: true, listedAt: true, soldAt: true });
 export type InsertMarketListing = z.infer<typeof insertMarketListingSchema>;
 export type MarketListing = typeof marketListings.$inferSelect;
 
@@ -353,14 +354,15 @@ export const tokenPackages = pgTable("token_packages", {
 
 export const tokenPurchases = pgTable("token_purchases", {
   id: serial("id").primaryKey(),
+  orderId: text("order_id").notNull().unique(),
   userId: integer("user_id").notNull(),
   walletAddress: text("wallet_address").notNull(),
   packageId: integer("package_id").notNull(),
   tokens: integer("tokens").notNull(),
   priceLamports: text("price_lamports").notNull(),
-  txSignature: text("tx_signature").notNull().unique(),
+  txSignature: text("tx_signature").unique(),
   memo: text("memo").notNull(),
-  status: text("status").notNull().default("pending"),
+  status: text("status").notNull().default("prepared"),
   createdAt: timestamp("created_at").defaultNow(),
   confirmedAt: timestamp("confirmed_at"),
 });

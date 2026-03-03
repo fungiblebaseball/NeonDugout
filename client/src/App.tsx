@@ -67,10 +67,11 @@ function Router() {
 }
 
 function App() {
+  const { token } = useGameStore();
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <WalletProvider>
+        <WalletProvider authToken={token}>
           <Toaster />
           <Router />
         </WalletProvider>

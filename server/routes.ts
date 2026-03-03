@@ -1039,16 +1039,18 @@ export async function registerRoutes(
     res.json(result);
   }));
 
-  const pendingOrders = new Map<string, { userId: number; walletAddress: string; packageId: number; tokens: number; priceLamports: string; memo: string; createdAt: number }>();
-
-  setInterval(() => {
-    const now = Date.now();
-    for (const [orderId, order] of pendingOrders) {
-      if (now - order.createdAt > 600_000) pendingOrders.delete(orderId);
-    }
+  setInterval(async () => {
+    try {
+      const expired = await storage.expireStaleOrders();
+      if (expired > 0) console.log(`[cleanup] Expired ${expired} stale prepared orders`);
+    } catch {}
   }, 60_000);
 
   app.get("/api/solana/rpc-url", (req, res) => {
+    const auth = req.headers.authorization?.split(" ")[1];
+    if (!auth) return res.status(401).json({ message: "Unauthorized" });
+    const decoded = verifyToken(auth);
+    if (!decoded) return res.status(401).json({ message: "Invalid token" });
     res.json({ rpcUrl: process.env.SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com" });
   });
 
@@ -1077,6 +1079,9 @@ export async function registerRoutes(
     const { packageId } = req.body;
     if (!packageId) return res.status(400).json({ message: "packageId required" });
 
+    const pendingCount = await storage.countPreparedOrdersForUser(decoded.userId);
+    if (pendingCount >= 3) return res.status(429).json({ message: "Too many pending orders. Please wait." });
+
     const packages = await storage.getActiveTokenPackages();
     const pkg = packages.find(p => p.id === packageId);
     if (!pkg) return res.status(404).json({ message: "Package not found" });
@@ -1087,14 +1092,14 @@ export async function registerRoutes(
     const orderId = uuidv4().slice(0, 12);
     const memo = `neon-dugout:${orderId}:${pkg.tokens}`;
 
-    pendingOrders.set(orderId, {
+    await storage.createPreparedOrder({
+      orderId,
       userId: decoded.userId,
       walletAddress: decoded.walletAddress,
       packageId: pkg.id,
       tokens: pkg.tokens,
       priceLamports: pkg.priceLamports,
       memo,
-      createdAt: Date.now(),
     });
 
     res.json({ orderId, memo, merchantAddress, priceLamports: pkg.priceLamports, tokens: pkg.tokens });
@@ -1109,25 +1114,22 @@ export async function registerRoutes(
     const { orderId, txSignature } = req.body;
     if (!orderId || !txSignature) return res.status(400).json({ message: "orderId and txSignature required" });
 
-    const order = pendingOrders.get(orderId);
-    if (!order) return res.status(404).json({ message: "Order not found or expired" });
+    const order = await storage.getPreparedOrder(orderId);
+    if (!order) return res.status(404).json({ message: "Order not found" });
+    if (order.status !== 'prepared') return res.status(409).json({ message: "Order already processed" });
     if (order.userId !== decoded.userId) return res.status(403).json({ message: "Order belongs to another user" });
+
+    const orderAge = Date.now() - new Date(order.createdAt!).getTime();
+    if (orderAge > 300_000) {
+      await storage.failTokenPurchase(order.id);
+      return res.status(410).json({ message: "Order expired (>5 minutes)" });
+    }
 
     const existingPurchase = await storage.getPurchaseBySignature(txSignature);
     if (existingPurchase) return res.status(409).json({ message: "Transaction already processed" });
 
     const merchantAddress = process.env.MERCHANT_WALLET;
     if (!merchantAddress) return res.status(500).json({ message: "Merchant wallet not configured" });
-
-    const purchase = await storage.createTokenPurchase({
-      userId: order.userId,
-      walletAddress: order.walletAddress,
-      packageId: order.packageId,
-      tokens: order.tokens,
-      priceLamports: order.priceLamports,
-      txSignature,
-      memo: order.memo,
-    });
 
     const verification = await verifySolanaPayment(
       txSignature,
@@ -1138,13 +1140,11 @@ export async function registerRoutes(
     );
 
     if (!verification.valid) {
-      await storage.failTokenPurchase(purchase.id);
-      pendingOrders.delete(orderId);
+      await storage.failTokenPurchase(order.id);
       return res.status(400).json({ message: verification.error || "Payment verification failed" });
     }
 
-    const confirmed = await storage.confirmTokenPurchase(purchase.id, order.userId, order.tokens);
-    pendingOrders.delete(orderId);
+    const confirmed = await storage.confirmTokenPurchase(order.id, order.userId, order.tokens, txSignature);
     res.json({ success: true, tokens: confirmed.tokens, message: `${confirmed.tokens} tokens credited!` });
   }));
 
@@ -1184,6 +1184,20 @@ export async function registerRoutes(
     const id = parseInt(req.params.id);
     await storage.deleteTokenPackage(id);
     res.json({ success: true });
+  }));
+
+  app.get("/api/admin/purchase-history/market", asyncHandler(async (req, res) => {
+    const adminData = await requireAdmin(req, res);
+    if (!adminData) return;
+    const history = await storage.getMarketPurchaseHistory();
+    res.json(history);
+  }));
+
+  app.get("/api/admin/purchase-history/tokens", asyncHandler(async (req, res) => {
+    const adminData = await requireAdmin(req, res);
+    if (!adminData) return;
+    const history = await storage.getTokenPurchaseHistory();
+    res.json(history);
   }));
 
   const defaultConfigs = [

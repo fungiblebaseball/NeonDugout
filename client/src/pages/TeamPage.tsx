@@ -150,8 +150,8 @@ export default function TeamPage() {
       const tx = new Transaction();
       tx.recentBlockhash = blockhash;
       tx.feePayer = publicKey;
-      tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 600 }));
-      tx.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 5_000_000 }));
+      tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 30_000 }));
+      tx.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 100_000 }));
       tx.add(SystemProgram.transfer({
         fromPubkey: publicKey,
         toPubkey: new PublicKey(merchantAddress),

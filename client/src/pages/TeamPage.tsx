@@ -146,8 +146,12 @@ export default function TeamPage() {
       const { orderId, memo, merchantAddress, priceLamports } = await prepRes.json();
 
       setPurchaseStatus('signing');
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
       const tx = new Transaction();
-      tx.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 5000 }));
+      tx.recentBlockhash = blockhash;
+      tx.feePayer = publicKey;
+      tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 600 }));
+      tx.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 5_000_000 }));
       tx.add(SystemProgram.transfer({
         fromPubkey: publicKey,
         toPubkey: new PublicKey(merchantAddress),
@@ -156,7 +160,7 @@ export default function TeamPage() {
       tx.add(new TransactionInstruction({
         keys: [],
         programId: new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"),
-        data: Buffer.from(memo, "utf-8"),
+        data: new TextEncoder().encode(memo),
       }));
 
       const signature = await sendTransaction(tx, connection);
@@ -164,7 +168,7 @@ export default function TeamPage() {
       setPurchaseStatus('verifying');
       setPurchaseMessage('Payment sent, verifying on-chain...');
 
-      await connection.confirmTransaction(signature, 'confirmed');
+      await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed');
 
       const confirmRes = await fetch('/api/tokens/purchase/confirm', {
         method: 'POST',

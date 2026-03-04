@@ -20,7 +20,8 @@ Full-stack application with PostgreSQL backend, Express API, and React frontend.
 
 ## Key Files
 - `shared/schema.ts` - Drizzle schema: users (with isAdmin), teams, players (with _add boost columns, nullable teamId), matches, match_details, lineups, pitcher_rotations, tactics, training_results, training_config, user_tokens, token_config, market_listings, token_supply_events
-- `server/routes.ts` - API routes (/api/auth/*, /api/teams, /api/matches, /api/player/:id, /api/training/*, /api/tokens/*, /api/market/*, /api/admin/*, /api/simulate-day, /api/new-season, /api/lineup, /api/pitcher-rotation, /api/tactics)
+- `server/routes.ts` - API routes (/api/health, /api/auth/*, /api/teams, /api/matches, /api/player/:id, /api/training/*, /api/tokens/*, /api/market/*, /api/admin/*, /api/simulate-day, /api/new-season, /api/lineup, /api/pitcher-rotation, /api/tactics)
+- `deploy/` - VPS deployment scripts: setup-vps.sh (system deps + firewall + DB), deploy.sh (full deploy), update.sh (code update), ecosystem.config.cjs (PM2), nginx/ (reverse proxy + SSL), logrotate/, GUIDA-DEPLOY.md
 - `server/auth.ts` - JWT token creation/verification, ed25519 signature validation, challenge nonce management, claim challenge/verify, training challenge/verify, market challenge/verify
 - `server/scheduler.ts` - Game day cron scheduler (00:00 CET / 23:00 UTC daily via node-cron)
 - `server/names.ts` - Shared name generation: ~230 first names, ~200 last names (cyberpunk), ~50+50 team prefixes (A/B series), ~56 middles, ~80 mascots, dedup functions via Set

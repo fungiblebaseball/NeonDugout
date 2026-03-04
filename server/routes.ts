@@ -21,6 +21,10 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
 
+  app.get("/api/health", (_req, res) => {
+    res.json({ status: "ok", uptime: process.uptime(), timestamp: Date.now() });
+  });
+
   app.post("/api/auth/challenge", asyncHandler(async (req, res) => {
     const { walletAddress } = req.body;
     if (!walletAddress) return res.status(400).json({ message: "walletAddress required" });

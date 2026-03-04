@@ -1,63 +1,70 @@
 # Neon Dugout — Guida al Deploy / Deployment Guide
 
-## Prerequisiti / Prerequisites
-
-- **VPS**: Contabo (o qualsiasi) con Ubuntu 22.04 o 24.04
-- **Dominio**: Un dominio con record DNS A che punta all'IP del VPS
-- **Accesso SSH**: root al server
+**Dominio**: galiasoccer.fun
+**Server**: Contabo VPS, Ubuntu 24.04 LTS
 
 ---
 
-## Passo 1: Preparare i file / Step 1: Prepare Files
+## Prerequisiti / Prerequisites
 
-Dalla tua macchina locale, copia la cartella `deploy/` e tutto il progetto sul server:
+- VPS Contabo con Ubuntu 24.04 LTS
+- Dominio `galiasoccer.fun` con record DNS A che punta all'IP del VPS
+- Accesso SSH root al server
+- Repository GitHub con il codice del progetto
+
+---
+
+## Passo 1: Crea il repo GitHub / Step 1: Create GitHub Repo
+
+1. Vai su https://github.com/new
+2. Crea un nuovo repository (pubblico o privato)
+3. Da Replit, nella Shell, esegui:
 
 ```bash
-# Comprimi il progetto
-tar czf neondugout.tar.gz --exclude=node_modules --exclude=dist --exclude=.git .
-
-# Copia sul server
-scp neondugout.tar.gz root@TUO_IP:/root/
-scp -r deploy/ root@TUO_IP:/root/deploy/
+git remote add origin https://github.com/TUO_UTENTE/neon-dugout.git
+git branch -M main
+git push -u origin main
 ```
+
+Se il repo è privato, sul VPS dovrai configurare l'accesso (token o SSH key).
 
 ---
 
 ## Passo 2: Setup del VPS / Step 2: VPS Setup
 
-SSH nel server ed esegui lo script di setup:
-
 ```bash
+# Collegati al server
 ssh root@TUO_IP
 
-# Rendi eseguibili gli script
-chmod +x /root/deploy/*.sh
+# Scarica lo script di setup (o copialo manualmente)
+# Opzione A: clona il repo per avere gli script
+git clone https://github.com/TUO_UTENTE/neon-dugout.git /tmp/neondugout-setup
+chmod +x /tmp/neondugout-setup/deploy/*.sh
 
-# Installa tutto: Node.js, PostgreSQL, Nginx, firewall, PM2
-bash /root/deploy/setup-vps.sh
+# Esegui il setup del sistema
+bash /tmp/neondugout-setup/deploy/setup-vps.sh
+
+# Puoi rimuovere la copia temporanea
+rm -rf /tmp/neondugout-setup
 ```
 
-Questo script:
-- Installa Node.js 20, PostgreSQL 16, Nginx, Certbot, PM2
-- Configura il firewall UFW (solo SSH + HTTP + HTTPS)
-- Crea l'utente di sistema `neondugout`
-- Crea il database PostgreSQL con password auto-generata
-- Salva le credenziali in `/root/.neondugout-db-credentials`
+Questo script installa e configura:
+- Node.js 20 LTS
+- PostgreSQL 16 (crea utente e database automaticamente)
+- Nginx
+- Certbot (Let's Encrypt per SSL)
+- PM2 (process manager)
+- UFW firewall (solo SSH + HTTP + HTTPS aperti)
+- Utente di sistema `neondugout`
+- Le credenziali DB vengono salvate in `/root/.neondugout-db-credentials`
 
 ---
 
 ## Passo 3: Deploy dell'app / Step 3: Deploy the App
 
-Copia il codice nella directory dell'app e avvia il deploy:
-
 ```bash
-# Estrai il codice nella directory dell'app
-mkdir -p /opt/neondugout
-tar xzf /root/neondugout.tar.gz -C /opt/neondugout
-chown -R neondugout:neondugout /opt/neondugout
-
-# Lancia il deploy (ti chiederà RPC URL e wallet)
-bash /root/deploy/deploy.sh TUO_DOMINIO
+# Lancia il deploy con il repo GitHub e il dominio
+bash /opt/neondugout/deploy/deploy.sh galiasoccer.fun https://github.com/TUO_UTENTE/neon-dugout.git
 ```
 
 Lo script ti chiederà:
@@ -65,55 +72,68 @@ Lo script ti chiederà:
 - **MERCHANT_WALLET**: La tua chiave pubblica Solana per ricevere pagamenti
 - **Email SSL**: Per le notifiche di Let's Encrypt
 
+Il deploy:
+1. Clona il repo in `/opt/neondugout`
+2. Genera `.env.production` con credenziali sicure
+3. Installa dipendenze e compila il progetto
+4. Crea le tabelle nel database
+5. Configura Nginx come reverse proxy
+6. Avvia l'app con PM2 (auto-restart)
+7. Ottiene il certificato SSL da Let's Encrypt
+
 ---
 
 ## Passo 4: Verifica / Step 4: Verify
 
 ```bash
-# Controlla che l'app sia attiva
+# Controlla lo stato dell'app
 pm2 status
 
-# Controlla la salute dell'app
-curl https://TUO_DOMINIO/api/health
+# Controlla la salute
+curl https://galiasoccer.fun/api/health
 
-# Apri nel browser
-# https://TUO_DOMINIO
+# Apri nel browser: https://galiasoccer.fun
 ```
 
 ---
 
-## Manutenzione / Maintenance
+## Aggiornamenti / Updates
 
-### Aggiornare l'app / Update the App
-
-```bash
-# Se usi git:
-cd /opt/neondugout && sudo -u neondugout git pull
-sudo bash /opt/neondugout/deploy/update.sh
-
-# Se copi i file manualmente:
-# 1. Copia i nuovi file in /opt/neondugout
-# 2. Esegui: sudo bash /opt/neondugout/deploy/update.sh
-```
-
-### Comandi PM2 utili / Useful PM2 Commands
+Quando fai modifiche al codice su Replit:
 
 ```bash
-pm2 status                    # Stato dell'app
-pm2 logs neondugout           # Log in tempo reale
-pm2 logs neondugout --lines 100  # Ultime 100 righe
-pm2 restart neondugout        # Riavvia l'app
-pm2 stop neondugout           # Ferma l'app
-pm2 monit                     # Monitoraggio live (CPU/RAM)
-pm2 describe neondugout       # Info dettagliate
+# 1. Pusha le modifiche su GitHub (da Replit)
+git add -A && git commit -m "update" && git push
+
+# 2. Sul VPS, esegui lo script di update
+ssh root@TUO_IP
+bash /opt/neondugout/deploy/update.sh
 ```
 
-### Log / Logs
+Lo script fa automaticamente: pull, install, build, schema push, restart.
+
+---
+
+## Comandi Utili / Useful Commands
+
+### PM2 (Gestione App)
+
+```bash
+pm2 status                       # Stato dell'app
+pm2 logs neondugout              # Log in tempo reale
+pm2 logs neondugout --lines 100  # Ultime 100 righe di log
+pm2 restart neondugout           # Riavvia l'app
+pm2 stop neondugout              # Ferma l'app
+pm2 monit                        # Monitoraggio live CPU/RAM
+pm2 describe neondugout          # Info dettagliate + contatore restart
+```
+
+### Log
 
 ```bash
 # Log dell'app
-tail -f /var/log/neondugout/app-out.log
-tail -f /var/log/neondugout/app-error.log
+tail -f /var/log/neondugout/app-out.log    # Output normale
+tail -f /var/log/neondugout/app-error.log  # Solo errori
 
 # Log di Nginx
 tail -f /var/log/nginx/access.log
@@ -123,20 +143,15 @@ tail -f /var/log/nginx/error.log
 ### Firewall
 
 ```bash
-sudo ufw status verbose       # Stato firewall
-sudo ufw allow 22/tcp         # (già attivo) SSH
-sudo ufw allow 80/tcp         # (già attivo) HTTP
-sudo ufw allow 443/tcp        # (già attivo) HTTPS
+sudo ufw status verbose    # Stato del firewall
 ```
 
 ### SSL / Certificato
 
 ```bash
-# Verifica rinnovo automatico
-sudo certbot renew --dry-run
-
-# Rinnovo manuale (se necessario)
-sudo certbot renew
+sudo certbot renew --dry-run   # Verifica rinnovo automatico
+sudo certbot renew             # Rinnovo manuale (se necessario)
+# Il rinnovo automatico è già configurato via systemd timer
 ```
 
 ### Database
@@ -145,10 +160,10 @@ sudo certbot renew
 # Accedi al database
 sudo -u postgres psql neondugout
 
-# Backup
+# Backup del database
 sudo -u postgres pg_dump neondugout > backup_$(date +%Y%m%d).sql
 
-# Ripristino
+# Ripristino da backup
 sudo -u postgres psql neondugout < backup_FILE.sql
 ```
 
@@ -156,73 +171,64 @@ sudo -u postgres psql neondugout < backup_FILE.sql
 
 ## Troubleshooting / Risoluzione Problemi
 
-### L'app non parte / App Won't Start
+### L'app non parte
 
 ```bash
-# Controlla i log per errori
-pm2 logs neondugout --lines 50
-
-# Verifica le variabili d'ambiente
-cat /opt/neondugout/.env.production
-
-# Verifica che il database sia accessibile
+pm2 logs neondugout --lines 50           # Guarda gli errori
+cat /opt/neondugout/.env.production      # Verifica le variabili
 sudo -u neondugout bash -c "source /opt/neondugout/.env.production && psql \$DATABASE_URL -c 'SELECT 1'"
 ```
 
 ### Errore 502 Bad Gateway
 
+L'app non è in ascolto. Controlla:
 ```bash
-# L'app non è in ascolto sulla porta 5000
-pm2 status                    # Controlla se l'app è 'online'
-pm2 restart neondugout        # Prova a riavviare
-
-# Verifica che Nginx punti alla porta giusta
-sudo nginx -t
-cat /etc/nginx/sites-enabled/neondugout
+pm2 status              # L'app è 'online'?
+pm2 restart neondugout  # Prova a riavviare
+sudo nginx -t           # La config Nginx è valida?
 ```
 
-### SSL non funziona / SSL Not Working
+### SSL non funziona
 
 ```bash
-# Verifica che il DNS punti al server
-dig TUO_DOMINIO
-
-# Riprova Certbot
-sudo certbot --nginx -d TUO_DOMINIO
+dig galiasoccer.fun          # Il DNS punta al server?
+sudo certbot --nginx -d galiasoccer.fun   # Riprova
 ```
 
-### L'app crasha e non riparte / App Crashes and Won't Restart
+### L'app crasha continuamente
 
 ```bash
-# Controlla i restart di PM2
-pm2 describe neondugout | grep restart
-
-# Se troppi restart, PM2 potrebbe averlo fermato
-pm2 restart neondugout
-
-# Controlla la memoria
-pm2 monit
-free -h
+pm2 describe neondugout | grep restart   # Quanti restart?
+pm2 logs neondugout --lines 200          # Cerca l'errore
+free -h                                   # Memoria sufficiente?
 ```
 
 ---
 
-## Struttura sul server / Server Structure
+## Struttura sul Server / Server Structure
 
 ```
-/opt/neondugout/           # Codice dell'app
-├── dist/                  # Build di produzione
-│   ├── index.cjs          # Server compilato
-│   └── public/            # Frontend compilato
-├── .env.production        # Variabili d'ambiente (SECRET)
-├── ecosystem.config.cjs   # Config PM2
-└── deploy/                # Script di deploy
+/opt/neondugout/               # Codice dell'app
+├── dist/                      # Build di produzione
+│   ├── index.cjs              # Server compilato
+│   └── public/                # Frontend compilato
+├── .env.production            # Variabili d'ambiente (NON su GitHub)
+├── ecosystem.config.cjs       # Config PM2
+├── deploy/                    # Script di deploy
+│   ├── setup-vps.sh           # Setup iniziale VPS
+│   ├── deploy.sh              # Deploy completo
+│   ├── update.sh              # Aggiornamento codice
+│   ├── setup-ssl.sh           # Setup SSL manuale
+│   ├── ecosystem.config.cjs   # Config PM2
+│   ├── nginx/                 # Config Nginx
+│   └── logrotate/             # Rotazione log
+└── node_modules/              # Dipendenze
 
-/var/log/neondugout/       # Log dell'app
-├── app-out.log            # Output standard
-└── app-error.log          # Errori
+/var/log/neondugout/           # Log dell'app
+├── app-out.log                # Output standard
+└── app-error.log              # Errori
 
 /etc/nginx/sites-available/neondugout  # Config Nginx
 /etc/logrotate.d/neondugout            # Rotazione log
-/root/.neondugout-db-credentials       # Credenziali DB
+/root/.neondugout-db-credentials       # Credenziali DB (solo root)
 ```

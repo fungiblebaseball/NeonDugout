@@ -42,8 +42,10 @@ if [ -n "$REPO_URL" ]; then
     sudo -u neondugout git -C "$APP_DIR" pull
   else
     echo "  Cloning ${REPO_URL}..."
+    rm -rf "${APP_DIR:?}/"*  "${APP_DIR}"/.[!.]* 2>/dev/null || true
     sudo -u neondugout git clone "$REPO_URL" "$APP_DIR"
   fi
+  chown -R neondugout:neondugout "$APP_DIR"
 elif [ ! -f "${APP_DIR}/package.json" ]; then
   echo "ERROR: No git repo URL provided and no code found in ${APP_DIR}"
   echo "Either provide a git URL or copy the project files to ${APP_DIR} first"

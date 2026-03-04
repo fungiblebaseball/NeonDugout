@@ -1186,6 +1186,13 @@ export async function registerRoutes(
     res.json({ success: true });
   }));
 
+  app.get("/api/admin/token-economy-stats", asyncHandler(async (req, res) => {
+    const adminData = await requireAdmin(req, res);
+    if (!adminData) return;
+    const stats = await storage.getTokenEconomyStats();
+    res.json(stats);
+  }));
+
   app.get("/api/admin/purchase-history/market", asyncHandler(async (req, res) => {
     const adminData = await requireAdmin(req, res);
     if (!adminData) return;

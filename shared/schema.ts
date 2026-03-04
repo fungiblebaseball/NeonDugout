@@ -374,3 +374,15 @@ export type TokenPackage = typeof tokenPackages.$inferSelect;
 export const insertTokenPurchaseSchema = createInsertSchema(tokenPurchases).omit({ id: true, createdAt: true, confirmedAt: true });
 export type InsertTokenPurchase = z.infer<typeof insertTokenPurchaseSchema>;
 export type TokenPurchase = typeof tokenPurchases.$inferSelect;
+
+export const tokenSupplyEvents = pgTable("token_supply_events", {
+  id: serial("id").primaryKey(),
+  eventType: text("event_type").notNull(),
+  tokens: integer("tokens").notNull(),
+  userId: integer("user_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertTokenSupplyEventSchema = createInsertSchema(tokenSupplyEvents).omit({ id: true, createdAt: true });
+export type InsertTokenSupplyEvent = z.infer<typeof insertTokenSupplyEventSchema>;
+export type TokenSupplyEvent = typeof tokenSupplyEvents.$inferSelect;

@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useGameStore } from "@/lib/store";
 import { useLocation } from "wouter";
-import { ArrowLeft, Save, Coins, Trash2, Play, Trophy, RotateCcw, AlertTriangle, ChevronDown, ChevronUp, MessageSquare, Send, ExternalLink } from "lucide-react";
+import { ArrowLeft, Save, Coins, Trash2, Play, Trophy, RotateCcw, AlertTriangle, ChevronDown, ChevronUp, MessageSquare, Send, ExternalLink, TrendingUp, Lock, Wallet } from "lucide-react";
 import { useState, useEffect } from "react";
 
 interface TrainingConfig {
@@ -13,6 +13,16 @@ interface TrainingConfig {
   maxBoostPerSeason: number;
   rewardTarget: string;
   rewardTargetRole: string | null;
+}
+
+interface TokenEconomyStats {
+  totalSupply: number;
+  lockedInMarket: number;
+  circulatingSupply: number;
+  totalPurchasedTokens: number;
+  totalClaimedTokens: number;
+  treasuryLamports: string;
+  chartData: { date: string; claimed: number; purchased: number }[];
 }
 
 interface TokenConfigData {
@@ -137,6 +147,19 @@ export default function AdminPage() {
     enabled: !!token && !!user?.isAdmin,
   });
 
+  const { data: economyStats } = useQuery<TokenEconomyStats>({
+    queryKey: ["admin-token-economy-stats"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/token-economy-stats", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to load economy stats");
+      return res.json();
+    },
+    enabled: !!token && !!user?.isAdmin,
+    refetchInterval: 30000,
+  });
+
   const { data: allMatches } = useQuery<MatchData[]>({
     queryKey: ["matches-all"],
     queryFn: async () => {
@@ -165,6 +188,7 @@ export default function AdminPage() {
       </CollapsibleSection>
 
       <CollapsibleSection title="Token Economy Config" defaultOpen={true} testId="section-token-economy">
+        {economyStats && <TokenEconomyDashboard stats={economyStats} />}
         {tokenConfig && (
           <TokenConfigCard config={tokenConfig} token={token!} queryClient={queryClient} />
         )}
@@ -413,6 +437,94 @@ function GameDayCard({
           </div>
         </button>
       </div>
+    </div>
+  );
+}
+
+function TokenEconomyDashboard({ stats }: { stats: TokenEconomyStats }) {
+  const treasurySol = (Number(stats.treasuryLamports) / 1_000_000_000).toFixed(4);
+  const chartData = stats.chartData;
+  const maxDayTotal = Math.max(1, ...chartData.map(d => d.claimed + d.purchased));
+
+  return (
+    <div className="space-y-4 mb-4" data-testid="token-economy-dashboard">
+      <div className="grid grid-cols-3 gap-2">
+        <div className="bg-gray-900 border border-cyan-500/30 rounded-xl p-3 text-center" data-testid="stat-circulating">
+          <TrendingUp className="w-4 h-4 text-cyan-400 mx-auto mb-1" />
+          <p className="text-[9px] text-gray-500 uppercase tracking-wider mb-1">Circulating</p>
+          <p className="text-lg font-black text-cyan-400" style={{ fontFamily: "Orbitron, sans-serif" }} data-testid="text-circulating-supply">
+            {stats.circulatingSupply.toLocaleString()}
+          </p>
+          <p className="text-[8px] text-gray-600 mt-0.5">of {stats.totalSupply.toLocaleString()} total</p>
+        </div>
+        <div className="bg-gray-900 border border-amber-500/30 rounded-xl p-3 text-center" data-testid="stat-locked">
+          <Lock className="w-4 h-4 text-amber-400 mx-auto mb-1" />
+          <p className="text-[9px] text-gray-500 uppercase tracking-wider mb-1">Locked (Market)</p>
+          <p className="text-lg font-black text-amber-400" style={{ fontFamily: "Orbitron, sans-serif" }} data-testid="text-locked-market">
+            {stats.lockedInMarket.toLocaleString()}
+          </p>
+          <p className="text-[8px] text-gray-600 mt-0.5">in active listings</p>
+        </div>
+        <div className="bg-gray-900 border border-emerald-500/30 rounded-xl p-3 text-center" data-testid="stat-treasury">
+          <Wallet className="w-4 h-4 text-emerald-400 mx-auto mb-1" />
+          <p className="text-[9px] text-gray-500 uppercase tracking-wider mb-1">Treasury</p>
+          <p className="text-lg font-black text-emerald-400" style={{ fontFamily: "Orbitron, sans-serif" }} data-testid="text-treasury">
+            {treasurySol}
+          </p>
+          <p className="text-[8px] text-gray-600 mt-0.5">SOL received</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div className="bg-gray-900/60 border border-cyan-500/20 rounded-lg p-2 text-center">
+          <p className="text-[9px] text-gray-500 uppercase tracking-wider">Claimed</p>
+          <p className="text-sm font-bold text-cyan-300" data-testid="text-total-claimed">{stats.totalClaimedTokens.toLocaleString()}</p>
+        </div>
+        <div className="bg-gray-900/60 border border-pink-500/20 rounded-lg p-2 text-center">
+          <p className="text-[9px] text-gray-500 uppercase tracking-wider">Purchased (SOL)</p>
+          <p className="text-sm font-bold text-pink-300" data-testid="text-total-purchased">{stats.totalPurchasedTokens.toLocaleString()}</p>
+        </div>
+      </div>
+
+      {chartData.length > 0 && (
+        <div className="bg-gray-900 border border-gray-700/50 rounded-xl p-3">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[10px] text-gray-400 uppercase tracking-wider font-mono">Supply Growth (Last 30 Days)</p>
+            <div className="flex items-center gap-3">
+              <span className="flex items-center gap-1 text-[9px] text-cyan-400"><span className="w-2 h-2 rounded-sm bg-cyan-500 inline-block" /> Claimed</span>
+              <span className="flex items-center gap-1 text-[9px] text-pink-400"><span className="w-2 h-2 rounded-sm bg-pink-500 inline-block" /> SOL</span>
+            </div>
+          </div>
+          <div className="flex items-end gap-[2px] h-28" data-testid="chart-supply-growth">
+            {chartData.map((d, i) => {
+              const claimedH = (d.claimed / maxDayTotal) * 100;
+              const purchasedH = (d.purchased / maxDayTotal) * 100;
+              const dateLabel = d.date.slice(5);
+              return (
+                <div key={i} className="flex-1 flex flex-col items-center justify-end h-full group relative">
+                  <div className="absolute -top-1 left-1/2 -translate-x-1/2 bg-gray-800 border border-gray-600 rounded px-1.5 py-0.5 text-[8px] text-gray-300 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none">
+                    {dateLabel}: {d.claimed}c + {d.purchased}p
+                  </div>
+                  <div className="w-full flex flex-col justify-end" style={{ height: '100%' }}>
+                    <div className="w-full bg-pink-500/80 rounded-t-sm transition-all" style={{ height: `${purchasedH}%`, minHeight: d.purchased > 0 ? '2px' : '0' }} />
+                    <div className="w-full bg-cyan-500/80 rounded-b-sm transition-all" style={{ height: `${claimedH}%`, minHeight: d.claimed > 0 ? '2px' : '0' }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex justify-between mt-1">
+            <span className="text-[7px] text-gray-600">{chartData[0]?.date.slice(5)}</span>
+            <span className="text-[7px] text-gray-600">{chartData[chartData.length - 1]?.date.slice(5)}</span>
+          </div>
+        </div>
+      )}
+
+      {chartData.length === 0 && (
+        <div className="bg-gray-900 border border-gray-700/30 rounded-xl p-4 text-center">
+          <p className="text-[10px] text-gray-500 font-mono">No supply events recorded yet. Chart will appear after first claim or purchase.</p>
+        </div>
+      )}
     </div>
   );
 }

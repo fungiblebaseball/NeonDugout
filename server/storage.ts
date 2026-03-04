@@ -3,7 +3,7 @@ import { eq, and, sql, desc } from "drizzle-orm";
 import {
   users, teams, players, matches, lineups, pitcherRotations, tactics, matchDetails, playerSeasonStats, teamSnapshots,
   trainingResults, trainingConfig, userTokens, tokenConfig, tacticCoefficients, adminMessages, dismissedMessages,
-  marketListings, tokenPackages, tokenPurchases,
+  marketListings, tokenPackages, tokenPurchases, tokenSupplyEvents,
   type User, type InsertUser, type Team, type InsertTeam,
   type Player, type Match, type Lineup, type InsertLineup,
   type PitcherRotation, type InsertPitcherRotation,
@@ -92,6 +92,7 @@ export interface IStorage {
   resetAllTokens(): Promise<void>;
   getTokenConfig(): Promise<TokenConfig | undefined>;
   updateTokenConfig(claimAmount: number, claimIntervalHours: number): Promise<TokenConfig>;
+  getTokenEconomyStats(): Promise<any>;
   updateTeamColor(teamId: number, color: string): Promise<Team>;
   consolidatePlayerBonuses(): Promise<void>;
 
@@ -656,11 +657,17 @@ export class DatabaseStorage implements IStorage {
           sql`(${userTokens.lastClaimAt} IS NULL OR ${userTokens.lastClaimAt} <= ${cutoff})`
         ))
         .returning();
+      if (updated) {
+        await db.insert(tokenSupplyEvents).values({ eventType: 'claim', tokens: claimAmount, userId });
+      }
       return updated || null;
     }
     const [created] = await db.insert(userTokens)
       .values({ userId, balance: claimAmount, lastClaimAt: now })
       .returning();
+    if (created) {
+      await db.insert(tokenSupplyEvents).values({ eventType: 'claim', tokens: claimAmount, userId });
+    }
     return created;
   }
 
@@ -1032,6 +1039,8 @@ export class DatabaseStorage implements IStorage {
         await client.query('INSERT INTO user_tokens (user_id, balance) VALUES ($1, $2)', [userId, tokens]);
       }
 
+      await client.query('INSERT INTO token_supply_events (event_type, tokens, user_id) VALUES ($1, $2, $3)', ['purchase', tokens, userId]);
+
       await client.query('COMMIT');
       return {
         id: updated.id, orderId: updated.order_id, userId: updated.user_id, walletAddress: updated.wallet_address,
@@ -1079,6 +1088,45 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(tokenPurchases.confirmedAt))
       .limit(100);
     return results;
+  }
+  async getTokenEconomyStats(): Promise<any> {
+    const { rows: [supplyRow] } = await pool.query('SELECT COALESCE(SUM(balance), 0)::int AS total_supply FROM user_tokens');
+    const totalSupply = supplyRow.total_supply;
+
+    const { rows: [lockedRow] } = await pool.query("SELECT COALESCE(SUM(price), 0)::int AS locked FROM market_listings WHERE status = 'active'");
+    const lockedInMarket = lockedRow.locked;
+
+    const { rows: [purchasedRow] } = await pool.query("SELECT COALESCE(SUM(tokens), 0)::int AS total_tokens, COALESCE(SUM(price_lamports::bigint), 0)::text AS total_lamports FROM token_purchases WHERE status = 'confirmed'");
+    const totalPurchasedTokens = purchasedRow.total_tokens;
+    const totalPurchasedLamports = purchasedRow.total_lamports;
+
+    const { rows: [claimedRow] } = await pool.query("SELECT COALESCE(SUM(tokens), 0)::int AS total FROM token_supply_events WHERE event_type = 'claim'");
+    const totalClaimedTokens = claimedRow.total;
+
+    const { rows: chartData } = await pool.query(`
+      SELECT
+        DATE(created_at) AS date,
+        SUM(CASE WHEN event_type = 'claim' THEN tokens ELSE 0 END)::int AS claimed,
+        SUM(CASE WHEN event_type = 'purchase' THEN tokens ELSE 0 END)::int AS purchased
+      FROM token_supply_events
+      WHERE created_at >= NOW() - INTERVAL '30 days'
+      GROUP BY DATE(created_at)
+      ORDER BY DATE(created_at) ASC
+    `);
+
+    return {
+      totalSupply,
+      lockedInMarket,
+      circulatingSupply: totalSupply - lockedInMarket,
+      totalPurchasedTokens,
+      totalClaimedTokens,
+      treasuryLamports: totalPurchasedLamports,
+      chartData: chartData.map((r: any) => ({
+        date: r.date.toISOString().split('T')[0],
+        claimed: r.claimed,
+        purchased: r.purchased,
+      })),
+    };
   }
 }
 

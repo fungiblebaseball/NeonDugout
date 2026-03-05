@@ -2,6 +2,8 @@ import { db } from "./db";
 import { teams, players, matches, marketListings, tokenPackages } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { generateUniqueName, generateUniqueTeamName } from "./names";
+import { generateBotSetup } from "./season";
+import { storage } from "./storage";
 
 const rand = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
 
@@ -232,6 +234,19 @@ export async function seedDatabase() {
       }
     }
   }
+
+  const allTeamsList = Object.values(createdTeams).flatMap(l => Object.values(l).flat());
+  let botSetupCount = 0;
+  for (const team of allTeamsList) {
+    try {
+      const teamPlayers = await storage.getPlayersByTeam(team.id);
+      await generateBotSetup(team.id, teamPlayers);
+      botSetupCount++;
+    } catch (err) {
+      console.error(`Failed to setup bot team ${team.id} (${team.name}):`, err);
+    }
+  }
+  console.log(`Generated lineups, rotations, and tactics for ${botSetupCount}/${allTeamsList.length} bot teams`);
 
   const allScheduleMatches: any[] = [];
   const startDate = new Date("2026-03-01");

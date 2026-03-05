@@ -30,7 +30,7 @@ function getPitchScore(p: Player): number {
   return (p.vel + (p.velAdd ?? 0)) + (p.ctl + (p.ctlAdd ?? 0)) + (p.mov + (p.movAdd ?? 0)) + (p.sta + (p.staAdd ?? 0));
 }
 
-async function generateBotSetup(teamId: number, playerList: Player[]): Promise<void> {
+export async function generateBotSetup(teamId: number, playerList: Player[]): Promise<void> {
   const pitchers = playerList.filter(p => p.positions.includes('P'));
   const nonPitchers = playerList.filter(p => !p.positions.includes('P'));
 

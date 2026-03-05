@@ -78,7 +78,7 @@ export default function TeamPage() {
   const [buyTokensOpen, setBuyTokensOpen] = useState(false);
   const [purchaseStatus, setPurchaseStatus] = useState<'idle' | 'preparing' | 'signing' | 'verifying' | 'done' | 'error'>('idle');
   const [purchaseMessage, setPurchaseMessage] = useState('');
-  const { signMessage, sendTransaction, publicKey } = useWallet();
+  const { signMessage, sendTransaction, signTransaction, publicKey, wallet } = useWallet();
   const { connection } = useConnection();
   const { toast } = useToast();
 
@@ -164,7 +164,14 @@ export default function TeamPage() {
         data: new TextEncoder().encode(memo),
       }));
 
-      const signature = await sendTransaction(tx, connection, { skipPreflight: true, maxRetries: 3 });
+      let signature: string;
+      const isMobileAdapter = wallet?.adapter?.name === 'Mobile Wallet Adapter';
+      if (isMobileAdapter && signTransaction) {
+        const signed = await signTransaction(tx);
+        signature = await connection.sendRawTransaction(signed.serialize(), { skipPreflight: true, maxRetries: 3 });
+      } else {
+        signature = await sendTransaction(tx, connection, { skipPreflight: true, maxRetries: 3 });
+      }
 
       setPurchaseStatus('verifying');
       setPurchaseMessage('Payment sent, verifying on-chain...');

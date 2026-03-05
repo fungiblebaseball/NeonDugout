@@ -91,7 +91,7 @@ export interface IStorage {
   claimTokens(userId: number, claimAmount: number, intervalHours: number): Promise<UserTokens | null>;
   resetAllTokens(): Promise<void>;
   getTokenConfig(): Promise<TokenConfig | undefined>;
-  updateTokenConfig(claimAmount: number, claimIntervalHours: number): Promise<TokenConfig>;
+  updateTokenConfig(claimAmount: number, claimIntervalHours: number, merchantWallet?: string | null): Promise<TokenConfig>;
   getTokenEconomyStats(): Promise<any>;
   updateTeamColor(teamId: number, color: string): Promise<Team>;
   consolidatePlayerBonuses(): Promise<void>;
@@ -680,17 +680,21 @@ export class DatabaseStorage implements IStorage {
     return config;
   }
 
-  async updateTokenConfig(claimAmount: number, claimIntervalHours: number): Promise<TokenConfig> {
+  async updateTokenConfig(claimAmount: number, claimIntervalHours: number, merchantWallet?: string | null): Promise<TokenConfig> {
     const existing = await this.getTokenConfig();
+    const setData: any = { claimAmount, claimIntervalHours };
+    if (merchantWallet !== undefined) {
+      setData.merchantWallet = merchantWallet || null;
+    }
     if (existing) {
       const [updated] = await db.update(tokenConfig)
-        .set({ claimAmount, claimIntervalHours })
+        .set(setData)
         .where(eq(tokenConfig.id, existing.id))
         .returning();
       return updated;
     }
     const [created] = await db.insert(tokenConfig)
-      .values({ claimAmount, claimIntervalHours })
+      .values(setData)
       .returning();
     return created;
   }

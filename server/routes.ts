@@ -7,6 +7,7 @@ import { generateChallenge, verifySignature, createToken, verifyToken, generateC
 import { expandLeague, ensureExtraLeague } from "./expansion";
 import { verifySolanaPayment } from "./solana";
 import { v4 as uuidv4 } from "uuid";
+import bs58 from "bs58";
 
 type AsyncHandler = (req: Request, res: Response, next: NextFunction) => Promise<any>;
 
@@ -712,13 +713,13 @@ export async function registerRoutes(
     const tokenData = await requireAdmin(req, res);
     if (!tokenData) return;
     const config = await storage.getTokenConfig();
-    res.json(config || { claimAmount: 10, claimIntervalHours: 24 });
+    res.json(config || { claimAmount: 10, claimIntervalHours: 24, merchantWallet: null });
   }));
 
   app.put("/api/admin/token-config", asyncHandler(async (req, res) => {
     const tokenData = await requireAdmin(req, res);
     if (!tokenData) return;
-    const { claimAmount, claimIntervalHours } = req.body;
+    const { claimAmount, claimIntervalHours, merchantWallet } = req.body;
     if (typeof claimAmount !== 'number' || typeof claimIntervalHours !== 'number') {
       return res.status(400).json({ message: "claimAmount and claimIntervalHours must be numbers" });
     }
@@ -728,7 +729,21 @@ export async function registerRoutes(
     if (claimIntervalHours < 1 || claimIntervalHours > 168 || !Number.isInteger(claimIntervalHours)) {
       return res.status(400).json({ message: "claimIntervalHours must be an integer between 1 and 168" });
     }
-    const config = await storage.updateTokenConfig(claimAmount, claimIntervalHours);
+    if (merchantWallet !== undefined && merchantWallet !== null && merchantWallet !== '') {
+      if (typeof merchantWallet !== 'string' || merchantWallet.length < 32 || merchantWallet.length > 44) {
+        return res.status(400).json({ message: "merchantWallet must be a valid Solana address (32-44 characters)" });
+      }
+      try {
+        const decoded = bs58.decode(merchantWallet.trim());
+        if (decoded.length !== 32) {
+          return res.status(400).json({ message: "merchantWallet is not a valid Solana public key" });
+        }
+      } catch {
+        return res.status(400).json({ message: "merchantWallet contains invalid base58 characters" });
+      }
+    }
+    const trimmedWallet = (merchantWallet && typeof merchantWallet === 'string') ? merchantWallet.trim() : merchantWallet;
+    const config = await storage.updateTokenConfig(claimAmount, claimIntervalHours, trimmedWallet);
     res.json(config);
   }));
 
@@ -1063,13 +1078,18 @@ export async function registerRoutes(
     res.json(packages);
   }));
 
+  async function getMerchantWallet(): Promise<string | null> {
+    const config = await storage.getTokenConfig();
+    return config?.merchantWallet || process.env.MERCHANT_WALLET || null;
+  }
+
   app.get("/api/tokens/merchant-info", asyncHandler(async (req, res) => {
     const auth = req.headers.authorization?.split(" ")[1];
     if (!auth) return res.status(401).json({ message: "Unauthorized" });
     const decoded = verifyToken(auth);
     if (!decoded) return res.status(401).json({ message: "Invalid token" });
 
-    const merchantAddress = process.env.MERCHANT_WALLET;
+    const merchantAddress = await getMerchantWallet();
     if (!merchantAddress) return res.status(500).json({ message: "Merchant wallet not configured" });
     res.json({ merchantAddress });
   }));
@@ -1090,7 +1110,7 @@ export async function registerRoutes(
     const pkg = packages.find(p => p.id === packageId);
     if (!pkg) return res.status(404).json({ message: "Package not found" });
 
-    const merchantAddress = process.env.MERCHANT_WALLET;
+    const merchantAddress = await getMerchantWallet();
     if (!merchantAddress) return res.status(500).json({ message: "Merchant wallet not configured" });
 
     const orderId = uuidv4().slice(0, 12);
@@ -1132,7 +1152,7 @@ export async function registerRoutes(
     const existingPurchase = await storage.getPurchaseBySignature(txSignature);
     if (existingPurchase) return res.status(409).json({ message: "Transaction already processed" });
 
-    const merchantAddress = process.env.MERCHANT_WALLET;
+    const merchantAddress = await getMerchantWallet();
     if (!merchantAddress) return res.status(500).json({ message: "Merchant wallet not configured" });
 
     const verification = await verifySolanaPayment(

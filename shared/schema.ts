@@ -265,6 +265,7 @@ export const tokenConfig = pgTable("token_config", {
   id: serial("id").primaryKey(),
   claimAmount: integer("claim_amount").notNull().default(10),
   claimIntervalHours: integer("claim_interval_hours").notNull().default(24),
+  merchantWallet: text("merchant_wallet"),
 });
 
 export const insertTacticCoefficientsSchema = createInsertSchema(tacticCoefficients).omit({ id: true });

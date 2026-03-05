@@ -28,6 +28,7 @@ interface TokenEconomyStats {
 interface TokenConfigData {
   claimAmount: number;
   claimIntervalHours: number;
+  merchantWallet: string | null;
 }
 
 interface MatchData {
@@ -540,24 +541,32 @@ function TokenConfigCard({
 }) {
   const [claimAmount, setClaimAmount] = useState(config.claimAmount);
   const [intervalHours, setIntervalHours] = useState(config.claimIntervalHours);
+  const [merchantWallet, setMerchantWallet] = useState(config.merchantWallet || "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [walletError, setWalletError] = useState("");
   const [resetting, setResetting] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
 
   useEffect(() => {
     setClaimAmount(config.claimAmount);
     setIntervalHours(config.claimIntervalHours);
+    setMerchantWallet(config.merchantWallet || "");
   }, [config]);
 
   const handleSave = async () => {
+    if (merchantWallet && (merchantWallet.length < 32 || merchantWallet.length > 44)) {
+      setWalletError("Invalid Solana address (32-44 chars)");
+      return;
+    }
+    setWalletError("");
     setSaving(true);
     setSaved(false);
     try {
       await fetch("/api/admin/token-config", {
         method: "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ claimAmount, claimIntervalHours: intervalHours }),
+        body: JSON.stringify({ claimAmount, claimIntervalHours: intervalHours, merchantWallet: merchantWallet || null }),
       });
       queryClient.invalidateQueries({ queryKey: ["admin-token-config"] });
       setSaved(true);
@@ -618,6 +627,25 @@ function TokenConfigCard({
             className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-sm text-white"
           />
         </div>
+      </div>
+
+      <div>
+        <div className="flex items-center gap-2 mb-1">
+          <Wallet className="w-3 h-3 text-emerald-400" />
+          <label className="text-[10px] text-gray-500 uppercase tracking-wider">Merchant Wallet (SOL receiver)</label>
+        </div>
+        <input
+          type="text"
+          value={merchantWallet}
+          onChange={(e) => { setMerchantWallet(e.target.value.trim()); setWalletError(""); }}
+          placeholder="Solana address (falls back to env if empty)"
+          data-testid="input-merchant-wallet"
+          className={`w-full bg-gray-800 border rounded px-2 py-1.5 text-xs text-white font-mono ${
+            walletError ? "border-red-500" : "border-gray-700"
+          }`}
+        />
+        {walletError && <p className="text-[9px] text-red-400 mt-0.5">{walletError}</p>}
+        {!merchantWallet && <p className="text-[8px] text-gray-600 mt-0.5">Using environment variable fallback</p>}
       </div>
 
       <div className="flex items-center gap-3">
